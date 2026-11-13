@@ -3,8 +3,11 @@ package normalize
 import (
 	"encoding/base64"
 	"regexp"
+	"unicode/utf8"
 )
 
+// convertSecretDataToStringData moves values of data that decode to valid
+// UTF-8 text into stringData. Binary values stay in data.
 func convertSecretDataToStringData(obj map[string]any) {
 	if !isCoreV1Secret(obj) {
 		return
@@ -15,27 +18,29 @@ func convertSecretDataToStringData(obj map[string]any) {
 		return
 	}
 
-	stringData := make(map[string]any, len(data))
+	stringData, _ := obj["stringData"].(map[string]any)
+	if stringData == nil {
+		stringData = map[string]any{}
+	}
 
 	for key, val := range data {
 		encoded, ok := val.(string)
 		if !ok {
-			stringData[key] = val
-
 			continue
 		}
 
 		decoded, err := base64.StdEncoding.DecodeString(encoded)
-		if err != nil {
-			stringData[key] = val
-
+		if err != nil || !utf8.Valid(decoded) {
 			continue
 		}
 
 		stringData[key] = string(decoded)
+		delete(data, key)
 	}
 
-	delete(obj, "data")
+	if len(data) == 0 {
+		delete(obj, "data")
+	}
 
 	if len(stringData) > 0 {
 		obj["stringData"] = stringData

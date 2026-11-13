@@ -148,3 +148,33 @@ func TestParseYAML_SOPSKeyWithoutMACIsNotEncrypted(t *testing.T) {
 		t.Fatal("a sops key without mac must not count as encrypted")
 	}
 }
+
+func TestSecretsAsStringData_KeepsBinaryInData(t *testing.T) {
+	t.Parallel()
+
+	obj := map[string]any{
+		"apiVersion": "v1",
+		"kind":       "Secret",
+		"metadata":   map[string]any{"name": "s"},
+		"data": map[string]any{
+			"text":   "aGVsbG8=", // hello
+			"binary": "/+4AAWJpbg==",
+			"broken": "not base64!",
+		},
+	}
+
+	err := (&Options{SecretsAsStringData: true}).Normalize(obj)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stringData, _ := obj["stringData"].(map[string]any)
+	if stringData["text"] != "hello" {
+		t.Errorf("text not converted: %v", obj)
+	}
+
+	data, _ := obj["data"].(map[string]any)
+	if data["binary"] != "/+4AAWJpbg==" || data["broken"] != "not base64!" || len(data) != 2 {
+		t.Errorf("binary and broken values must stay in data: %v", data)
+	}
+}
