@@ -17,7 +17,6 @@ import (
 	"regexp"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"sigs.k8s.io/yaml"
 )
 
 const (
@@ -204,7 +203,8 @@ func sanitizePath(path string) string {
 }
 
 // Encode writes obj as YAML exactly like `kubectl get -o yaml`
-// (sigs.k8s.io/yaml: keys sorted, 2-space indent, list items not indented).
+// (sigs.k8s.io/yaml: keys sorted, 2-space indent, list items not indented),
+// but with a deterministic key order, see marshalYAML.
 // Each header line is written first as a "# " comment.
 func Encode(w io.Writer, obj map[string]any, headerLines ...string) error {
 	for _, line := range headerLines {
@@ -214,7 +214,7 @@ func Encode(w io.Writer, obj map[string]any, headerLines ...string) error {
 		}
 	}
 
-	data, err := yaml.Marshal(obj)
+	data, err := marshalYAML(obj)
 	if err != nil {
 		return fmt.Errorf("encoding YAML: %w", err)
 	}
