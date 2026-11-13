@@ -226,7 +226,6 @@ func buildNormCmd() *cobra.Command {
 		outDir       string
 		removeOutDir bool
 		check        bool
-		write        bool
 		comment      string
 		verbose      bool
 	)
@@ -244,24 +243,14 @@ With --check nothing is written: kubenorm shows what normalization would
 change and exits 1 if anything would change. Comments, key order and the file
 layout are ignored by --check.
 
-With --write (like gofmt -w) the input files are fixed in place: exactly the
-files --check complains about are rewritten. The comment block at the top of
-a rewritten file is kept, other comments in it are lost. A file whose
-resources are all dropped (skipResources) is removed.
-
 Examples:
   helm template my-chart | kubenorm norm - -o rendered/
   kubenorm norm ./k8s/plain --check
-  kubenorm norm ./k8s/plain --write
   kubenorm norm liqo.yaml --add-namespace-if-missing liqo -o out/`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if btoi(check)+btoi(write)+btoi(outDir != "") > 1 {
-				return errors.New("--check, --write and --out-dir are mutually exclusive")
-			}
-
-			if write {
-				return runWrite(cmd, &flags, args)
+			if check && outDir != "" {
+				return errors.New("--check and --out-dir are mutually exclusive")
 			}
 
 			if check {
@@ -276,19 +265,10 @@ Examples:
 	cmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Write one file per resource into this directory (must not exist, see --remove-out-dir)")
 	cmd.Flags().BoolVarP(&removeOutDir, "remove-out-dir", "r", false, "Remove --out-dir before writing")
 	cmd.Flags().BoolVar(&check, "check", false, "Do not write; exit 1 and show a diff if the input is not normalized")
-	cmd.Flags().BoolVarP(&write, "write", "w", false, "Rewrite the input files in place if normalization changes them (like gofmt -w)")
 	cmd.Flags().StringVar(&comment, "comment", "", "Additional comment line at the top of each output file")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Print every written file to stderr")
 
 	return cmd
-}
-
-func btoi(b bool) int {
-	if b {
-		return 1
-	}
-
-	return 0
 }
 
 func header(comment string) []string {
@@ -492,7 +472,7 @@ func runCheck(cmd *cobra.Command, flags *normFlags, inputs []string) error {
 		return nil
 	}
 
-	fmt.Fprintf(cmd.ErrOrStderr(), "not normalized (fix with kubenorm norm --write): %s\n", strings.Join(notNormalized, " "))
+	fmt.Fprintf(cmd.ErrOrStderr(), "not normalized: %s\n", strings.Join(notNormalized, " "))
 
 	return errDifferences
 }

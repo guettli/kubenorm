@@ -56,15 +56,6 @@ kubenorm norm ./k8s/plain --check
 `--check` ignores comments, key order and file layout: it only fails if
 normalization would change the content.
 
-`--write` (`-w`) fixes the files in place, like `gofmt -w`: exactly the files
-`--check` complains about are rewritten. The comment block at the top of a
-file is kept, other comments in a rewritten file are lost. Files containing
-documents kubenorm does not normalize (no `metadata`, SOPS) are refused
-instead of being rewritten.
-
-```terminal
-kubenorm norm ./k8s/plain --write
-```
 
 ### Helm and kustomize
 
@@ -132,7 +123,7 @@ repos:
   - repo: https://github.com/guettli/kubenorm
     rev: v0.0.1 # use the latest release
     hooks:
-      - id: kubenorm-check   # or kubenorm-write to fix files automatically
+      - id: kubenorm-check
         files: ^k8s/plain/
 ```
 

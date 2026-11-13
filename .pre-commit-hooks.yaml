@@ -6,9 +6,3 @@
   entry: kubenorm norm --check
   language: golang
   types: [yaml]
-- id: kubenorm-write
-  name: kubenorm norm --write
-  description: Normalize Kubernetes manifests in place.
-  entry: kubenorm norm --write
-  language: golang
-  types: [yaml]

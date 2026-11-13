@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -283,91 +282,6 @@ func TestNorm_SeveralInputs(t *testing.T) {
 	code, _, _ = runCLI(t, "", "norm", "--check", a, b)
 	if code != 1 {
 		t.Fatalf("expected --check to fail for a.yaml, got %d", code)
-	}
-}
-
-func TestNorm_Write(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-	dirty := filepath.Join(dir, "dirty.yaml")
-	clean := filepath.Join(dir, "clean.yaml")
-	onlyPod := filepath.Join(dir, "pod.yaml")
-	kustomization := filepath.Join(dir, "kustomization.yaml")
-
-	cleanContent := "# keep me\n# also me\n" + strings.Replace(normalizedDeployment, "name: web", "name: api", 1)
-	podContent := "apiVersion: v1\nkind: Pod\nmetadata:\n  name: p\n  namespace: demo\n"
-
-	writeFile(t, dirty, "# License header\n\n# second comment\n"+deploymentYAML)
-	writeFile(t, clean, cleanContent)
-	writeFile(t, onlyPod, podContent)
-	writeFile(t, kustomization, "resources: [dirty.yaml]\n")
-
-	code, out, errOut := runCLI(t, "", "norm", "--write", dir)
-	if code != 0 {
-		t.Fatalf("exit %d: %s%s", code, out, errOut)
-	}
-
-	data, err := os.ReadFile(dirty)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if want := "# License header\n\n# second comment\n" + normalizedDeployment; string(data) != want {
-		t.Fatalf("dirty.yaml:\n%s\nwant:\n%s", data, want)
-	}
-
-	data, _ = os.ReadFile(clean)
-	if string(data) != cleanContent {
-		t.Fatalf("clean.yaml must stay untouched, got:\n%s", data)
-	}
-
-	_, err = os.Stat(onlyPod)
-	if !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("pod.yaml should be removed (Pods are skipped by the common config), stat: %v", err)
-	}
-
-	if !strings.Contains(errOut, "Rewrote: "+dirty) || !strings.Contains(errOut, "Removed: "+onlyPod) || strings.Contains(errOut, clean) {
-		t.Fatalf("unexpected report:\n%s", errOut)
-	}
-
-	// Now everything is normalized.
-	code, _, errOut = runCLI(t, "", "norm", "--check", dir)
-	if code != 0 {
-		t.Fatalf("expected clean check after --write, got %d: %s", code, errOut)
-	}
-}
-
-func TestNorm_WriteRefusesMixedFiles(t *testing.T) {
-	t.Parallel()
-
-	file := filepath.Join(t.TempDir(), "mixed.yaml")
-	content := deploymentYAML + "---\nresources: [x.yaml]\n"
-	writeFile(t, file, content)
-
-	code, _, errOut := runCLI(t, "", "norm", "--write", file)
-	if code != 2 || !strings.Contains(errOut, "does not normalize") {
-		t.Fatalf("expected refusal, got %d: %s", code, errOut)
-	}
-
-	data, _ := os.ReadFile(file)
-	if string(data) != content {
-		t.Fatal("file must not be changed")
-	}
-}
-
-func TestNorm_WriteRejects(t *testing.T) {
-	t.Parallel()
-
-	for _, args := range [][]string{
-		{"norm", "--write", "-"},
-		{"norm", "--write", "--namespaces", "x", "f.yaml"},
-		{"norm", "--write", "--check", "f.yaml"},
-	} {
-		code, _, errOut := runCLI(t, "", args...)
-		if code != 2 {
-			t.Errorf("%v: expected exit 2, got %d: %s", args, code, errOut)
-		}
 	}
 }
 
