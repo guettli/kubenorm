@@ -216,6 +216,7 @@ kubenorm diff <old> <new> [flags]
       --name-status                       Only list the resources with A (added), M (modified) or D (deleted)
   -n, --namespaces string                 Only keep resources in these namespaces (comma-separated)
       --no-common-config                  Do not apply the embedded common config (see show-common-config)
+      --no-config-discovery               Do not load .kubenorm.yaml from the current directory or its parents
       --overwrite-namespace string        Set metadata.namespace on all namespaced resources, replacing existing values
       --redact-secrets                    Replace values of Secrets with REDCATED-BY-DUMPALL
       --secrets-as-stringdata             Convert base64 Secret data to stringData
@@ -281,6 +282,7 @@ kubenorm norm <file|dir|->... [flags]
   -x, --name-regex string                 Only keep resources whose metadata.name matches this regex
   -n, --namespaces string                 Only keep resources in these namespaces (comma-separated)
       --no-common-config                  Do not apply the embedded common config (see show-common-config)
+      --no-config-discovery               Do not load .kubenorm.yaml from the current directory or its parents
   -o, --out-dir string                    Write one file per resource into this directory (must not exist, see --remove-out-dir)
       --overwrite-namespace string        Set metadata.namespace on all namespaced resources, replacing existing values
       --redact-secrets                    Replace values of Secrets with REDCATED-BY-DUMPALL

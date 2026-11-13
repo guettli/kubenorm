@@ -95,6 +95,7 @@ type normFlags struct {
 	addNamespaceIfMissing string
 	overwriteNamespace    string
 	skipSOPS              bool
+	noConfigDiscovery     bool
 }
 
 func (f *normFlags) register(cmd *cobra.Command) {
@@ -112,6 +113,7 @@ func (f *normFlags) register(cmd *cobra.Command) {
 	fl.BoolVar(&f.secretsAsStringData, "secrets-as-stringdata", false, "Convert base64 Secret data to stringData")
 	fl.StringVar(&f.addNamespaceIfMissing, "add-namespace-if-missing", "", "Set metadata.namespace on namespaced resources without namespace (cluster-scoped kinds are left alone)")
 	fl.StringVar(&f.overwriteNamespace, "overwrite-namespace", "", "Set metadata.namespace on all namespaced resources, replacing existing values")
+	fl.BoolVar(&f.noConfigDiscovery, "no-config-discovery", false, "Do not load "+discoveredConfigName+" from the current directory or its parents")
 	fl.BoolVar(&f.skipSOPS, "skip-sops", false, "Drop SOPS-encrypted documents instead of failing (normalizing them would break the SOPS MAC)")
 }
 
@@ -140,7 +142,20 @@ func (f *normFlags) options() (*normalize.Options, error) {
 		return nil, err
 	}
 
-	for _, file := range f.configFiles {
+	configFiles := f.configFiles
+
+	if !f.noConfigDiscovery {
+		discovered, err := discoverConfig()
+		if err != nil {
+			return nil, err
+		}
+
+		if discovered != "" {
+			configFiles = append([]string{discovered}, configFiles...)
+		}
+	}
+
+	for _, file := range configFiles {
 		user, err := normalize.LoadConfig(false, file)
 		if err != nil {
 			return nil, err
