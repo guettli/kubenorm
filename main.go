@@ -109,8 +109,8 @@ func (f *normFlags) register(cmd *cobra.Command) {
 	fl.BoolVar(&f.keepManagedFields, "keep-managed-fields", false, "Keep metadata.managedFields")
 	fl.BoolVar(&f.redactSecrets, "redact-secrets", false, "Replace values of Secrets with "+normalize.RedactionMarker)
 	fl.BoolVar(&f.secretsAsStringData, "secrets-as-stringdata", false, "Convert base64 Secret data to stringData")
-	fl.StringVar(&f.addNamespaceIfMissing, "add-namespace-if-missing", "", "Set metadata.namespace on namespaced resources without namespace (cluster-scoped kinds are left alone)")
-	fl.StringVar(&f.overwriteNamespace, "overwrite-namespace", "", "Set metadata.namespace on all namespaced resources, replacing existing values")
+	fl.StringVar(&f.addNamespaceIfMissing, "add-namespace-if-missing", "", "Set metadata.namespace on namespaced resources without namespace, and fill empty namespace references (cluster-scoped kinds are left alone)")
+	fl.StringVar(&f.overwriteNamespace, "overwrite-namespace", "", "Set metadata.namespace on all namespaced resources, replacing existing values, and move references to the replaced namespaces")
 	fl.BoolVar(&f.noConfigDiscovery, "no-config-discovery", false, "Do not load "+discoveredConfigName+" from the current directory or its parents")
 }
 

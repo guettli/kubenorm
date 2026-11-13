@@ -290,3 +290,159 @@ func TestExplain_MatchesProcess(t *testing.T) {
 		}
 	}
 }
+
+const nsRefsTestInput = `
+apiVersion: v1
+kind: Service
+metadata:
+  name: webhook
+  namespace: old
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: crb
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: r}
+subjects:
+- {kind: ServiceAccount, name: moved, namespace: old}
+- {kind: ServiceAccount, name: other, namespace: kube-system}
+- {kind: ServiceAccount, name: empty}
+- {kind: User, name: alice}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rb
+  namespace: old
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: r}
+subjects:
+- {kind: ServiceAccount, name: moved, namespace: old}
+- {kind: ServiceAccount, name: own}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: vwc
+webhooks:
+- name: a.example.com
+  clientConfig: {service: {name: webhook, namespace: old}}
+- name: b.example.com
+  clientConfig: {service: {name: other, namespace: kube-system}}
+- name: c.example.com
+  clientConfig: {url: "https://example.com"}
+---
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  name: v1.example.com
+spec:
+  service: {name: api}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: widgets.example.com
+spec:
+  group: example.com
+  scope: Namespaced
+  names: {kind: Widget}
+  conversion:
+    strategy: Webhook
+    webhook:
+      clientConfig: {service: {name: webhook, namespace: old}}
+`
+
+func TestNamespaceReferences(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		opts Options
+		want []string
+	}{
+		{
+			name: "overwrite",
+			opts: Options{OverwriteNamespace: "new"},
+			want: []string{
+				"crb subjects: moved=new other=kube-system empty=new alice=",
+				"rb subjects: moved=new own=",
+				"vwc services: webhook=new other=kube-system",
+				"v1.example.com service: api=new",
+				"widgets.example.com conversion: webhook=new",
+			},
+		},
+		{
+			name: "add if missing",
+			opts: Options{AddNamespaceIfMissing: "new"},
+			want: []string{
+				"crb subjects: moved=old other=kube-system empty=new alice=",
+				"rb subjects: moved=old own=",
+				"vwc services: webhook=old other=kube-system",
+				"v1.example.com service: api=new",
+				"widgets.example.com conversion: webhook=old",
+			},
+		},
+		{
+			name: "no option",
+			opts: Options{},
+			want: []string{
+				"crb subjects: moved=old other=kube-system empty= alice=",
+				"rb subjects: moved=old own=",
+				"vwc services: webhook=old other=kube-system",
+				"v1.example.com service: api=",
+				"widgets.example.com conversion: webhook=old",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			resources, err := ParseYAML([]byte(nsRefsTestInput), "test")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			resources, err = tc.opts.Process(resources)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			var got []string
+
+			refPaths := map[string]struct {
+				label string
+				path  []string
+			}{
+				"ClusterRoleBinding":             {"subjects", []string{"subjects", "name"}},
+				"RoleBinding":                    {"subjects", []string{"subjects", "name"}},
+				"ValidatingWebhookConfiguration": {"services", []string{"webhooks", "clientConfig", "service", "name"}},
+				"APIService":                     {"service", []string{"spec", "service", "name"}},
+				"CustomResourceDefinition":       {"conversion", []string{"spec", "conversion", "webhook", "clientConfig", "service", "name"}},
+			}
+
+			for _, r := range resources {
+				u := r.Unstructured()
+
+				ref, ok := refPaths[u.GetKind()]
+				if !ok {
+					continue
+				}
+
+				var refs []string
+
+				visitFieldPath(u.Object, ref.path, func(m map[string]any, _ string) {
+					name, _ := m["name"].(string)
+					ns, _ := m["namespace"].(string)
+					refs = append(refs, name+"="+ns)
+				})
+
+				label := ref.label
+				got = append(got, u.GetName()+" "+label+": "+strings.Join(refs, " "))
+			}
+
+			if strings.Join(got, "\n") != strings.Join(tc.want, "\n") {
+				t.Errorf("got:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(tc.want, "\n"))
+			}
+		})
+	}
+}

@@ -259,6 +259,7 @@ func (o *Options) Process(resources []Resource) ([]Resource, error) {
 // every resource.
 func (o *Options) process(resources []Resource, explain bool) ([]Resource, []Explanation, error) {
 	scope := o.scopeResolver(resources)
+	move := o.namespaceMover(resources, scope)
 
 	type candidate struct {
 		resource Resource
@@ -286,7 +287,7 @@ func (o *Options) process(resources []Resource, explain bool) ([]Resource, []Exp
 			explanations = append(explanations, Explanation{Source: r.Source})
 		}
 
-		o.applyNamespace(r.Unstructured(), scope, c.tracer)
+		o.applyNamespace(r.Unstructured(), scope, move, c.tracer)
 
 		candidates = append(candidates, c)
 	}

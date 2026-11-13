@@ -228,25 +228,95 @@ func (o *Options) Validate() error {
 	return nil
 }
 
-// applyNamespace sets metadata.namespace according to AddNamespaceIfMissing
-// or OverwriteNamespace. Cluster-scoped
-// resources are never modified; a cluster-scoped resource that carries a
-// namespace is left as is.
-func (o *Options) applyNamespace(u *unstructured.Unstructured, scope *scopeResolver, t *tracer) {
-	if o.AddNamespaceIfMissing == "" && o.OverwriteNamespace == "" {
-		return
-	}
+// namespaceMover returns the new namespace for something in namespace old,
+// or "" if it stays where it is.
+type namespaceMover func(old string) string
 
-	if scope.isClusterScoped(u.GroupVersionKind().GroupKind()) {
-		return
-	}
-
-	oldNamespace := u.GetNamespace()
+// namespaceMover decides which namespaces move: with OverwriteNamespace every
+// namespace of a namespaced resource in the input (and ""), with
+// AddNamespaceIfMissing only "". It returns nil if no namespace option is set.
+func (o *Options) namespaceMover(resources []Resource, scope *scopeResolver) namespaceMover {
+	target := o.OverwriteNamespace
+	moved := map[string]bool{"": true}
 
 	switch {
 	case o.OverwriteNamespace != "":
-		t.step(u.Object, "--overwrite-namespace", func() { u.SetNamespace(o.OverwriteNamespace) })
-	case oldNamespace == "":
-		t.step(u.Object, "--add-namespace-if-missing", func() { u.SetNamespace(o.AddNamespaceIfMissing) })
+		for _, r := range resources {
+			u := r.Unstructured()
+			if !r.SOPSEncrypted && !scope.isClusterScoped(u.GroupVersionKind().GroupKind()) {
+				moved[u.GetNamespace()] = true
+			}
+		}
+	case o.AddNamespaceIfMissing != "":
+		target = o.AddNamespaceIfMissing
+	default:
+		return nil
+	}
+
+	return func(old string) string {
+		if moved[old] {
+			return target
+		}
+
+		return ""
+	}
+}
+
+// namespaceRefs lists references to namespaces in other objects. path leads
+// to a required field of the map that holds the "namespace" field.
+var namespaceRefs = []struct {
+	gk   schema.GroupKind
+	path []string
+}{
+	{schema.GroupKind{Group: "rbac.authorization.k8s.io", Kind: "RoleBinding"}, []string{"subjects", "kind"}},
+	{schema.GroupKind{Group: "rbac.authorization.k8s.io", Kind: "ClusterRoleBinding"}, []string{"subjects", "kind"}},
+	{schema.GroupKind{Group: "admissionregistration.k8s.io", Kind: "MutatingWebhookConfiguration"}, []string{"webhooks", "clientConfig", "service", "name"}},
+	{schema.GroupKind{Group: "admissionregistration.k8s.io", Kind: "ValidatingWebhookConfiguration"}, []string{"webhooks", "clientConfig", "service", "name"}},
+	{schema.GroupKind{Group: "apiregistration.k8s.io", Kind: "APIService"}, []string{"spec", "service", "name"}},
+	{schema.GroupKind{Group: "apiextensions.k8s.io", Kind: "CustomResourceDefinition"}, []string{"spec", "conversion", "webhook", "clientConfig", "service", "name"}},
+}
+
+// applyNamespace sets metadata.namespace according to AddNamespaceIfMissing
+// or OverwriteNamespace and moves references to namespaces that move: RBAC
+// ServiceAccount subjects and service references of webhooks, APIServices and
+// CRD conversion webhooks. Cluster-scoped resources keep their namespace; a
+// cluster-scoped resource that carries a namespace is left as is.
+func (o *Options) applyNamespace(u *unstructured.Unstructured, scope *scopeResolver, move namespaceMover, t *tracer) {
+	if move == nil {
+		return
+	}
+
+	reason := "--add-namespace-if-missing"
+	if o.OverwriteNamespace != "" {
+		reason = "--overwrite-namespace"
+	}
+
+	gk := u.GroupVersionKind().GroupKind()
+
+	if !scope.isClusterScoped(gk) {
+		if ns := move(u.GetNamespace()); ns != "" && ns != u.GetNamespace() {
+			t.step(u.Object, reason, func() { u.SetNamespace(ns) })
+		}
+	}
+
+	for _, ref := range namespaceRefs {
+		if ref.gk != gk {
+			continue
+		}
+
+		visitFieldPath(u.Object, ref.path, func(m map[string]any, key string) {
+			if key == "kind" && m["kind"] != "ServiceAccount" {
+				return // User and Group subjects have no namespace
+			}
+
+			old, _ := m["namespace"].(string)
+			if old == "" && gk.Kind == "RoleBinding" {
+				return // means the namespace of the RoleBinding
+			}
+
+			if ns := move(old); ns != "" && ns != old {
+				t.step(u.Object, reason, func() { m["namespace"] = ns })
+			}
+		})
 	}
 }

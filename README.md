@@ -99,9 +99,25 @@ in this order:
 Everything else is treated as namespaced. The namespace is set before
 filtering, so `--namespaces` and skip rules see the new value.
 
-Only `metadata.namespace` is changed. References inside objects (RoleBinding
-subjects, webhook service references) are not rewritten; charts usually render
-them from `helm template --namespace`.
+References to namespaces inside objects move along:
+
+- `subjects[].namespace` of ServiceAccounts in RoleBindings and ClusterRoleBindings,
+- `webhooks[].clientConfig.service.namespace` of Mutating- and
+  ValidatingWebhookConfigurations,
+- `spec.service.namespace` of APIServices,
+- `spec.conversion.webhook.clientConfig.service.namespace` of CRDs.
+
+`--overwrite-namespace` rewrites a reference if it points to a namespace of a
+resource in the input (these resources move, so the reference has to move
+too). References to other namespaces, like `kube-system`, stay.
+`--add-namespace-if-missing` only fills empty references. An empty ServiceAccount
+namespace in a RoleBinding means the namespace of the RoleBinding and stays
+empty. `kubenorm explain` shows every change.
+
+Compared to the namespace transformer of kustomize: kubenorm knows cluster-scoped
+CRDs (kustomize sets a namespace on a `ClusterIssuer`), does not rename
+`Namespace` objects, rewrites webhook service references, and only moves
+references that point to moved namespaces (kustomize: subjects named `default`).
 
 ### Secrets
 
