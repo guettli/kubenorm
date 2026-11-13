@@ -53,8 +53,9 @@ kubenorm norm ./manifests
 kubenorm norm ./k8s/plain --check
 ```
 
-`--check` ignores comments, key order and file layout: it only fails if
-normalization would change the content.
+`--check` ignores comments, key order, file layout and empty
+`labels`/`annotations` maps: it only fails if normalization would change the
+content.
 
 
 ### Helm and kustomize
@@ -122,15 +123,17 @@ repos:
         files: ^k8s/plain/
 ```
 
-The hooks build kubenorm with Go (`language: golang`). YAML files without
-`metadata` (kustomization.yaml, CI configs) are ignored, but restrict the hook
-with `files:` anyway: helm templates are not valid YAML.
+The hook builds kubenorm with Go (`language: golang`) and only sees the
+changed files. YAML files without `metadata` (kustomization.yaml, CI configs)
+are ignored, but restrict the hook with `files:` anyway: helm templates are
+not valid YAML.
 
 ## `kubenorm diff`
 
 Normalizes both sides with the same options and prints a unified diff
 (`git apply` compatible). Resources are paired by identity, not by file name,
 so differently organized trees, single files and streams can be compared.
+Each side may contain a resource only once: compare one cluster at a time.
 
 ```terminal
 # What does this PR really change?
@@ -156,7 +159,7 @@ $ kubenorm explain deploy.yaml
 demo/apps_Deployment/web.yaml (from deploy.yaml)
   ~ spec.template.spec.containers[0].resources.limits.cpu: "1000m" -> "1"  [quantityFields[4] in common config: ...containers.resources.limits.*]
   - metadata.uid: "1234"  [removeFields[1] in common config: metadata.uid]
-  - spec.progressDeadlineSeconds: 600  [removeFields[8] in common config: spec.progressDeadlineSeconds]
+  - spec.progressDeadlineSeconds: 600  [removeFields[10] in common config: spec.progressDeadlineSeconds]
 demo/Pod/p.yaml (from deploy.yaml)
   dropped: skipResources[3] in common config
 ```

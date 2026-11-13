@@ -474,10 +474,11 @@ func buildDiffCmd() *cobra.Command {
 		Long: `Normalize both sides (file, directory or "-" for stdin) with the same
 options and print a unified diff. Resources are paired by identity
 (namespace, group, kind, name), not by file name, so differently organized
-trees can be compared. Exits 1 if there are differences.
+trees can be compared. Each side must contain a resource only once, so
+compare one cluster at a time. Exits 1 if there are differences.
 
 Examples:
-  kubenorm diff zz_generated-main/ zz_generated-pr/
+  kubenorm diff zz_generated-main/tc zz_generated-pr/tc
   helm template ./chart | kubenorm diff deployed-dump/ -`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {

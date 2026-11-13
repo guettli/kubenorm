@@ -479,6 +479,9 @@ skipResources:
   # Runtime Pod resources (usually managed by Deployments/StatefulSets/DaemonSets)
   - kind: Pod
 
+  # Events are runtime records, never desired state.
+  - kind: Event
+
   # Node resources (representing physical/virtual machines)
   - kind: Node
 
