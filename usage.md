@@ -211,6 +211,7 @@ kubenorm diff <old> <new> [flags]
       --exclude-namespaces string         Drop these namespaces (globs, comma-separated): the Namespace object and everything inside
   -h, --help                              help for diff
       --keep-managed-fields               Keep metadata.managedFields
+      --keep-namespace-references         With --add-namespace-if-missing/--overwrite-namespace: do not update RoleBinding subjects and webhook/APIService/CRD service references to moved objects
       --kind string                       Only keep kinds matching these globs (comma-separated, e.g. 'ConfigMap,Cluster*')
   -x, --name-regex string                 Only keep resources whose metadata.name matches this regex
       --name-status                       Only list the resources with A (added), M (modified) or D (deleted)
@@ -278,6 +279,7 @@ kubenorm norm <file|dir|->... [flags]
       --exclude-namespaces string         Drop these namespaces (globs, comma-separated): the Namespace object and everything inside
   -h, --help                              help for norm
       --keep-managed-fields               Keep metadata.managedFields
+      --keep-namespace-references         With --add-namespace-if-missing/--overwrite-namespace: do not update RoleBinding subjects and webhook/APIService/CRD service references to moved objects
       --kind string                       Only keep kinds matching these globs (comma-separated, e.g. 'ConfigMap,Cluster*')
   -x, --name-regex string                 Only keep resources whose metadata.name matches this regex
   -n, --namespaces string                 Only keep resources in these namespaces (comma-separated)

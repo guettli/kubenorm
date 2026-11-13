@@ -96,6 +96,7 @@ type normFlags struct {
 	overwriteNamespace    string
 	skipSOPS              bool
 	noConfigDiscovery     bool
+	keepNamespaceRefs     bool
 }
 
 func (f *normFlags) register(cmd *cobra.Command) {
@@ -113,6 +114,7 @@ func (f *normFlags) register(cmd *cobra.Command) {
 	fl.BoolVar(&f.secretsAsStringData, "secrets-as-stringdata", false, "Convert base64 Secret data to stringData")
 	fl.StringVar(&f.addNamespaceIfMissing, "add-namespace-if-missing", "", "Set metadata.namespace on namespaced resources without namespace (cluster-scoped kinds are left alone)")
 	fl.StringVar(&f.overwriteNamespace, "overwrite-namespace", "", "Set metadata.namespace on all namespaced resources, replacing existing values")
+	fl.BoolVar(&f.keepNamespaceRefs, "keep-namespace-references", false, "With --add-namespace-if-missing/--overwrite-namespace: do not update RoleBinding subjects and webhook/APIService/CRD service references to moved objects")
 	fl.BoolVar(&f.noConfigDiscovery, "no-config-discovery", false, "Do not load "+discoveredConfigName+" from the current directory or its parents")
 	fl.BoolVar(&f.skipSOPS, "skip-sops", false, "Drop SOPS-encrypted documents instead of failing (normalizing them would break the SOPS MAC)")
 }
@@ -181,6 +183,7 @@ func (f *normFlags) options() (*normalize.Options, error) {
 	opts.SecretsAsStringData = f.secretsAsStringData
 	opts.AddNamespaceIfMissing = strings.TrimSpace(f.addNamespaceIfMissing)
 	opts.OverwriteNamespace = strings.TrimSpace(f.overwriteNamespace)
+	opts.KeepNamespaceReferences = f.keepNamespaceRefs
 
 	err = opts.Validate()
 	if err != nil {

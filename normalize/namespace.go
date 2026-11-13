@@ -229,9 +229,10 @@ func (o *Options) Validate() error {
 }
 
 // applyNamespace sets metadata.namespace according to AddNamespaceIfMissing
-// or OverwriteNamespace. Cluster-scoped resources are never modified; a
-// cluster-scoped resource that carries a namespace is left as is.
-func (o *Options) applyNamespace(u *unstructured.Unstructured, scope *scopeResolver) {
+// or OverwriteNamespace and records the change in moves. Cluster-scoped
+// resources are never modified; a cluster-scoped resource that carries a
+// namespace is left as is.
+func (o *Options) applyNamespace(u *unstructured.Unstructured, scope *scopeResolver, moves namespaceMoves) {
 	if o.AddNamespaceIfMissing == "" && o.OverwriteNamespace == "" {
 		return
 	}
@@ -240,10 +241,98 @@ func (o *Options) applyNamespace(u *unstructured.Unstructured, scope *scopeResol
 		return
 	}
 
+	oldNamespace := u.GetNamespace()
+
 	switch {
 	case o.OverwriteNamespace != "":
 		u.SetNamespace(o.OverwriteNamespace)
-	case u.GetNamespace() == "":
+	case oldNamespace == "":
 		u.SetNamespace(o.AddNamespaceIfMissing)
 	}
+
+	if u.GetNamespace() != oldNamespace {
+		moves[movedObject{kind: u.GetKind(), namespace: oldNamespace, name: u.GetName()}] = u.GetNamespace()
+	}
+}
+
+type movedObject struct {
+	kind      string
+	namespace string
+	name      string
+}
+
+// namespaceMoves maps an object (with its old namespace) to its new namespace.
+type namespaceMoves map[movedObject]string
+
+// updateReferences rewrites namespace references to moved objects, like the
+// namespace transformer of kustomize:
+//   - subjects of kind ServiceAccount in RoleBindings and ClusterRoleBindings
+//   - service references of webhook configurations, APIServices and CRD
+//     conversion webhooks
+//
+// A reference is only changed if the referenced object is part of the input
+// and was moved.
+func (m namespaceMoves) updateReferences(obj map[string]any) {
+	if len(m) == 0 {
+		return
+	}
+
+	u := &unstructured.Unstructured{Object: obj}
+	gvk := u.GroupVersionKind()
+
+	switch {
+	case gvk.Group == "rbac.authorization.k8s.io" && (gvk.Kind == "RoleBinding" || gvk.Kind == "ClusterRoleBinding"):
+		subjects, _ := obj["subjects"].([]any)
+		for _, s := range subjects {
+			subject, ok := s.(map[string]any)
+			if ok && subject["kind"] == "ServiceAccount" {
+				m.update(subject, "ServiceAccount")
+			}
+		}
+	case gvk.Group == "admissionregistration.k8s.io" && (gvk.Kind == "MutatingWebhookConfiguration" || gvk.Kind == "ValidatingWebhookConfiguration"):
+		webhooks, _ := obj["webhooks"].([]any)
+		for _, w := range webhooks {
+			webhook, ok := w.(map[string]any)
+			if !ok {
+				continue
+			}
+
+			if service, ok := nestedMap(webhook, "clientConfig", "service"); ok {
+				m.update(service, "Service")
+			}
+		}
+	case gvk.Group == "apiregistration.k8s.io" && gvk.Kind == "APIService":
+		if service, ok := nestedMap(obj, "spec", "service"); ok {
+			m.update(service, "Service")
+		}
+	case gvk.Group == "apiextensions.k8s.io" && gvk.Kind == "CustomResourceDefinition":
+		if service, ok := nestedMap(obj, "spec", "conversion", "webhook", "clientConfig", "service"); ok {
+			m.update(service, "Service")
+		}
+	}
+}
+
+// update sets ref["namespace"] if ref points to a moved object of kind.
+func (m namespaceMoves) update(ref map[string]any, kind string) {
+	name, _ := ref["name"].(string)
+	namespace, _ := ref["namespace"].(string)
+
+	if newNamespace, ok := m[movedObject{kind: kind, namespace: namespace, name: name}]; ok {
+		ref["namespace"] = newNamespace
+	}
+}
+
+func nestedMap(obj map[string]any, fields ...string) (map[string]any, bool) {
+	current := obj
+
+	for _, field := range fields {
+		next, ok := current[field].(map[string]any)
+		if !ok {
+			return nil, false
+		}
+
+		current = next
+	}
+
+	return current, true
 }

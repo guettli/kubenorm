@@ -249,7 +249,8 @@ func IsYAMLFile(filePath string) bool {
 func (o *Options) Process(resources []Resource) ([]Resource, error) {
 	scope := o.scopeResolver(resources)
 
-	kept := make([]Resource, 0, len(resources))
+	candidates := make([]Resource, 0, len(resources))
+	moves := namespaceMoves{}
 
 	for _, r := range resources {
 		if r.SOPSEncrypted {
@@ -260,11 +261,21 @@ func (o *Options) Process(resources []Resource) ([]Resource, error) {
 			return nil, fmt.Errorf("%s: %w: normalizing it would break the SOPS MAC; exclude the file or use --skip-sops", describe(r), ErrSOPSEncrypted)
 		}
 
-		u := r.Unstructured()
+		o.applyNamespace(r.Unstructured(), scope, moves)
 
-		o.applyNamespace(u, scope)
+		candidates = append(candidates, r)
+	}
 
-		if !o.Include(u, r.Namespaced()) {
+	if !o.KeepNamespaceReferences {
+		for _, r := range candidates {
+			moves.updateReferences(r.Object)
+		}
+	}
+
+	kept := make([]Resource, 0, len(candidates))
+
+	for _, r := range candidates {
+		if !o.Include(r.Unstructured(), r.Namespaced()) {
 			continue
 		}
 

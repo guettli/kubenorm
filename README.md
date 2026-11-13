@@ -105,8 +105,15 @@ in this order:
    (`ClusterIssuer`, `GatewayClass`, ...).
 
 Everything else is treated as namespaced. The namespace is set before
-filtering, so `--namespaces` and skip rules see the new value. Only
-`metadata.namespace` is changed, references inside objects are not rewritten.
+filtering, so `--namespaces` and skip rules see the new value.
+
+References to moved objects are updated like kustomize's namespace
+transformer does: ServiceAccount `subjects` of (Cluster)RoleBindings and the
+service references of webhook configurations, APIServices and CRD conversion
+webhooks. A reference is only changed if the referenced object is part of the
+input and was moved (on the liqo chart the result is identical to
+`kustomize` with `namespace: ...`). `--keep-namespace-references` disables
+this.
 
 ### Secrets
 
