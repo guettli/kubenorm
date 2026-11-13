@@ -1,0 +1,227 @@
+// Package normalize normalizes Kubernetes resources so that two YAML
+// representations of the same desired state become byte-identical.
+//
+// It removes server-managed and defaulted fields according to a Config
+// (see CommonConfig for the embedded defaults), drops resources matching
+// skip rules and writes them in a stable layout:
+//
+//	NAMESPACE/[GROUP_]KIND/NAME.yaml
+//
+// Cluster-scoped resources use the namespace directory "_cluster".
+package normalize
+
+import (
+	"fmt"
+	"io"
+	"path/filepath"
+	"regexp"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	yaml "sigs.k8s.io/yaml/goyaml.v3"
+)
+
+const (
+	// ClusterNamespace is the pseudo namespace used for cluster-scoped
+	// resources, both for rule matching and as output directory.
+	ClusterNamespace = "_cluster"
+
+	// RedactionMarker replaces Secret values when Options.RedactSecrets is set.
+	RedactionMarker = "REDCATED-BY-DUMPALL"
+
+	fieldMetadata         = "metadata"
+	kindSecret            = "Secret"
+	lastAppliedAnnotation = "kubectl.kubernetes.io/last-applied-configuration"
+)
+
+// Options controls filtering and normalization.
+type Options struct {
+	// Config holds removeFields, skipResources and excludeNamespaces rules.
+	// nil applies no rules.
+	Config *Config
+
+	// Namespaces restricts output to these namespaces (empty = all).
+	// Cluster-scoped resources are dropped, except Namespace objects whose
+	// name is in the set.
+	Namespaces map[string]struct{}
+
+	// Kinds restricts output to kinds matching one of these globs (empty = all).
+	Kinds []string
+
+	// NameRegex restricts output to resources whose name matches (nil = all).
+	NameRegex *regexp.Regexp
+
+	// SkipOwned drops resources with a controlling owner reference and
+	// resources Kubernetes autogenerates (aggregated ClusterRoles, RBAC
+	// bootstrap objects, default ServiceAccount, kube-root-ca.crt ConfigMap).
+	SkipOwned bool
+
+	// KeepManagedFields keeps metadata.managedFields, even if a rule removes it.
+	KeepManagedFields bool
+
+	// RedactSecrets replaces values of core/v1 Secrets with RedactionMarker
+	// and drops the last-applied-configuration annotation of Secrets.
+	RedactSecrets bool
+
+	// SecretsAsStringData converts base64 Secret data into stringData.
+	SecretsAsStringData bool
+
+	// AddNamespaceIfMissing sets metadata.namespace on namespaced resources
+	// that have none. Cluster-scoped resources are left alone (see
+	// IsClusterScoped). Applied before filtering.
+	AddNamespaceIfMissing string
+
+	// OverwriteNamespace sets metadata.namespace on all namespaced resources,
+	// replacing an existing value. Applied before filtering.
+	OverwriteNamespace string
+}
+
+// Identity identifies a resource for rule matching. Cluster-scoped resources
+// have Namespace == ClusterNamespace.
+type Identity struct {
+	Group     string
+	Kind      string
+	Namespace string
+	Name      string
+}
+
+// IdentityOf returns the identity of item.
+func IdentityOf(item *unstructured.Unstructured, isNamespaced bool) Identity {
+	namespace := item.GetNamespace()
+	if !isNamespaced {
+		namespace = ClusterNamespace
+	}
+
+	return Identity{
+		Group:     getGroup(item.GetAPIVersion()),
+		Kind:      item.GetKind(),
+		Namespace: namespace,
+		Name:      item.GetName(),
+	}
+}
+
+// Normalize modifies obj in place: removes managed fields, handles Secrets,
+// applies the removeFields rules and prunes empty labels/annotations.
+func (o *Options) Normalize(obj map[string]any) error {
+	metadata, ok := obj[fieldMetadata].(map[string]any)
+	if !ok {
+		return fmt.Errorf("metadata not found in object")
+	}
+
+	if !o.KeepManagedFields {
+		delete(metadata, "managedFields")
+	}
+
+	if o.RedactSecrets {
+		redactSecretValues(obj)
+	}
+
+	if o.SecretsAsStringData {
+		convertSecretDataToStringData(obj)
+	}
+
+	o.applyRemoveRules(obj)
+	pruneEmptyMetadataMaps(obj)
+
+	return nil
+}
+
+func (o *Options) applyRemoveRules(obj map[string]any) {
+	if !o.Config.HasRemoveRules() {
+		return
+	}
+
+	identity := identityFromObject(obj)
+	for _, rule := range o.Config.removeRules {
+		if !rule.matches(identity) {
+			continue
+		}
+
+		for _, field := range rule.Fields {
+			if o.KeepManagedFields && isManagedFieldsPath(field.segments) {
+				continue
+			}
+
+			deleteFieldPath(obj, field.segments, field.value, field.valueConstrained, field.omitEmpty, field.omitIfEqualToSibling)
+		}
+	}
+}
+
+func identityFromObject(obj map[string]any) Identity {
+	u := &unstructured.Unstructured{Object: obj}
+
+	return IdentityOf(u, u.GetNamespace() != "")
+}
+
+func pruneEmptyMetadataMaps(obj map[string]any) {
+	metadata, ok := obj[fieldMetadata].(map[string]any)
+	if !ok {
+		return
+	}
+
+	pruneEmptyMetadataMap(metadata, "annotations")
+	pruneEmptyMetadataMap(metadata, "labels")
+}
+
+func pruneEmptyMetadataMap(metadata map[string]any, field string) {
+	switch typed := metadata[field].(type) {
+	case map[string]any:
+		if len(typed) == 0 {
+			delete(metadata, field)
+		}
+	case map[string]string:
+		if len(typed) == 0 {
+			delete(metadata, field)
+		}
+	}
+}
+
+// RelPath returns the stable relative output path of a resource:
+// NAMESPACE/KIND/NAME.yaml for the core group, NAMESPACE/GROUP_KIND/NAME.yaml
+// otherwise. Cluster-scoped resources use ClusterNamespace.
+func RelPath(item *unstructured.Unstructured, isNamespaced bool) string {
+	ns := item.GetNamespace()
+	if !isNamespaced {
+		ns = ClusterNamespace
+	}
+
+	gvk := item.GroupVersionKind()
+
+	kindDir := gvk.Kind
+	if gvk.Group != "" {
+		kindDir = gvk.Group + "_" + gvk.Kind
+	}
+
+	return filepath.Join(ns, kindDir, sanitizePath(item.GetName())+".yaml")
+}
+
+var sanitizePathRegex = regexp.MustCompile(`[\\/:*?"'<>|!@#$%^&()+={}\[\];,]`)
+
+func sanitizePath(path string) string {
+	return sanitizePathRegex.ReplaceAllString(path, "_")
+}
+
+// Encode writes obj as YAML (2-space indent, keys sorted). Each header line
+// is written first as a "# " comment.
+func Encode(w io.Writer, obj map[string]any, headerLines ...string) error {
+	for _, line := range headerLines {
+		_, err := fmt.Fprintf(w, "# %s\n", line)
+		if err != nil {
+			return fmt.Errorf("writing header: %w", err)
+		}
+	}
+
+	encoder := yaml.NewEncoder(w)
+	encoder.SetIndent(2)
+
+	err := encoder.Encode(obj)
+	if err != nil {
+		return fmt.Errorf("encoding YAML: %w", err)
+	}
+
+	err = encoder.Close()
+	if err != nil {
+		return fmt.Errorf("encoding YAML: %w", err)
+	}
+
+	return nil
+}

@@ -1,0 +1,5 @@
+/kubenorm
+/out
+.direnv
+.env
+tmp
