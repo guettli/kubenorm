@@ -1,0 +1,14 @@
+# Hooks for pre-commit (https://pre-commit.com) and prek.
+# Restrict them to your manifests with `files:`, e.g. files: ^k8s/plain/
+- id: kubenorm-check
+  name: kubenorm norm --check
+  description: Fail if Kubernetes manifests are not normalized.
+  entry: kubenorm norm --check
+  language: golang
+  types: [yaml]
+- id: kubenorm-write
+  name: kubenorm norm --write
+  description: Normalize Kubernetes manifests in place.
+  entry: kubenorm norm --write
+  language: golang
+  types: [yaml]

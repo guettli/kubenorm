@@ -98,6 +98,21 @@ SOPS-encrypted documents (a top-level `sops` map with a `mac`) are refused:
 re-encoding reorders keys and breaks the SOPS MAC. Keep them out of the
 input, or pass `--skip-sops` to drop them.
 
+### pre-commit / prek
+
+```yaml
+repos:
+  - repo: https://github.com/guettli/kubenorm
+    rev: v0.0.1 # use the latest release
+    hooks:
+      - id: kubenorm-check   # or kubenorm-write to fix files automatically
+        files: ^k8s/plain/
+```
+
+The hooks build kubenorm with Go (`language: golang`). YAML files without
+`metadata` (kustomization.yaml, CI configs) are ignored, but restrict the hook
+with `files:` anyway: helm templates are not valid YAML.
+
 ## `kubenorm diff`
 
 Normalizes both sides with the same options and prints a unified diff
