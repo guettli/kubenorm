@@ -66,6 +66,26 @@ instead of being rewritten.
 kubenorm norm ./k8s/plain --write
 ```
 
+### Helm and kustomize
+
+kubenorm reads stdin, so it fits behind every renderer:
+
+```terminal
+helm template demo ./chart --namespace demo | kubenorm norm - --add-namespace-if-missing demo
+kustomize build overlays/prod | kubenorm norm - -o rendered/prod -r
+```
+
+With Helm 3 it also works as a post-renderer (Helm 4 only accepts
+post-renderer plugins, use the pipe there):
+
+```terminal
+helm template demo ./chart --post-renderer kubenorm --post-renderer-args norm --post-renderer-args -
+```
+
+Use it for `helm template` (rendering for review, diff or RMP), not for
+`helm install` / `helm upgrade`: the common config drops resources like bare
+Pods, which would then not be deployed.
+
 ### Namespaces of rendered charts
 
 Some charts rely on `helm --namespace` and do not set `metadata.namespace`.
