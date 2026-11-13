@@ -246,9 +246,15 @@ With --check nothing is written: kubenorm shows what normalization would
 change and exits 1 if anything would change. Comments, key order and the file
 layout are ignored by --check.
 
+With --write (like gofmt -w) the input files are fixed in place: exactly the
+files --check complains about are rewritten. The comment block at the top of
+a rewritten file is kept, other comments in it are lost. A file whose
+resources are all dropped (skipResources) is removed.
+
 Examples:
   helm template my-chart | kubenorm norm - -o rendered/
   kubenorm norm ./k8s/plain --check
+  kubenorm norm ./k8s/plain --write
   kubenorm norm liqo.yaml --add-namespace-if-missing liqo -o out/
 
 ```text
@@ -278,6 +284,7 @@ kubenorm norm <file|dir|->... [flags]
   -O, --skip-owned                        Drop resources with a controlling ownerReference and objects Kubernetes autogenerates
       --skip-sops                         Drop SOPS-encrypted documents instead of failing (normalizing them would break the SOPS MAC)
   -v, --verbose                           Print every written file to stderr
+  -w, --write                             Rewrite the input files in place if normalization changes them (like gofmt -w)
 ```
 
 ## `kubenorm show-common-config`
