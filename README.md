@@ -151,6 +151,42 @@ changed files. YAML files without `metadata` (kustomization.yaml, CI configs)
 are ignored, but restrict the hook with `files:` anyway: helm templates are
 not valid YAML.
 
+### Rendered Manifests Pattern in CI
+
+Render and normalize in CI, and fail the pull request if the committed
+`rendered/` tree is not up to date. Reviewers then see the real change of every
+chart or value bump in the diff of `rendered/`.
+
+```yaml
+# .github/workflows/rendered.yml
+name: rendered
+on: pull_request
+jobs:
+  rendered:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+      - uses: azure/setup-helm@v4
+      - name: Render
+        run: |
+          kubenorm="go run github.com/guettli/kubenorm@v0.0.1" # use the latest release
+          helm template cert-manager cert-manager --repo https://charts.jetstack.io \
+            --version v1.21.3 --namespace cert-manager -f values/cert-manager.yaml |
+            $kubenorm norm - -o rendered/cert-manager -r
+          $kubenorm norm k8s/plain -o rendered/plain -r
+      - name: rendered/ is up to date
+        run: |
+          git add --intent-to-add rendered
+          git diff --exit-code --stat rendered || {
+            echo "Run the render step locally and commit rendered/"; exit 1; }
+```
+
+`-r` removes the output directory first, so deleted resources disappear from
+`rendered/`. Use the same commands in a script or Taskfile to render locally.
+
 ## `kubenorm diff`
 
 Normalizes both sides with the same options and prints a unified diff
