@@ -30,13 +30,9 @@ type Resource struct {
 	Source string
 	// SOPSEncrypted is true if the document carries SOPS metadata (a
 	// top-level "sops" map with a "mac"). Re-encoding such a document
-	// reorders keys and breaks the MAC, so Process refuses or skips it.
+	// reorders keys and breaks the MAC, so Process skips it.
 	SOPSEncrypted bool
 }
-
-// ErrSOPSEncrypted is returned by Process for SOPS-encrypted documents
-// unless Options.SkipSOPS is set.
-var ErrSOPSEncrypted = errors.New("document is SOPS-encrypted")
 
 func isSOPSEncrypted(obj map[string]any) bool {
 	sops, ok := obj["sops"].(map[string]any)
@@ -251,7 +247,7 @@ func IsYAMLFile(filePath string) bool {
 }
 
 // Process applies namespace handling, filters and normalization. Resources
-// that are filtered out are dropped. The objects are modified in place.
+// that are filtered out and SOPS-encrypted documents are dropped. The objects are modified in place.
 func (o *Options) Process(resources []Resource) ([]Resource, error) {
 	kept, _, err := o.process(resources, false)
 
@@ -275,12 +271,8 @@ func (o *Options) process(resources []Resource, explain bool) ([]Resource, []Exp
 
 	for _, r := range resources {
 		if r.SOPSEncrypted {
-			if !o.SkipSOPS {
-				return nil, nil, fmt.Errorf("%s: %w: normalizing it would break the SOPS MAC; exclude the file or use --skip-sops", describe(r), ErrSOPSEncrypted)
-			}
-
 			if explain {
-				explanations = append(explanations, Explanation{Source: r.Source, Path: r.RelPath(), Dropped: "SOPS-encrypted (--skip-sops)"})
+				explanations = append(explanations, Explanation{Source: r.Source, Path: r.RelPath(), Dropped: "SOPS-encrypted"})
 			}
 
 			continue

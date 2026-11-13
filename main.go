@@ -94,7 +94,6 @@ type normFlags struct {
 	secretsAsStringData   bool
 	addNamespaceIfMissing string
 	overwriteNamespace    string
-	skipSOPS              bool
 	noConfigDiscovery     bool
 }
 
@@ -114,7 +113,6 @@ func (f *normFlags) register(cmd *cobra.Command) {
 	fl.StringVar(&f.addNamespaceIfMissing, "add-namespace-if-missing", "", "Set metadata.namespace on namespaced resources without namespace (cluster-scoped kinds are left alone)")
 	fl.StringVar(&f.overwriteNamespace, "overwrite-namespace", "", "Set metadata.namespace on all namespaced resources, replacing existing values")
 	fl.BoolVar(&f.noConfigDiscovery, "no-config-discovery", false, "Do not load "+discoveredConfigName+" from the current directory or its parents")
-	fl.BoolVar(&f.skipSOPS, "skip-sops", false, "Drop SOPS-encrypted documents instead of failing (normalizing them would break the SOPS MAC)")
 }
 
 // cliConfig returns the rules that come from command-line flags only
@@ -213,7 +211,6 @@ func (f *normFlags) scopeOptions(cfg *normalize.Config) (*normalize.Options, err
 		Kinds:      kinds,
 		NameRegex:  nameRegex,
 		SkipOwned:  f.skipOwned,
-		SkipSOPS:   f.skipSOPS,
 	}, nil
 }
 
@@ -277,36 +274,26 @@ func header(comment string) []string {
 	return lines
 }
 
-// inputReader returns a function that reads the input resources. stdin is
-// buffered, so the function can be called more than once.
-func inputReader(cmd *cobra.Command, inputs ...string) (func() ([]normalize.Resource, error), error) {
-	if len(inputs) != 1 || inputs[0] != normalize.StdinPath {
-		return func() ([]normalize.Resource, error) {
-			return normalize.ReadPaths(inputs, nil)
-		}, nil
-	}
-
-	data, err := io.ReadAll(cmd.InOrStdin())
-	if err != nil {
-		return nil, fmt.Errorf("failed to read stdin: %w", err)
-	}
-
-	return func() ([]normalize.Resource, error) {
-		return normalize.ParseYAML(data, normalize.StdinPath)
-	}, nil
-}
-
-func readAndProcess(cmd *cobra.Command, opts *normalize.Options, input string) (normalize.Rendered, error) {
-	read, err := inputReader(cmd, input)
+// readInputs reads all resources from the inputs (files, directories or
+// "-" for stdin) and notes skipped SOPS-encrypted documents on stderr.
+func readInputs(cmd *cobra.Command, inputs ...string) ([]normalize.Resource, error) {
+	resources, err := normalize.ReadPaths(inputs, cmd.InOrStdin())
 	if err != nil {
 		return nil, err
 	}
 
-	return processRendered(read, opts)
+	for _, r := range resources {
+		if r.SOPSEncrypted {
+			fmt.Fprintf(cmd.ErrOrStderr(), "Skipped SOPS-encrypted %s (normalizing would break its MAC)\n", r.RelPath())
+		}
+	}
+
+	return resources, nil
 }
 
-func processRendered(read func() ([]normalize.Resource, error), opts *normalize.Options) (normalize.Rendered, error) {
-	resources, err := read()
+// readRendered reads, processes and renders the inputs.
+func readRendered(cmd *cobra.Command, opts *normalize.Options, inputs ...string) (normalize.Rendered, error) {
+	resources, err := readInputs(cmd, inputs...)
 	if err != nil {
 		return nil, err
 	}
@@ -325,7 +312,7 @@ func runNorm(cmd *cobra.Command, flags *normFlags, inputs []string, outDir strin
 		return err
 	}
 
-	resources, err := normalize.ReadPaths(inputs, cmd.InOrStdin())
+	resources, err := readInputs(cmd, inputs...)
 	if err != nil {
 		return err
 	}
@@ -413,12 +400,7 @@ func runCheck(cmd *cobra.Command, flags *normFlags, inputs []string) error {
 
 	rawOpts.KeepManagedFields = true
 
-	read, err := inputReader(cmd, inputs...)
-	if err != nil {
-		return err
-	}
-
-	resources, err := read()
+	resources, err := readInputs(cmd, inputs...)
 	if err != nil {
 		return err
 	}
@@ -507,12 +489,12 @@ Examples:
 				return err
 			}
 
-			oldSide, err := readAndProcess(cmd, opts, args[0])
+			oldSide, err := readRendered(cmd, opts, args[0])
 			if err != nil {
 				return err
 			}
 
-			newSide, err := readAndProcess(cmd, opts, args[1])
+			newSide, err := readRendered(cmd, opts, args[1])
 			if err != nil {
 				return err
 			}

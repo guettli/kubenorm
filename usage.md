@@ -220,7 +220,6 @@ kubenorm diff <old> <new> [flags]
       --secrets-as-stringdata             Convert base64 Secret data to stringData
       --skip-name-glob string             Drop resources whose metadata.name matches this anchored glob
   -O, --skip-owned                        Drop resources with a controlling ownerReference and objects Kubernetes autogenerates
-      --skip-sops                         Drop SOPS-encrypted documents instead of failing (normalizing them would break the SOPS MAC)
 ```
 
 ## `kubenorm explain`
@@ -255,7 +254,6 @@ kubenorm explain <file|dir|->... [flags]
       --secrets-as-stringdata             Convert base64 Secret data to stringData
       --skip-name-glob string             Drop resources whose metadata.name matches this anchored glob
   -O, --skip-owned                        Drop resources with a controlling ownerReference and objects Kubernetes autogenerates
-      --skip-sops                         Drop SOPS-encrypted documents instead of failing (normalizing them would break the SOPS MAC)
 ```
 
 ## `kubenorm help`
@@ -316,7 +314,6 @@ kubenorm norm <file|dir|->... [flags]
       --secrets-as-stringdata             Convert base64 Secret data to stringData
       --skip-name-glob string             Drop resources whose metadata.name matches this anchored glob
   -O, --skip-owned                        Drop resources with a controlling ownerReference and objects Kubernetes autogenerates
-      --skip-sops                         Drop SOPS-encrypted documents instead of failing (normalizing them would break the SOPS MAC)
   -v, --verbose                           Print every written file to stderr
 ```
 

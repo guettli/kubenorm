@@ -137,17 +137,7 @@ func TestProcess_SOPS(t *testing.T) {
 		t.Fatalf("SOPS detection wrong: %v %v", resources[0].SOPSEncrypted, resources[1].SOPSEncrypted)
 	}
 
-	_, err = (&Options{}).Process(resources)
-	if !errors.Is(err, ErrSOPSEncrypted) || !strings.Contains(err.Error(), "secret.yaml") {
-		t.Fatalf("expected ErrSOPSEncrypted naming the file, got %v", err)
-	}
-
-	resources, err = ParseYAML([]byte(sopsSecret+"---\n"+cmA), "secret.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	kept, err := (&Options{SkipSOPS: true}).Process(resources)
+	kept, err := (&Options{}).Process(resources)
 	if err != nil || len(kept) != 1 || kept[0].Unstructured().GetKind() != "ConfigMap" {
 		t.Fatalf("expected only the ConfigMap, got %d %v", len(kept), err)
 	}

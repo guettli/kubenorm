@@ -108,9 +108,8 @@ Secret values are kept as they are (the files are your own input). Use
 `--redact-secrets` to replace them with a marker, or `--secrets-as-stringdata`
 to decode `data` into readable `stringData`.
 
-SOPS-encrypted documents (a top-level `sops` map with a `mac`) are refused:
-re-encoding reorders keys and breaks the SOPS MAC. Keep them out of the
-input, or pass `--skip-sops` to drop them.
+SOPS-encrypted documents (a top-level `sops` map with a `mac`) are skipped
+with a note on stderr: re-encoding would reorder keys and break the SOPS MAC.
 
 ### pre-commit / prek
 

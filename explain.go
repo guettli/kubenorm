@@ -30,12 +30,7 @@ Example:
 				return err
 			}
 
-			read, err := inputReader(cmd, args...)
-			if err != nil {
-				return err
-			}
-
-			resources, err := read()
+			resources, err := readInputs(cmd, args...)
 			if err != nil {
 				return err
 			}
