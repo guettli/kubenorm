@@ -1,0 +1,3575 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  labels:
+    app.kubernetes.io/component: webhook
+    app.kubernetes.io/instance: liqo-webhook
+    app.kubernetes.io/name: webhook
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+    liqo.io/webhook: "true"
+  name: liqo-webhook
+webhooks:
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: liqo-webhook
+      namespace: liqo
+      path: /mutate/pod
+      port: 9443
+  failurePolicy: Fail
+  name: pod.mutate.liqo.io
+  namespaceSelector:
+    matchLabels:
+      liqo.io/scheduling-enabled: "true"
+  rules:
+  - apiGroups:
+    - ""
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    resources:
+    - pods
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: liqo-webhook
+      namespace: liqo
+      path: /mutate/shadowpods
+      port: 9443
+  failurePolicy: Fail
+  name: shadowpod.mutate.liqo.io
+  rules:
+  - apiGroups:
+    - offloading.liqo.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    - DELETE
+    resources:
+    - shadowpods
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: liqo-webhook
+      namespace: liqo
+      path: /mutate/foreign-cluster
+      port: 9443
+  failurePolicy: Fail
+  name: fc.mutate.liqo.io
+  objectSelector:
+    matchExpressions:
+    - key: liqo.io/webhook-skip
+      operator: NotIn
+      values:
+      - "true"
+  rules:
+  - apiGroups:
+    - core.liqo.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - foreignclusters
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: liqo-webhook
+      namespace: liqo
+      path: /mutate/firewallconfigurations
+      port: 9443
+  failurePolicy: Fail
+  name: firewallconfiguration.mutate.liqo.io
+  objectSelector:
+    matchExpressions:
+    - key: liqo.io/webhook-skip
+      operator: NotIn
+      values:
+      - "true"
+  rules:
+  - apiGroups:
+    - networking.liqo.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - firewallconfigurations
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: liqo-webhook
+      namespace: liqo
+      path: /mutate/tenants
+      port: 9443
+  failurePolicy: Fail
+  name: tenant.validate.liqo.io
+  objectSelector:
+    matchExpressions:
+    - key: liqo.io/webhook-skip
+      operator: NotIn
+      values:
+      - "true"
+  rules:
+  - apiGroups:
+    - authentication.liqo.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - tenants
+  sideEffects: None
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  labels:
+    app.kubernetes.io/component: webhook
+    app.kubernetes.io/instance: liqo-webhook
+    app.kubernetes.io/name: webhook
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+    liqo.io/webhook: "true"
+  name: liqo-webhook
+webhooks:
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: liqo-webhook
+      namespace: liqo
+      path: /validate/namespace-offloading
+      port: 9443
+  failurePolicy: Fail
+  name: nsoff.validate.liqo.io
+  objectSelector:
+    matchExpressions:
+    - key: liqo.io/webhook-skip
+      operator: NotIn
+      values:
+      - "true"
+  rules:
+  - apiGroups:
+    - offloading.liqo.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - namespaceoffloadings
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: liqo-webhook
+      namespace: liqo
+      path: /validate/shadowpods
+      port: 9443
+  failurePolicy: Fail
+  name: shadowpod.validate.liqo.io
+  rules:
+  - apiGroups:
+    - offloading.liqo.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    - DELETE
+    resources:
+    - shadowpods
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: liqo-webhook
+      namespace: liqo
+      path: /validate/firewallconfigurations
+      port: 9443
+  failurePolicy: Fail
+  name: firewallconfiguration.validate.liqo.io
+  objectSelector:
+    matchExpressions:
+    - key: liqo.io/webhook-skip
+      operator: NotIn
+      values:
+      - "true"
+  rules:
+  - apiGroups:
+    - networking.liqo.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - firewallconfigurations
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: liqo-webhook
+      namespace: liqo
+      path: /validate/routeconfigurations
+      port: 9443
+  failurePolicy: Fail
+  name: routeconfiguration.validate.liqo.io
+  objectSelector:
+    matchExpressions:
+    - key: liqo.io/webhook-skip
+      operator: NotIn
+      values:
+      - "true"
+  rules:
+  - apiGroups:
+    - networking.liqo.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - routeconfigurations
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: liqo-webhook
+      namespace: liqo
+      path: /validate/resourceslices
+      port: 9443
+  failurePolicy: Fail
+  name: resourceslice.validate.liqo.io
+  rules:
+  - apiGroups:
+    - authentication.liqo.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - resourceslices
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: liqo-webhook
+      namespace: liqo
+      path: /validate/tenants
+      port: 9443
+  failurePolicy: Fail
+  name: tenant.validate.liqo.io
+  objectSelector:
+    matchExpressions:
+    - key: liqo.io/webhook-skip
+      operator: NotIn
+      values:
+      - "true"
+  rules:
+  - apiGroups:
+    - authentication.liqo.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - tenants
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: liqo-webhook
+      namespace: liqo
+      path: /validate/virtualnodes
+      port: 9443
+  failurePolicy: Fail
+  name: virtualnode.validate.liqo.io
+  objectSelector:
+    matchExpressions:
+    - key: liqo.io/webhook-skip
+      operator: NotIn
+      values:
+      - "true"
+  rules:
+  - apiGroups:
+    - offloading.liqo.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    resources:
+    - virtualnodes
+  sideEffects: None
+---
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  labels:
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/instance: liqo-metric-agent
+    app.kubernetes.io/name: metric-agent
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: v1beta1.metrics.liqo.io
+spec:
+  group: metrics.liqo.io
+  groupPriorityMinimum: 1000
+  insecureSkipTLSVerify: true
+  service:
+    name: liqo-metric-agent
+    namespace: liqo
+  version: v1beta1
+  versionPriority: 15
+---
+apiVersion: node.k8s.io/v1
+handler: liqo
+kind: RuntimeClass
+metadata:
+  labels:
+    app.kubernetes.io/component: runtimeclass
+    app.kubernetes.io/instance: liqo-runtimeclass
+    app.kubernetes.io/name: runtimeclass
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo
+scheduling:
+  nodeSelector:
+    liqo.io/type: virtual-node
+  tolerations:
+  - effect: NoExecute
+    key: virtual-node.liqo.io/not-allowed
+    operator: Exists
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/instance: liqo-controller-manager
+    app.kubernetes.io/name: controller-manager
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-controller-manager
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  - namespaces
+  - persistentvolumeclaims
+  - persistentvolumes
+  - pods
+  - secrets
+  - serviceaccounts
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - namespaces/finalizers
+  - nodes/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - list
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authentication.liqo.io
+  resources:
+  - identities
+  - identities/status
+  - renews
+  - resourceslices
+  - resourceslices/status
+  - tenants
+  - tenants/status
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - authentication.liqo.io
+  resources:
+  - identities/finalizers
+  - renews/finalizers
+  - resourceslices/finalizers
+  - tenants/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - authentication.liqo.io
+  resources:
+  - renews/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - certificatesigningrequests
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - certificatesigningrequests/approval
+  - certificatesigningrequests/status
+  verbs:
+  - update
+- apiGroups:
+  - certificates.k8s.io
+  resourceNames:
+  - beta.eks.amazonaws.com/app-serving
+  resources:
+  - signers
+  verbs:
+  - approve
+- apiGroups:
+  - certificates.k8s.io
+  resourceNames:
+  - kubernetes.io/kube-apiserver-client
+  resources:
+  - signers
+  verbs:
+  - approve
+- apiGroups:
+  - certificates.k8s.io
+  resourceNames:
+  - kubernetes.io/kubelet-serving
+  resources:
+  - signers
+  verbs:
+  - approve
+- apiGroups:
+  - core.liqo.io
+  resources:
+  - foreignclusters
+  - foreignclusters/finalizers
+  - foreignclusters/status
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ipam.liqo.io
+  resources:
+  - ips
+  - ips/finalizers
+  - ips/status
+  - networks
+  - networks/finalizers
+  - networks/status
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - servicemonitors
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.liqo.io
+  resources:
+  - configurations
+  - firewallconfigurations
+  - gatewayclients
+  - gatewayservers
+  - genevetunnels
+  - internalfabrics
+  - internalnodes
+  - ips
+  - routeconfigurations
+  - wggatewayclients
+  - wggatewayclienttemplates
+  - wggatewayservers
+  - wggatewayservertemplates
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.liqo.io
+  resources:
+  - configurations/finalizers
+  - gatewayclients/finalizers
+  - gatewayservers/finalizers
+  - genevetunnels/finalizers
+  - internalfabrics/finalizers
+  - internalnodes/finalizers
+  - routeconfigurations/finalizers
+  - wggatewayclients/finalizers
+  - wggatewayservers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - networking.liqo.io
+  resources:
+  - configurations/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.liqo.io
+  resources:
+  - connections
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.liqo.io
+  resources:
+  - firewallconfigurations/status
+  - gatewayclients/status
+  - gatewayservers/status
+  - internalfabrics/status
+  - wggatewayclients/status
+  - wggatewayservers/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - offloading.liqo.io
+  resources:
+  - namespacemaps
+  - namespaceoffloadings/status
+  - quotas
+  - shadowendpointslices
+  - virtualnodes
+  - virtualnodes/finalizers
+  - virtualnodes/status
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - offloading.liqo.io
+  resources:
+  - namespacemaps/finalizers
+  - namespaceoffloadings/finalizers
+  - shadowpods/finalizers
+  - shadowpods/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - offloading.liqo.io
+  resources:
+  - namespaceoffloadings
+  - virtualnode
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - offloading.liqo.io
+  resources:
+  - quotas/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - offloading.liqo.io
+  resources:
+  - shadowpods
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - offloading.liqo.io
+  resources:
+  - vkoptionstemplates
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterrolebindings
+  - clusterroles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterrolebindings/finalizers
+  - clusterroles/finalizers
+  - rolebindings/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - rolebindings
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - storage
+  - storage.k8s.io
+  resources:
+  - storageclasses
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/component: dispatcher
+    app.kubernetes.io/instance: liqo-crd-replicator
+    app.kubernetes.io/name: crd-replicator
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-crd-replicator
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - core.liqo.io
+  resources:
+  - foreignclusters
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/instance: liqo-fabric
+    app.kubernetes.io/name: fabric
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-fabric
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.liqo.io
+  resources:
+  - firewallconfigurations
+  - firewallconfigurations/status
+  - internalnodes
+  - internalnodes/status
+  - routeconfigurations
+  - routeconfigurations/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.liqo.io
+  resources:
+  - firewallconfigurations/finalizers
+  - routeconfigurations/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - networking.liqo.io
+  resources:
+  - genevetunnels
+  - internalfabrics
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.liqo.io
+  resources:
+  - genevetunnels/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/instance: liqo-gateway
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-gateway
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - delete
+  - get
+  - update
+- apiGroups:
+  - networking.liqo.io
+  resources:
+  - connections
+  - publickeies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - networking.liqo.io
+  resources:
+  - connections/status
+  - genevetunnels/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - networking.liqo.io
+  resources:
+  - firewallconfigurations
+  - firewallconfigurations/status
+  - genevetunnels
+  - routeconfigurations
+  - routeconfigurations/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.liqo.io
+  resources:
+  - firewallconfigurations/finalizers
+  - routeconfigurations/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - networking.liqo.io
+  resources:
+  - internalfabrics
+  - internalnodes
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/component: ipam
+    app.kubernetes.io/instance: liqo-ipam
+    app.kubernetes.io/name: ipam
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-ipam
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - delete
+  - get
+  - update
+- apiGroups:
+  - ipam.liqo.io
+  resources:
+  - ips
+  - networks
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/instance: liqo-metric-agent
+    app.kubernetes.io/name: metric-agent
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-metric-agent
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  - nodes
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes/metrics
+  - nodes/proxy
+  - nodes/stats
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/component: peering-user
+    app.kubernetes.io/instance: liqo-peering-user
+    app.kubernetes.io/name: peering-user
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-peering-user-tenant-ns
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  - services
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+- apiGroups:
+  - authentication.liqo.io
+  resources:
+  - tenants
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - update
+- apiGroups:
+  - ipam.liqo.io
+  resources:
+  - ips
+  verbs:
+  - create
+  - delete
+  - get
+  - update
+- apiGroups:
+  - networking.liqo.io
+  resources:
+  - configurations
+  - gatewayclients
+  - gatewayservers
+  - publickeies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - update
+- apiGroups:
+  - networking.liqo.io
+  resources:
+  - connections
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - networking.liqo.io
+  resources:
+  - gatewayclients/status
+  - gatewayservers/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    helm.sh/hook-weight: "-5"
+  labels:
+    app.kubernetes.io/component: pre-delete
+    app.kubernetes.io/instance: liqo-pre-delete
+    app.kubernetes.io/name: pre-delete
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-pre-delete
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - authentication.liqo.io
+  resources:
+  - resourceslices
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - core.liqo.io
+  resources:
+  - foreignclusters
+  verbs:
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ipam.liqo.io
+  resources:
+  - ips
+  - networks
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.liqo.io
+  resources:
+  - configurations
+  - internalnodes
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - offloading.liqo.io
+  resources:
+  - namespaceoffloadings
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - offloading.liqo.io
+  resources:
+  - virtualnodes
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/component: authentication
+    app.kubernetes.io/instance: liqo-remote-controlplane
+    app.kubernetes.io/name: remote-controlplane
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-remote-controlplane
+rules:
+- apiGroups:
+  - authentication.liqo.io
+  resources:
+  - renews
+  - renews/status
+  - resourceslices
+  - resourceslices/status
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - offloading.liqo.io
+  resources:
+  - namespacemaps
+  - namespacemaps/status
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/component: telemetry
+    app.kubernetes.io/instance: liqo-telemetry
+    app.kubernetes.io/name: telemetry
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-telemetry
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - authentication.liqo.io
+  resources:
+  - resourceslices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - core.liqo.io
+  resources:
+  - foreignclusters
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - offloading.liqo.io
+  resources:
+  - namespaceoffloadings
+  - virtualnodes
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/component: virtualkubelet
+    app.kubernetes.io/instance: liqo-virtual-kubelet-local
+    app.kubernetes.io/name: virtual-kubelet-local
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-virtual-kubelet-local
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - namespaces
+  - services
+  - services/status
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  - nodes
+  - nodes/status
+  - persistentvolumeclaims
+  - persistentvolumes
+  - pods/status
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods/eviction
+  - serviceaccounts/token
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - certificatesigningrequests
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - delete
+  - get
+  - update
+- apiGroups:
+  - core.liqo.io
+  resources:
+  - foreignclusters
+  - foreignclusters/status
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ipam.liqo.io
+  resources:
+  - ips
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.liqo.io
+  resources:
+  - configurations
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - offloading.liqo.io
+  resources:
+  - namespacemaps
+  - virtualnodes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - storageclasses
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/component: virtualkubelet
+    app.kubernetes.io/instance: liqo-virtual-kubelet-remote-clusterwide
+    app.kubernetes.io/name: virtual-kubelet-remote-clusterwide
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-virtual-kubelet-remote-clusterwide
+rules:
+- apiGroups:
+  - metrics.liqo.io
+  resources:
+  - scrape/metrics
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/component: virtualkubelet
+    app.kubernetes.io/instance: liqo-virtual-kubelet-remote
+    app.kubernetes.io/name: virtual-kubelet-remote
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-virtual-kubelet-remote
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - events
+  - persistentvolumeclaims
+  - secrets
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods/attach
+  - pods/exec
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resources:
+  - pods/log
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - pods/portforward
+  verbs:
+  - create
+  - get
+- apiGroups:
+  - ""
+  - metrics.k8s.io
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - offloading.liqo.io
+  resources:
+  - shadowendpointslices
+  - shadowpods
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/component: webhook
+    app.kubernetes.io/instance: liqo-webhook
+    app.kubernetes.io/name: webhook
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-webhook
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - mutatingwebhookconfigurations
+  - validatingwebhookconfigurations
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - authentication.liqo.io
+  resources:
+  - resourceslices
+  - tenants
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.liqo.io
+  resources:
+  - firewallconfigurations
+  - routeconfigurations
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - offloading.liqo.io
+  resources:
+  - namespaceoffloadings
+  - quotas
+  - shadowpods
+  - virtualnodes
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/instance: liqo-controller-manager
+    app.kubernetes.io/name: controller-manager
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-controller-manager-grant-virtual-kubelet-local
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: liqo-virtual-kubelet-local
+subjects:
+- kind: ServiceAccount
+  name: liqo-controller-manager
+  namespace: liqo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/instance: liqo-controller-manager
+    app.kubernetes.io/name: controller-manager
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-controller-manager-grant-virtual-kubelet-remote-clusterwide
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: liqo-virtual-kubelet-remote-clusterwide
+subjects:
+- kind: ServiceAccount
+  name: liqo-controller-manager
+  namespace: liqo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/instance: liqo-controller-manager
+    app.kubernetes.io/name: controller-manager
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-controller-manager-grant-virtual-kubelet-remote
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: liqo-virtual-kubelet-remote
+subjects:
+- kind: ServiceAccount
+  name: liqo-controller-manager
+  namespace: liqo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/instance: liqo-controller-manager
+    app.kubernetes.io/name: controller-manager
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-controller-manager-grant-wg-gateway
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: liqo-gateway
+subjects:
+- kind: ServiceAccount
+  name: liqo-controller-manager
+  namespace: liqo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/instance: liqo-controller-manager
+    app.kubernetes.io/name: controller-manager
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-controller-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: liqo-controller-manager
+subjects:
+- kind: ServiceAccount
+  name: liqo-controller-manager
+  namespace: liqo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: dispatcher
+    app.kubernetes.io/instance: liqo-crd-replicator
+    app.kubernetes.io/name: crd-replicator
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-crd-replicator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: liqo-crd-replicator
+subjects:
+- kind: ServiceAccount
+  name: liqo-crd-replicator
+  namespace: liqo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/instance: liqo-fabric
+    app.kubernetes.io/name: fabric
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-fabric
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: liqo-fabric
+subjects:
+- kind: ServiceAccount
+  name: liqo-fabric
+  namespace: liqo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: ipam
+    app.kubernetes.io/instance: liqo-ipam
+    app.kubernetes.io/name: ipam
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-ipam
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: liqo-ipam
+subjects:
+- kind: ServiceAccount
+  name: liqo-ipam
+  namespace: liqo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/instance: liqo-metric-agent
+    app.kubernetes.io/name: metric-agent
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-metric-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: liqo-metric-agent
+subjects:
+- kind: ServiceAccount
+  name: liqo-metric-agent
+  namespace: liqo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    helm.sh/hook-weight: "-5"
+  labels:
+    app.kubernetes.io/component: pre-delete
+    app.kubernetes.io/instance: liqo-pre-delete
+    app.kubernetes.io/name: pre-delete
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-pre-delete
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: liqo-pre-delete
+subjects:
+- kind: ServiceAccount
+  name: liqo-pre-delete
+  namespace: liqo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: authentication
+    app.kubernetes.io/instance: liqo-remote-controlplane
+    app.kubernetes.io/name: remote-controlplane
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-remote-controlplane
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: liqo-remote-controlplane
+subjects:
+- kind: ServiceAccount
+  name: liqo-controller-manager
+  namespace: liqo
+- kind: ServiceAccount
+  name: liqo-crd-replicator
+  namespace: liqo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: telemetry
+    app.kubernetes.io/instance: liqo-telemetry
+    app.kubernetes.io/name: telemetry
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-telemetry
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: liqo-telemetry
+subjects:
+- kind: ServiceAccount
+  name: liqo-telemetry
+  namespace: liqo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: webhook
+    app.kubernetes.io/instance: liqo-webhook
+    app.kubernetes.io/name: webhook
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-webhook
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: liqo-webhook
+subjects:
+- kind: ServiceAccount
+  name: liqo-webhook
+  namespace: liqo
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: liqo
+provisioner: liqo.io/storage
+volumeBindingMode: WaitForFirstConsumer
+---
+apiVersion: v1
+data:
+  CLUSTER_ID: be369f0e-ca4f-415f-8e9e-0fecbb248992
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/component: clusterid-configmap
+    app.kubernetes.io/instance: liqo-clusterid-configmap
+    app.kubernetes.io/name: clusterid-configmap
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-clusterid-configmap
+  namespace: liqo
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  annotations:
+    liqo.io/webhook-service-name: liqo-webhook
+  labels:
+    app.kubernetes.io/component: webhook
+    app.kubernetes.io/instance: liqo-webhook
+    app.kubernetes.io/name: webhook
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+    liqo.io/webhook: "true"
+  name: liqo-webhook-certs
+  namespace: liqo
+type: opaque
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/instance: liqo-controller-manager
+    app.kubernetes.io/name: controller-manager
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-controller-manager
+  namespace: liqo
+spec:
+  ports:
+  - port: 9443
+    targetPort: webhook
+  selector:
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/instance: liqo-controller-manager
+    app.kubernetes.io/name: controller-manager
+    app.kubernetes.io/part-of: liqo
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: ipam
+    app.kubernetes.io/instance: liqo-ipam
+    app.kubernetes.io/name: ipam
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-ipam
+  namespace: liqo
+spec:
+  ports:
+  - name: ipam-api
+    port: 6000
+  selector:
+    app.kubernetes.io/component: ipam
+    app.kubernetes.io/instance: liqo-ipam
+    app.kubernetes.io/name: ipam
+    app.kubernetes.io/part-of: liqo
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/instance: liqo-metric-agent
+    app.kubernetes.io/name: metric-agent
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+    run: metric-agent
+  name: liqo-metric-agent
+  namespace: liqo
+spec:
+  ports:
+  - name: https
+    port: 443
+    targetPort: 8443
+  selector:
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/instance: liqo-metric-agent
+    app.kubernetes.io/name: metric-agent
+    app.kubernetes.io/part-of: liqo
+    run: metric-agent
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/instance: liqo-proxy
+    app.kubernetes.io/name: proxy
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-proxy
+  namespace: liqo
+spec:
+  ports:
+  - name: http
+    port: 8118
+  selector:
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/instance: liqo-proxy
+    app.kubernetes.io/name: proxy
+    app.kubernetes.io/part-of: liqo
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: webhook
+    app.kubernetes.io/instance: liqo-webhook
+    app.kubernetes.io/name: webhook
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-webhook
+  namespace: liqo
+spec:
+  ports:
+  - port: 9443
+    targetPort: webhook
+  selector:
+    app.kubernetes.io/component: webhook
+    app.kubernetes.io/instance: liqo-webhook
+    app.kubernetes.io/name: webhook
+    app.kubernetes.io/part-of: liqo
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/instance: liqo-controller-manager
+    app.kubernetes.io/name: controller-manager
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-controller-manager
+  namespace: liqo
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/component: dispatcher
+    app.kubernetes.io/instance: liqo-crd-replicator
+    app.kubernetes.io/name: crd-replicator
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-crd-replicator
+  namespace: liqo
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/instance: liqo-fabric
+    app.kubernetes.io/name: fabric
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-fabric
+  namespace: liqo
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/component: ipam
+    app.kubernetes.io/instance: liqo-ipam
+    app.kubernetes.io/name: ipam
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-ipam
+  namespace: liqo
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/instance: liqo-metric-agent
+    app.kubernetes.io/name: metric-agent
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-metric-agent
+  namespace: liqo
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    helm.sh/hook-weight: "-5"
+  labels:
+    app.kubernetes.io/component: pre-delete
+    app.kubernetes.io/instance: liqo-pre-delete
+    app.kubernetes.io/name: pre-delete
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-pre-delete
+  namespace: liqo
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/component: telemetry
+    app.kubernetes.io/instance: liqo-telemetry
+    app.kubernetes.io/name: telemetry
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-telemetry
+  namespace: liqo
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/component: webhook
+    app.kubernetes.io/instance: liqo-webhook
+    app.kubernetes.io/name: webhook
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-webhook
+  namespace: liqo
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/instance: liqo-fabric
+    app.kubernetes.io/name: fabric
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-fabric
+  namespace: liqo
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: networking
+      app.kubernetes.io/instance: liqo-fabric
+      app.kubernetes.io/name: fabric
+      app.kubernetes.io/part-of: liqo
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: networking
+        app.kubernetes.io/instance: liqo-fabric
+        app.kubernetes.io/name: fabric
+        app.kubernetes.io/part-of: liqo
+        networking.liqo.io/component: fabric
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: liqo.io/type
+                operator: NotIn
+                values:
+                - virtual-node
+      containers:
+      - args:
+        - --podname=$(POD_NAME)
+        - --nodename=$(NODE_NAME)
+        - --geneve-port=6091
+        - --health-probe-bind-address=:8081
+        - --metrics-address=:8082
+        - --ping-enabled=true
+        - --ping-port=54321
+        - --ping-loss-threshold=5
+        - --ping-interval=10s
+        - --ping-update-status-interval=10s
+        - --enable-nft-monitor=false
+        - --enable-route-monitor=true
+        - --global-labels=liqo.io/managed=true
+        command:
+        - /usr/bin/fabric
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        image: ghcr.io/liqotech/fabric:v1.3.0
+        name: fabric
+        ports:
+        - containerPort: 8081
+          name: healthz
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: healthz
+        resources:
+          requests: {}
+        securityContext:
+          capabilities:
+            add:
+            - NET_ADMIN
+            - NET_RAW
+          privileged: true
+      hostNetwork: true
+      serviceAccountName: liqo-fabric
+      tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/infra
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/control-plane
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/instance: liqo-controller-manager
+    app.kubernetes.io/name: controller-manager
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-controller-manager
+  namespace: liqo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: controller-manager
+      app.kubernetes.io/instance: liqo-controller-manager
+      app.kubernetes.io/name: controller-manager
+      app.kubernetes.io/part-of: liqo
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: controller-manager
+        app.kubernetes.io/instance: liqo-controller-manager
+        app.kubernetes.io/name: controller-manager
+        app.kubernetes.io/part-of: liqo
+        app.kubernetes.io/version: v1.3.0
+    spec:
+      containers:
+      - args:
+        - --cluster-id=$(CLUSTER_ID)
+        - --liqo-namespace=$(POD_NAMESPACE)
+        - --networking-enabled=true
+        - --authentication-enabled=true
+        - --tls-compatibility-mode=false
+        - --default-resource-slice-class-enabled=true
+        - --offloading-enabled=true
+        - --vk-options-default-template=liqo/virtual-kubelet-default
+        - --default-limits-enforcement=None
+        - --default-node-resources=cpu=4,ephemeral-storage=20Gi,memory=8Gi,pods=110
+        - --global-labels=liqo.io/managed=true
+        - --fabric-route-rule-priority=0
+        - --fabric-full-masquerade-enabled=false
+        - --gateway-masquerade-bypass-enabled=false
+        - --gateway-template-watch-enabled=true
+        - --geneve-port=6091
+        - --gateway-server-resources=networking.liqo.io/v1beta1/wggatewayservers
+        - --gateway-client-resources=networking.liqo.io/v1beta1/wggatewayclients
+        - --ipam-server=liqo-ipam.liqo:6000
+        - --enable-storage=true
+        - --webhook-port=9443
+        - --virtual-storage-class-name=liqo
+        - --real-storage-class-name=
+        - --storage-namespace=liqo-storage
+        - --ingress-classes=
+        - --load-balancer-classes=
+        - --enable-api-server-proxy-ip-remapping=true
+        command:
+        - /usr/bin/liqo-controller-manager
+        env:
+        - name: CLUSTER_ID
+          valueFrom:
+            configMapKeyRef:
+              key: CLUSTER_ID
+              name: liqo-clusterid-configmap
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        image: ghcr.io/liqotech/liqo-controller-manager:v1.3.0
+        name: controller-manager
+        ports:
+        - containerPort: 9443
+          name: webhook
+        - containerPort: 8081
+          name: healthz
+        - containerPort: 8082
+          name: metrics
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: healthz
+        resources:
+          requests: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      serviceAccountName: liqo-controller-manager
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: dispatcher
+    app.kubernetes.io/instance: liqo-crd-replicator
+    app.kubernetes.io/name: crd-replicator
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-crd-replicator
+  namespace: liqo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: dispatcher
+      app.kubernetes.io/instance: liqo-crd-replicator
+      app.kubernetes.io/name: crd-replicator
+      app.kubernetes.io/part-of: liqo
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: dispatcher
+        app.kubernetes.io/instance: liqo-crd-replicator
+        app.kubernetes.io/name: crd-replicator
+        app.kubernetes.io/part-of: liqo
+        app.kubernetes.io/version: v1.3.0
+    spec:
+      containers:
+      - args:
+        - --cluster-id=$(CLUSTER_ID)
+        command:
+        - /usr/bin/crd-replicator
+        env:
+        - name: CLUSTER_ID
+          valueFrom:
+            configMapKeyRef:
+              key: CLUSTER_ID
+              name: liqo-clusterid-configmap
+        image: ghcr.io/liqotech/crd-replicator:v1.3.0
+        name: crd-replicator
+        ports:
+        - containerPort: 8082
+          name: metrics
+        resources:
+          requests: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      serviceAccountName: liqo-crd-replicator
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: ipam
+    app.kubernetes.io/instance: liqo-ipam
+    app.kubernetes.io/name: ipam
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-ipam
+  namespace: liqo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: ipam
+      app.kubernetes.io/instance: liqo-ipam
+      app.kubernetes.io/name: ipam
+      app.kubernetes.io/part-of: liqo
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: ipam
+        app.kubernetes.io/instance: liqo-ipam
+        app.kubernetes.io/name: ipam
+        app.kubernetes.io/part-of: liqo
+        app.kubernetes.io/version: v1.3.0
+    spec:
+      containers:
+      - args:
+        - --pod-name=$(POD_NAME)
+        - --port=6000
+        - --sync-interval=2m
+        - --sync-graceperiod=30s
+        - --pools=10.0.0.0/8,192.168.0.0/16,172.16.0.0/12
+        - --enable-graphviz=false
+        command:
+        - /usr/bin/ipam
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        image: ghcr.io/liqotech/ipam:v1.3.0
+        livenessProbe:
+          grpc:
+            port: 6000
+          initialDelaySeconds: 1
+        name: ipam
+        ports:
+        - containerPort: 6000
+          name: ipam-api
+        readinessProbe:
+          grpc:
+            port: 6000
+        resources:
+          requests: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      serviceAccountName: liqo-ipam
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/instance: liqo-metric-agent
+    app.kubernetes.io/name: metric-agent
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-metric-agent
+  namespace: liqo
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: metrics
+      app.kubernetes.io/instance: liqo-metric-agent
+      app.kubernetes.io/name: metric-agent
+      app.kubernetes.io/part-of: liqo
+      run: metric-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: metrics
+        app.kubernetes.io/instance: liqo-metric-agent
+        app.kubernetes.io/name: metric-agent
+        app.kubernetes.io/part-of: liqo
+        run: metric-agent
+    spec:
+      containers:
+      - args:
+        - --key-path=/certs/key.pem
+        - --cert-path=/certs/cert.pem
+        - --read-timeout=30s
+        - --write-timeout=30s
+        - --client-qps=500
+        - --client-max-burst=500
+        command:
+        - /usr/bin/metric-agent
+        image: ghcr.io/liqotech/metric-agent:v1.3.0
+        name: metric-agent
+        resources:
+          requests: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+        volumeMounts:
+        - mountPath: /certs
+          name: certs
+      initContainers:
+      - args:
+        - req
+        - -x509
+        - -subj
+        - /C=IT/ST=Turin/O=Liqo
+        - -nodes
+        - -days
+        - "365"
+        - -newkey
+        - rsa:4096
+        - -keyout
+        - /certs/key.pem
+        - -out
+        - /certs/cert.pem
+        - -addext
+        - subjectAltName = DNS:liqo-metric-agent.liqo.svc
+        command:
+        - /usr/bin/openssl
+        image: ghcr.io/liqotech/cert-creator:v1.3.0
+        name: cert-creator
+        resources:
+          requests: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+        volumeMounts:
+        - mountPath: /certs
+          name: certs
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      serviceAccountName: liqo-metric-agent
+      volumes:
+      - emptyDir: {}
+        name: certs
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/instance: liqo-proxy
+    app.kubernetes.io/name: proxy
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-proxy
+  namespace: liqo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: networking
+      app.kubernetes.io/instance: liqo-proxy
+      app.kubernetes.io/name: proxy
+      app.kubernetes.io/part-of: liqo
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: networking
+        app.kubernetes.io/instance: liqo-proxy
+        app.kubernetes.io/name: proxy
+        app.kubernetes.io/part-of: liqo
+        app.kubernetes.io/version: v1.3.0
+    spec:
+      containers:
+      - args:
+        - --port=8118
+        - --force-host=kubernetes.default.svc:443
+        command:
+        - /usr/bin/proxy
+        image: ghcr.io/liqotech/proxy:v1.3.0
+        name: proxy
+        ports:
+        - containerPort: 8118
+        resources:
+          requests: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: webhook
+    app.kubernetes.io/instance: liqo-webhook
+    app.kubernetes.io/name: webhook
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-webhook
+  namespace: liqo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: webhook
+      app.kubernetes.io/instance: liqo-webhook
+      app.kubernetes.io/name: webhook
+      app.kubernetes.io/part-of: liqo
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: webhook
+        app.kubernetes.io/instance: liqo-webhook
+        app.kubernetes.io/name: webhook
+        app.kubernetes.io/part-of: liqo
+        app.kubernetes.io/version: v1.3.0
+    spec:
+      containers:
+      - args:
+        - --webhook-port=9443
+        - --liqo-namespace=$(POD_NAMESPACE)
+        - --secret-name=liqo-webhook-certs
+        - --liqo-runtime-class=liqo
+        - --enable-resource-enforcement
+        command:
+        - /usr/bin/webhook
+        env:
+        - name: CLUSTER_ID
+          valueFrom:
+            configMapKeyRef:
+              key: CLUSTER_ID
+              name: liqo-clusterid-configmap
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: DEPLOYMENT_NAME
+          value: liqo-webhook
+        image: ghcr.io/liqotech/webhook:v1.3.0
+        name: webhook
+        ports:
+        - containerPort: 9443
+          name: webhook
+        - containerPort: 8081
+          name: healthz
+        - containerPort: 8082
+          name: metrics
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: healthz
+        resources:
+          requests: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+        volumeMounts:
+        - mountPath: /tmp/k8s-webhook-server
+          name: webhook-certs
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      serviceAccountName: liqo-webhook
+      volumes:
+      - emptyDir: {}
+        name: webhook-certs
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  labels:
+    app.kubernetes.io/component: telemetry
+    app.kubernetes.io/instance: liqo-telemetry
+    app.kubernetes.io/name: telemetry
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-telemetry
+  namespace: liqo
+spec:
+  concurrencyPolicy: Replace
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/component: telemetry
+            app.kubernetes.io/instance: liqo-telemetry
+            app.kubernetes.io/name: telemetry
+            app.kubernetes.io/part-of: liqo
+            app.kubernetes.io/version: v1.3.0
+        spec:
+          containers:
+          - args:
+            - --liqo-version=v1.3.0
+            - --kubernetes-version=v1.35.0
+            - --namespace=liqo
+            image: ghcr.io/liqotech/telemetry:v1.3.0
+            name: telemetry
+            resources:
+              requests: {}
+            securityContext:
+              allowPrivilegeEscalation: false
+          restartPolicy: Never
+          securityContext:
+            fsGroup: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+          serviceAccountName: liqo-telemetry
+  schedule: 46 20 * * *
+  successfulJobsHistoryLimit: 0
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    helm.sh/hook-weight: "-5"
+  labels:
+    app.kubernetes.io/component: pre-delete
+    app.kubernetes.io/instance: liqo-pre-delete
+    app.kubernetes.io/name: pre-delete
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-pre-delete
+  namespace: liqo
+spec:
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: pre-delete
+        app.kubernetes.io/instance: liqo-pre-delete
+        app.kubernetes.io/name: pre-delete
+        app.kubernetes.io/part-of: liqo
+        app.kubernetes.io/version: v1.3.0
+      name: liqo-pre-delete
+    spec:
+      containers:
+      - command:
+        - /usr/bin/uninstaller
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        image: ghcr.io/liqotech/uninstaller:v1.3.0
+        name: pre-delete-job
+        resources:
+          requests: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+      restartPolicy: Never
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      serviceAccountName: liqo-pre-delete
+---
+apiVersion: ipam.liqo.io/v1alpha1
+kind: Network
+metadata:
+  annotations:
+    liqo.io/preinstalled: "true"
+  labels:
+    app.kubernetes.io/component: ipam
+    app.kubernetes.io/instance: liqo-ipam
+    app.kubernetes.io/name: ipam
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+    ipam.liqo.io/network-type: external-cidr
+  name: external-cidr
+  namespace: liqo
+spec:
+  cidr: 10.70.0.0/16
+  preAllocated: 1
+---
+apiVersion: ipam.liqo.io/v1alpha1
+kind: Network
+metadata:
+  annotations:
+    liqo.io/preinstalled: "true"
+  labels:
+    app.kubernetes.io/component: ipam
+    app.kubernetes.io/instance: liqo-ipam
+    app.kubernetes.io/name: ipam
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+    ipam.liqo.io/network-type: internal-cidr
+  name: internal-cidr
+  namespace: liqo
+spec:
+  cidr: 10.80.0.0/16
+---
+apiVersion: ipam.liqo.io/v1alpha1
+kind: Network
+metadata:
+  annotations:
+    liqo.io/preinstalled: "true"
+  labels:
+    app.kubernetes.io/component: ipam
+    app.kubernetes.io/instance: liqo-ipam
+    app.kubernetes.io/name: ipam
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+    ipam.liqo.io/network-not-remapped: "true"
+    ipam.liqo.io/network-shared: "true"
+    ipam.liqo.io/network-type: service-cidr
+  name: service-cidr
+  namespace: liqo
+spec:
+  cidr: null
+---
+apiVersion: networking.liqo.io/v1beta1
+kind: FirewallConfiguration
+metadata:
+  labels:
+    liqo.io/webhook-skip: "true"
+    networking.liqo.io/firewall-category: gateway
+    networking.liqo.io/firewall-subcategory: all-gateways
+  name: gw-mss-clamping
+  namespace: liqo
+spec:
+  table:
+    chains:
+    - hook: forward
+      name: mss-clamping
+      policy: accept
+      priority: 0
+      rules:
+        filterRules:
+        - action: tcpmssclamp
+          match:
+          - dev:
+              position: out
+              value: liqo-tunnel
+            op: eq
+            proto:
+              value: tcp
+          name: mss-clamping-out
+          value: "0"
+      type: filter
+    family: IPV4
+    name: mss-clamping
+---
+apiVersion: networking.liqo.io/v1beta1
+kind: WgGatewayClientTemplate
+metadata:
+  labels:
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/instance: liqo-wireguard-client
+    app.kubernetes.io/name: wireguard-client
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: wireguard-client
+  namespace: liqo
+spec:
+  objectKind:
+    apiVersion: networking.liqo.io/v1beta1
+    kind: WgGatewayClient
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: networking
+        app.kubernetes.io/instance: liqo-{{ .Name }}
+        app.kubernetes.io/name: '{{ .Name }}'
+        app.kubernetes.io/part-of: liqo
+        app.kubernetes.io/version: v1.3.0
+        networking.liqo.io/active: "true"
+        networking.liqo.io/component: gateway
+        networking.liqo.io/gateway-name: '{{ .Name }}'
+        networking.liqo.io/gateway-namespace: '{{ .Namespace }}'
+      name: '{{ .Name }}'
+      namespace: '{{ .Namespace }}'
+    spec:
+      deployment:
+        metadata:
+          labels:
+            app.kubernetes.io/component: networking
+            app.kubernetes.io/instance: liqo-{{ .Name }}
+            app.kubernetes.io/name: '{{ .Name }}'
+            app.kubernetes.io/part-of: liqo
+            app.kubernetes.io/version: v1.3.0
+            networking.liqo.io/active: "true"
+            networking.liqo.io/component: gateway
+            networking.liqo.io/gateway-name: '{{ .Name }}'
+            networking.liqo.io/gateway-namespace: '{{ .Namespace }}'
+          name: '{{ .Name }}'
+          namespace: '{{ .Namespace }}'
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app.kubernetes.io/component: networking
+              app.kubernetes.io/instance: liqo-{{ .Name }}
+              app.kubernetes.io/managed-by: Helm
+              app.kubernetes.io/name: '{{ .Name }}'
+              app.kubernetes.io/part-of: liqo
+              networking.liqo.io/component: gateway
+              networking.liqo.io/gateway-name: '{{ .Name }}'
+              networking.liqo.io/gateway-namespace: '{{ .Namespace }}'
+          strategy:
+            type: Recreate
+          template:
+            metadata:
+              labels:
+                app.kubernetes.io/component: networking
+                app.kubernetes.io/instance: liqo-{{ .Name }}
+                app.kubernetes.io/name: '{{ .Name }}'
+                app.kubernetes.io/part-of: liqo
+                app.kubernetes.io/version: v1.3.0
+                networking.liqo.io/active: "true"
+                networking.liqo.io/component: gateway
+                networking.liqo.io/gateway-name: '{{ .Name }}'
+                networking.liqo.io/gateway-namespace: '{{ .Namespace }}'
+              name: '{{ .Name }}'
+              namespace: '{{ .Namespace }}'
+            spec:
+              containers:
+              - args:
+                - --name={{ .Name }}
+                - --namespace={{ .Namespace }}
+                - --remote-cluster-id={{ .ClusterID }}
+                - --node-name=$(NODE_NAME)
+                - --pod-name=$(POD_NAME)
+                - --gateway-uid={{ .GatewayUID }}
+                - --mode=client
+                - --container-name=gateway
+                - --concurrent-containers-names=wireguard,geneve
+                - --global-labels=liqo.io/managed=true
+                - --health-probe-bind-address=:8083
+                - --ping-enabled=true
+                - --ping-loss-threshold=5
+                - --ping-interval=2s
+                - --ping-update-status-interval=10s
+                - --leader-election=false
+                - --enable-nft-monitor=true
+                - --enable-route-monitor=true
+                - --enable-multipath-hash-policy={{ if gt (len .Spec.Endpoint.Ports)
+                  1 }}true{{ else }}false{{ end }}
+                env:
+                - name: NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                image: ghcr.io/liqotech/gateway:v1.3.0
+                imagePullPolicy: IfNotPresent
+                name: gateway
+                ports:
+                - containerPort: 8083
+                  name: healthz
+                resources:
+                  limits: {}
+                  requests: {}
+                securityContext:
+                  capabilities:
+                    add:
+                    - NET_ADMIN
+                    - NET_RAW
+                  privileged: true
+                volumeMounts:
+                - mountPath: /ipc
+                  name: ipc
+              - args:
+                - --name={{ .Name }}
+                - --namespace={{ .Namespace }}
+                - --remote-cluster-id={{ .ClusterID }}
+                - --gateway-uid={{ .GatewayUID }}
+                - --mode=client
+                - --container-name=wireguard
+                - --mtu={{ .Spec.MTU }}
+                - --endpoint-address={{ index .Spec.Endpoint.Addresses 0 }}
+                - --endpoint-ports={{ if .Spec.Endpoint.Ports }}{{ range $i, $p :=
+                  .Spec.Endpoint.Ports }}{{ if $i }},{{ end }}{{ $p }}{{ end }}{{
+                  else }}{{ .Spec.Endpoint.Port }}{{ end }}
+                - --health-probe-bind-address=:8085
+                - --leader-election=false
+                - --implementation=kernel
+                image: ghcr.io/liqotech/gateway/wireguard:v1.3.0
+                imagePullPolicy: IfNotPresent
+                name: wireguard
+                ports:
+                - containerPort: 8085
+                  name: healthz
+                resources:
+                  limits: {}
+                  requests: {}
+                securityContext:
+                  capabilities:
+                    add:
+                    - NET_ADMIN
+                    - NET_RAW
+                    - '{{ if gt (len .Spec.Endpoint.Ports) 1 }}SYS_ADMIN{{ else }}NET_RAW{{
+                      end }}'
+                volumeMounts:
+                - mountPath: /ipc
+                  name: ipc
+                - mountPath: /etc/wireguard/keys
+                  name: wireguard-config
+              - args:
+                - --name={{ .Name }}
+                - --namespace={{ .Namespace }}
+                - --remote-cluster-id={{ .ClusterID }}
+                - --node-name=$(NODE_NAME)
+                - --pod-name=$(POD_NAME)
+                - --gateway-uid={{ .GatewayUID }}
+                - --mode=server
+                - --container-name=geneve
+                - --geneve-port=6091
+                - --ping-enabled=true
+                - --ping-port=54321
+                - --health-probe-bind-address=:8087
+                - --leader-election=false
+                env:
+                - name: NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                image: ghcr.io/liqotech/gateway/geneve:v1.3.0
+                imagePullPolicy: IfNotPresent
+                name: geneve
+                ports:
+                - containerPort: 8087
+                  name: healthz
+                resources:
+                  limits: {}
+                  requests: {}
+                securityContext:
+                  capabilities:
+                    add:
+                    - NET_ADMIN
+                    - NET_RAW
+                volumeMounts:
+                - mountPath: /ipc
+                  name: ipc
+              serviceAccount: '{{ .Name }}'
+              serviceAccountName: '{{ .Name }}'
+              volumes:
+              - name: wireguard-config
+                secret:
+                  secretName: '{{ .SecretName }}'
+              - emptyDir: {}
+                name: ipc
+      secretRef:
+        name: '{{ .Spec.SecretRef.Name }}'
+---
+apiVersion: networking.liqo.io/v1beta1
+kind: WgGatewayServerTemplate
+metadata:
+  labels:
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/instance: liqo-wireguard-server
+    app.kubernetes.io/name: wireguard-server
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: wireguard-server
+  namespace: liqo
+spec:
+  objectKind:
+    apiVersion: networking.liqo.io/v1beta1
+    kind: WgGatewayServer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: networking
+        app.kubernetes.io/instance: liqo-{{ .Name }}
+        app.kubernetes.io/name: '{{ .Name }}'
+        app.kubernetes.io/part-of: liqo
+        app.kubernetes.io/version: v1.3.0
+        networking.liqo.io/active: "true"
+        networking.liqo.io/component: gateway
+        networking.liqo.io/gateway-name: '{{ .Name }}'
+        networking.liqo.io/gateway-namespace: '{{ .Namespace }}'
+      name: '{{ .Name }}'
+      namespace: '{{ .Namespace }}'
+    spec:
+      deployment:
+        metadata:
+          labels:
+            app.kubernetes.io/component: networking
+            app.kubernetes.io/instance: liqo-{{ .Name }}
+            app.kubernetes.io/name: '{{ .Name }}'
+            app.kubernetes.io/part-of: liqo
+            app.kubernetes.io/version: v1.3.0
+            networking.liqo.io/active: "true"
+            networking.liqo.io/component: gateway
+            networking.liqo.io/gateway-name: '{{ .Name }}'
+            networking.liqo.io/gateway-namespace: '{{ .Namespace }}'
+          name: '{{ .Name }}'
+          namespace: '{{ .Namespace }}'
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app.kubernetes.io/component: networking
+              app.kubernetes.io/instance: liqo-{{ .Name }}
+              app.kubernetes.io/managed-by: Helm
+              app.kubernetes.io/name: '{{ .Name }}'
+              app.kubernetes.io/part-of: liqo
+              networking.liqo.io/component: gateway
+              networking.liqo.io/gateway-name: '{{ .Name }}'
+              networking.liqo.io/gateway-namespace: '{{ .Namespace }}'
+          strategy:
+            type: Recreate
+          template:
+            metadata:
+              labels:
+                app.kubernetes.io/component: networking
+                app.kubernetes.io/instance: liqo-{{ .Name }}
+                app.kubernetes.io/name: '{{ .Name }}'
+                app.kubernetes.io/part-of: liqo
+                app.kubernetes.io/version: v1.3.0
+                networking.liqo.io/active: "true"
+                networking.liqo.io/component: gateway
+                networking.liqo.io/gateway-name: '{{ .Name }}'
+                networking.liqo.io/gateway-namespace: '{{ .Namespace }}'
+              name: '{{ .Name }}'
+              namespace: '{{ .Namespace }}'
+            spec:
+              containers:
+              - args:
+                - --name={{ .Name }}
+                - --namespace={{ .Namespace }}
+                - --remote-cluster-id={{ .ClusterID }}
+                - --node-name=$(NODE_NAME)
+                - --pod-name=$(POD_NAME)
+                - --gateway-uid={{ .GatewayUID }}
+                - --mode=server
+                - --container-name=gateway
+                - --concurrent-containers-names=wireguard,geneve
+                - --global-labels=liqo.io/managed=true
+                - --health-probe-bind-address=:8083
+                - --ping-enabled=true
+                - --ping-loss-threshold=5
+                - --ping-interval=2s
+                - --ping-update-status-interval=10s
+                - --leader-election=false
+                - --enable-nft-monitor=true
+                - --enable-route-monitor=true
+                - --enable-multipath-hash-policy={{ if gt (len .Spec.Endpoint.Ports)
+                  1 }}true{{ else }}false{{ end }}
+                env:
+                - name: NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                image: ghcr.io/liqotech/gateway:v1.3.0
+                imagePullPolicy: IfNotPresent
+                name: gateway
+                ports:
+                - containerPort: 8083
+                  name: healthz
+                resources:
+                  limits: {}
+                  requests: {}
+                securityContext:
+                  capabilities:
+                    add:
+                    - NET_ADMIN
+                    - NET_RAW
+                  privileged: true
+                volumeMounts:
+                - mountPath: /ipc
+                  name: ipc
+              - args:
+                - --name={{ .Name }}
+                - --namespace={{ .Namespace }}
+                - --remote-cluster-id={{ .ClusterID }}
+                - --gateway-uid={{ .GatewayUID }}
+                - --mode=server
+                - --container-name=wireguard
+                - --mtu={{ .Spec.MTU }}
+                - --listen-ports={{ if .Spec.Endpoint.Ports }}{{ range $i, $p := .Spec.Endpoint.Ports
+                  }}{{ if $i }},{{ end }}{{ $p }}{{ end }}{{ else }}{{ .Spec.Endpoint.Port
+                  }}{{ end }}
+                - --health-probe-bind-address=:8085
+                - --leader-election=false
+                - --implementation=kernel
+                - --preserve-client-endpoint=true
+                image: ghcr.io/liqotech/gateway/wireguard:v1.3.0
+                imagePullPolicy: IfNotPresent
+                name: wireguard
+                ports:
+                - containerPort: 8085
+                  name: healthz
+                resources:
+                  limits: {}
+                  requests: {}
+                securityContext:
+                  capabilities:
+                    add:
+                    - NET_ADMIN
+                    - NET_RAW
+                    - '{{ if gt (len .Spec.Endpoint.Ports) 1 }}SYS_ADMIN{{ else }}NET_RAW{{
+                      end }}'
+                volumeMounts:
+                - mountPath: /ipc
+                  name: ipc
+                - mountPath: /etc/wireguard/keys
+                  name: wireguard-config
+              - args:
+                - --name={{ .Name }}
+                - --namespace={{ .Namespace }}
+                - --remote-cluster-id={{ .ClusterID }}
+                - --node-name=$(NODE_NAME)
+                - --pod-name=$(POD_NAME)
+                - --gateway-uid={{ .GatewayUID }}
+                - --mode=server
+                - --container-name=geneve
+                - --geneve-port=6091
+                - --ping-enabled=true
+                - --ping-port=54321
+                - --health-probe-bind-address=:8087
+                - --leader-election=false
+                env:
+                - name: NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                image: ghcr.io/liqotech/gateway/geneve:v1.3.0
+                imagePullPolicy: IfNotPresent
+                name: geneve
+                ports:
+                - containerPort: 8087
+                  name: healthz
+                resources:
+                  limits: {}
+                  requests: {}
+                securityContext:
+                  capabilities:
+                    add:
+                    - NET_ADMIN
+                    - NET_RAW
+                volumeMounts:
+                - mountPath: /ipc
+                  name: ipc
+              serviceAccount: '{{ .Name }}'
+              serviceAccountName: '{{ .Name }}'
+              volumes:
+              - name: wireguard-config
+                secret:
+                  secretName: '{{ .SecretName }}'
+              - emptyDir: {}
+                name: ipc
+      secretRef:
+        name: '{{ .Spec.SecretRef.Name }}'
+      service:
+        metadata:
+          labels:
+            app.kubernetes.io/component: networking
+            app.kubernetes.io/instance: liqo-{{ .Name }}
+            app.kubernetes.io/name: '{{ .Name }}'
+            app.kubernetes.io/part-of: liqo
+            app.kubernetes.io/version: v1.3.0
+            networking.liqo.io/active: "true"
+            networking.liqo.io/component: gateway
+            networking.liqo.io/gateway-name: '{{ .Name }}'
+            networking.liqo.io/gateway-namespace: '{{ .Namespace }}'
+          name: '{{ .Name }}'
+          namespace: '{{ .Namespace }}'
+        spec:
+          ?loadBalancerIP: '{{ .Spec.Endpoint.LoadBalancerIP }}'
+          ports:
+          - ?nodePort: '{{ .Spec.Endpoint.NodePort }}'
+            port: '{{ .Spec.Endpoint.Port }}'
+            protocol: UDP
+            targetPort: '{{ .Spec.Endpoint.Port }}'
+          selector:
+            app.kubernetes.io/component: networking
+            app.kubernetes.io/instance: liqo-{{ .Name }}
+            app.kubernetes.io/managed-by: Helm
+            app.kubernetes.io/name: '{{ .Name }}'
+            app.kubernetes.io/part-of: liqo
+            networking.liqo.io/active: "true"
+            networking.liqo.io/component: gateway
+            networking.liqo.io/gateway-name: '{{ .Name }}'
+            networking.liqo.io/gateway-namespace: '{{ .Namespace }}'
+          type: '{{ .Spec.Endpoint.ServiceType }}'
+---
+apiVersion: offloading.liqo.io/v1beta1
+kind: VkOptionsTemplate
+metadata:
+  labels:
+    app.kubernetes.io/component: virtualkubelet
+    app.kubernetes.io/instance: liqo-virtual-kubelet
+    app.kubernetes.io/name: virtual-kubelet
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: virtual-kubelet-default
+  namespace: liqo
+spec:
+  annotationsNotReflected:
+  - cloud.google.com/neg
+  - cloud.google.com/neg-status
+  - kubernetes.digitalocean.com/load-balancer-id
+  - ingress.kubernetes.io/backends
+  - ingress.kubernetes.io/forwarding-rule
+  - ingress.kubernetes.io/target-proxy
+  - ingress.kubernetes.io/url-map
+  - metallb.universe.tf/address-pool
+  - metallb.universe.tf/ip-allocated-from-pool
+  - metallb.universe.tf/loadBalancerIPs
+  - loadbalancer.openstack.org/load-balancer-id
+  containerImage: ghcr.io/liqotech/virtual-kubelet:v1.3.0
+  createNode: true
+  disableNetworkCheck: false
+  extraArgs:
+  - --enable-apiserver-support=true
+  metricsEnabled: false
+  pullPolicy: IfNotPresent
+  reflectorsConfig:
+    configmap:
+      type: DenyList
+      workers: 3
+    endpointslice:
+      workers: 10
+    event:
+      type: DenyList
+      workers: 3
+    ingress:
+      type: DenyList
+      workers: 3
+    persistentvolumeclaim:
+      workers: 3
+    pod:
+      workers: 10
+    secret:
+      type: DenyList
+      workers: 3
+    service:
+      type: DenyList
+      workers: 3
+    serviceaccount:
+      workers: 3
+  replicas: 1
+  resources:
+    limits: {}
+    requests: {}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/instance: liqo-controller-manager
+    app.kubernetes.io/name: controller-manager
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-controller-manager
+  namespace: liqo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/component: dispatcher
+    app.kubernetes.io/instance: liqo-crd-replicator
+    app.kubernetes.io/name: crd-replicator
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-crd-replicator
+  namespace: liqo
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/component: peering-user
+    app.kubernetes.io/instance: liqo-peering-user
+    app.kubernetes.io/name: peering-user
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-peering-user-liqo-ns
+  namespace: liqo
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ipam.liqo.io
+  resources:
+  - ips
+  verbs:
+  - get
+- apiGroups:
+  - ipam.liqo.io
+  resources:
+  - networks
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - networking.liqo.io
+  resources:
+  - wggatewayclienttemplates
+  - wggatewayservertemplates
+  verbs:
+  - get
+  - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    helm.sh/hook-weight: "-5"
+  labels:
+    app.kubernetes.io/component: pre-delete
+    app.kubernetes.io/instance: liqo-pre-delete
+    app.kubernetes.io/name: pre-delete
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-pre-delete
+  namespace: liqo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/component: webhook
+    app.kubernetes.io/instance: liqo-webhook
+    app.kubernetes.io/name: webhook
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-webhook
+  namespace: liqo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/instance: liqo-controller-manager
+    app.kubernetes.io/name: controller-manager
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-controller-manager
+  namespace: liqo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: liqo-controller-manager
+subjects:
+- kind: ServiceAccount
+  name: liqo-controller-manager
+  namespace: liqo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: dispatcher
+    app.kubernetes.io/instance: liqo-crd-replicator
+    app.kubernetes.io/name: crd-replicator
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-crd-replicator
+  namespace: liqo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: liqo-crd-replicator
+subjects:
+- kind: ServiceAccount
+  name: liqo-crd-replicator
+  namespace: liqo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: webhook
+    app.kubernetes.io/instance: liqo-webhook
+    app.kubernetes.io/name: webhook
+    app.kubernetes.io/part-of: liqo
+    app.kubernetes.io/version: v1.3.0
+  name: liqo-webhook
+  namespace: liqo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: liqo-webhook
+subjects:
+- kind: ServiceAccount
+  name: liqo-webhook
+  namespace: liqo
