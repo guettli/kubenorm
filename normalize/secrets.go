@@ -73,15 +73,9 @@ func isCoreV1Secret(obj map[string]any) bool {
 }
 
 func redactSecretField(obj map[string]any, field string) {
-	switch entries := obj[field].(type) {
-	case map[string]any:
-		for key := range entries {
-			entries[key] = RedactionMarker
-		}
-	case map[string]string:
-		for key := range entries {
-			entries[key] = RedactionMarker
-		}
+	entries, _ := obj[field].(map[string]any)
+	for key := range entries {
+		entries[key] = RedactionMarker
 	}
 }
 
@@ -91,10 +85,7 @@ func redactSecretAnnotations(obj map[string]any) {
 		return
 	}
 
-	switch annotations := metadata["annotations"].(type) {
-	case map[string]any:
-		delete(annotations, lastAppliedAnnotation)
-	case map[string]string:
+	if annotations, ok := metadata["annotations"].(map[string]any); ok {
 		delete(annotations, lastAppliedAnnotation)
 	}
 }

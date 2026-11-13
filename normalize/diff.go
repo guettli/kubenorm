@@ -2,7 +2,6 @@ package normalize
 
 import (
 	"fmt"
-	"io"
 	"path"
 	"sort"
 	"strings"
@@ -33,18 +32,6 @@ type FileDiff struct {
 	Status FileStatus
 	// Unified is the unified diff (git apply compatible).
 	Unified string
-}
-
-// DiffResult summarizes a Diff run.
-type DiffResult struct {
-	Changed []string
-	Added   []string
-	Removed []string
-}
-
-// Equal reports whether no difference was found.
-func (d DiffResult) Equal() bool {
-	return len(d.Changed) == 0 && len(d.Added) == 0 && len(d.Removed) == 0
 }
 
 // ComputeDiff compares old and new, sorted by path. oldPrefix and newPrefix
@@ -106,39 +93,6 @@ func ComputeDiff(oldSide, newSide Rendered, oldPrefix, newPrefix string) []FileD
 	return diffs
 }
 
-// Summarize returns the paths per status.
-func Summarize(diffs []FileDiff) DiffResult {
-	var result DiffResult
-
-	for _, d := range diffs {
-		switch d.Status {
-		case StatusAdded:
-			result.Added = append(result.Added, d.Path)
-		case StatusDeleted:
-			result.Removed = append(result.Removed, d.Path)
-		case StatusModified:
-			result.Changed = append(result.Changed, d.Path)
-		}
-	}
-
-	return result
-}
-
-// Diff writes a unified diff (git style) from old to new. Resources only
-// present on one side are shown as fully added/removed.
-func Diff(w io.Writer, oldSide, newSide Rendered, oldPrefix, newPrefix string) (DiffResult, error) {
-	diffs := ComputeDiff(oldSide, newSide, oldPrefix, newPrefix)
-
-	for _, d := range diffs {
-		_, err := io.WriteString(w, d.Unified)
-		if err != nil {
-			return DiffResult{}, fmt.Errorf("writing diff: %w", err)
-		}
-	}
-
-	return Summarize(diffs), nil
-}
-
 // SourceDiff holds the differences of one input file.
 type SourceDiff struct {
 	Source string
@@ -163,12 +117,13 @@ func DiffBySource(oldSide, newSide []Resource, prefixes func(source string) (str
 	result := make([]SourceDiff, len(files))
 
 	err := parallelFor(len(files), func(i int) error {
-		oldRendered, err := Render(oldBySource[files[i]])
+		// Files are already compared in parallel: render sequentially.
+		oldRendered, err := render(oldBySource[files[i]], false)
 		if err != nil {
 			return err
 		}
 
-		newRendered, err := Render(newBySource[files[i]])
+		newRendered, err := render(newBySource[files[i]], false)
 		if err != nil {
 			return err
 		}

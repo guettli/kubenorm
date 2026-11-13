@@ -67,13 +67,6 @@ func deepCopy(v any) any {
 		}
 
 		return out
-	case map[string]string:
-		out := make(map[string]any, len(typed))
-		for k, val := range typed {
-			out[k] = val
-		}
-
-		return out
 	case []any:
 		out := make([]any, len(typed))
 		for i, val := range typed {

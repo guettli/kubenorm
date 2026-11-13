@@ -45,7 +45,7 @@ func LoadConfig(useCommon bool, userConfigFile string) (*Config, error) {
 	cfg := &Config{}
 
 	if useCommon {
-		common, err := ParseConfig("common config", commonConfig)
+		common, err := parseConfig("common config", commonConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -63,7 +63,7 @@ func LoadConfig(useCommon bool, userConfigFile string) (*Config, error) {
 		return nil, fmt.Errorf("failed to read config %s: %w", trimmedFileName, err)
 	}
 
-	user, err := ParseConfig(trimmedFileName, data)
+	user, err := parseConfig(trimmedFileName, data)
 	if err != nil {
 		return nil, err
 	}
@@ -73,9 +73,9 @@ func LoadConfig(useCommon bool, userConfigFile string) (*Config, error) {
 	return cfg, nil
 }
 
-// ParseConfig parses a single YAML config document. Unknown fields are
+// parseConfig parses a single YAML config document. Unknown fields are
 // rejected (strict mode). name is only used in error messages.
-func ParseConfig(name string, data []byte) (*Config, error) {
+func parseConfig(name string, data []byte) (*Config, error) {
 	return parseIgnoreConfigBytes(name, data)
 }
 
@@ -182,11 +182,43 @@ type skipRuleFile struct {
 	Name      *string `yaml:"name"`
 }
 
-type skipRule struct {
+// matcher selects resources by group, kind, namespace and name globs.
+type matcher struct {
 	GroupPattern     string
 	KindPattern      string
 	NamespacePattern string
 	NamePattern      string
+}
+
+func (m matcher) matches(identity objectIdentity) bool {
+	return matchGlob(m.GroupPattern, identity.Group) &&
+		matchGlob(m.KindPattern, identity.Kind) &&
+		matchGlob(m.NamespacePattern, identity.Namespace) &&
+		matchGlob(m.NamePattern, identity.Name)
+}
+
+// compileMatcher validates the globs. Omitted matchers become "*".
+func compileMatcher(group, kind, namespace, name *string) (matcher, error) {
+	m := matcher{
+		GroupPattern:     patternOrWildcard(group),
+		KindPattern:      patternOrWildcard(kind),
+		NamespacePattern: patternOrWildcard(namespace),
+		NamePattern:      patternOrWildcard(name),
+	}
+
+	for _, pattern := range []string{m.GroupPattern, m.KindPattern, m.NamespacePattern, m.NamePattern} {
+		err := validateGlobPattern(pattern)
+		if err != nil {
+			return matcher{}, fmt.Errorf("invalid glob %q: %w", pattern, err)
+		}
+	}
+
+	return m, nil
+}
+
+type skipRule struct {
+	matcher
+
 	// Origin describes where the rule comes from, for explain.
 	Origin string
 }
@@ -293,11 +325,9 @@ func (e *ignoreFieldEntryFile) UnmarshalYAML(value *yaml.Node) error {
 }
 
 type ignoreRule struct {
-	GroupPattern     string
-	KindPattern      string
-	NamespacePattern string
-	NamePattern      string
-	Fields           []ignoreFieldPath
+	matcher
+
+	Fields []ignoreFieldPath
 	// Origin describes where the rule comes from, for explain.
 	Origin string
 }
@@ -478,41 +508,12 @@ func compileIgnoreRule(fileRule ignoreRuleFile) (ignoreRule, error) {
 		return ignoreRule{}, fmt.Errorf("fields must not be empty")
 	}
 
-	groupPattern := patternOrWildcard(fileRule.Group)
-
-	err := validateGlobPattern(groupPattern)
+	m, err := compileMatcher(fileRule.Group, fileRule.Kind, fileRule.Namespace, fileRule.Name)
 	if err != nil {
-		return ignoreRule{}, fmt.Errorf("invalid group glob %q: %w", groupPattern, err)
+		return ignoreRule{}, err
 	}
 
-	kindPattern := patternOrWildcard(fileRule.Kind)
-
-	err = validateGlobPattern(kindPattern)
-	if err != nil {
-		return ignoreRule{}, fmt.Errorf("invalid kind glob %q: %w", kindPattern, err)
-	}
-
-	namespacePattern := patternOrWildcard(fileRule.Namespace)
-
-	err = validateGlobPattern(namespacePattern)
-	if err != nil {
-		return ignoreRule{}, fmt.Errorf("invalid namespace glob %q: %w", namespacePattern, err)
-	}
-
-	namePattern := patternOrWildcard(fileRule.Name)
-
-	err = validateGlobPattern(namePattern)
-	if err != nil {
-		return ignoreRule{}, fmt.Errorf("invalid name glob %q: %w", namePattern, err)
-	}
-
-	return ignoreRule{
-		GroupPattern:     groupPattern,
-		KindPattern:      kindPattern,
-		NamespacePattern: namespacePattern,
-		NamePattern:      namePattern,
-		Fields:           fields,
-	}, nil
+	return ignoreRule{matcher: m, Fields: fields}, nil
 }
 
 // rejectLegacyIgnoreConfigKeys catches configs that still use the old
@@ -545,40 +546,12 @@ func compileSkipRule(fileRule skipRuleFile) (skipRule, error) {
 		return skipRule{}, fmt.Errorf("skip rule must set at least one of group, kind, namespace, name")
 	}
 
-	groupPattern := patternOrWildcard(fileRule.Group)
-
-	err := validateGlobPattern(groupPattern)
+	m, err := compileMatcher(fileRule.Group, fileRule.Kind, fileRule.Namespace, fileRule.Name)
 	if err != nil {
-		return skipRule{}, fmt.Errorf("invalid group glob %q: %w", groupPattern, err)
+		return skipRule{}, err
 	}
 
-	kindPattern := patternOrWildcard(fileRule.Kind)
-
-	err = validateGlobPattern(kindPattern)
-	if err != nil {
-		return skipRule{}, fmt.Errorf("invalid kind glob %q: %w", kindPattern, err)
-	}
-
-	namespacePattern := patternOrWildcard(fileRule.Namespace)
-
-	err = validateGlobPattern(namespacePattern)
-	if err != nil {
-		return skipRule{}, fmt.Errorf("invalid namespace glob %q: %w", namespacePattern, err)
-	}
-
-	namePattern := patternOrWildcard(fileRule.Name)
-
-	err = validateGlobPattern(namePattern)
-	if err != nil {
-		return skipRule{}, fmt.Errorf("invalid name glob %q: %w", namePattern, err)
-	}
-
-	return skipRule{
-		GroupPattern:     groupPattern,
-		KindPattern:      kindPattern,
-		NamespacePattern: namespacePattern,
-		NamePattern:      namePattern,
-	}, nil
+	return skipRule{matcher: m}, nil
 }
 
 func skipRuleHasMatcher(fileRule skipRuleFile) bool {
@@ -589,13 +562,6 @@ func skipRuleHasMatcher(fileRule skipRuleFile) bool {
 	}
 
 	return false
-}
-
-func (r skipRule) matches(identity Identity) bool {
-	return matchGlob(r.GroupPattern, identity.Group) &&
-		matchGlob(r.KindPattern, identity.Kind) &&
-		matchGlob(r.NamespacePattern, identity.Namespace) &&
-		matchGlob(r.NamePattern, identity.Name)
 }
 
 // skipRuleCoversGVR reports whether any rule would drop every resource of the

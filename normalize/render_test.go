@@ -16,7 +16,7 @@ data:
   k: v1
 `
 
-func render(t *testing.T, yamlDocs string) Rendered {
+func renderYAML(t *testing.T, yamlDocs string) Rendered {
 	t.Helper()
 
 	resources, err := ParseYAML([]byte(yamlDocs), "test")
@@ -41,15 +41,15 @@ func TestRender_DuplicateIsError(t *testing.T) {
 	}
 
 	_, err = Render(resources)
-	if !errors.Is(err, ErrDuplicate) {
-		t.Fatalf("expected ErrDuplicate, got %v", err)
+	if !errors.Is(err, errDuplicate) {
+		t.Fatalf("expected errDuplicate, got %v", err)
 	}
 }
 
 func TestWriteStream_SortedAndSeparated(t *testing.T) {
 	t.Parallel()
 
-	rendered := render(t, strings.Replace(cmA, "name: a", "name: z", 1)+"---\n"+cmA)
+	rendered := renderYAML(t, strings.Replace(cmA, "name: a", "name: z", 1)+"---\n"+cmA)
 
 	var buf bytes.Buffer
 
@@ -68,33 +68,26 @@ func TestWriteStream_SortedAndSeparated(t *testing.T) {
 	}
 }
 
-func TestDiff(t *testing.T) {
+func TestComputeDiff(t *testing.T) {
 	t.Parallel()
 
-	oldSide := render(t, cmA)
-	newSide := render(t, strings.Replace(cmA, "k: v1", "k: v2", 1)+"---\n"+strings.Replace(cmA, "name: a", "name: b", 1))
+	oldSide := renderYAML(t, cmA)
+	newSide := renderYAML(t, strings.Replace(cmA, "k: v1", "k: v2", 1)+"---\n"+strings.Replace(cmA, "name: a", "name: b", 1))
 
-	var buf bytes.Buffer
-
-	result, err := Diff(&buf, oldSide, newSide, "old", "new")
-	if err != nil {
-		t.Fatal(err)
+	diffs := ComputeDiff(oldSide, newSide, "old", "new")
+	if len(diffs) != 2 || diffs[0].Status != StatusModified || diffs[1].Status != StatusAdded {
+		t.Fatalf("unexpected diffs %+v", diffs)
 	}
 
-	if result.Equal() || len(result.Changed) != 1 || len(result.Added) != 1 || len(result.Removed) != 0 {
-		t.Fatalf("unexpected result %+v", result)
-	}
-
-	out := buf.String()
-	for _, want := range []string{"--- old/ns/ConfigMap/a.yaml", "+++ new/ns/ConfigMap/a.yaml", "-  k: v1", "+  k: v2", "--- /dev/null", "+++ new/ns/ConfigMap/b.yaml"} {
+	out := diffs[0].Unified + diffs[1].Unified
+	for _, want := range []string{"--- old/ns/ConfigMap/a.yaml", "+++ new/ns/ConfigMap/a.yaml", "-  k: v1", "+  k: v2", "--- /dev/null", "+++ new/ns/ConfigMap/b.yaml", "@@ -0,0 +1,"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("diff output misses %q:\n%s", want, out)
 		}
 	}
 
-	result, err = Diff(&buf, oldSide, oldSide, "a", "b")
-	if err != nil || !result.Equal() {
-		t.Fatalf("expected equal, got %+v %v", result, err)
+	if diffs := ComputeDiff(oldSide, oldSide, "a", "b"); len(diffs) != 0 {
+		t.Fatalf("expected no diff, got %+v", diffs)
 	}
 }
 

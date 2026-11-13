@@ -85,16 +85,6 @@ func ParseYAML(data []byte, source string) ([]Resource, error) {
 	return resources, nil
 }
 
-// CountDocuments returns the number of non-empty YAML documents in data.
-func CountDocuments(data []byte) (int, error) {
-	docs, err := splitDocuments(data, "input")
-	if err != nil {
-		return 0, err
-	}
-
-	return len(docs), nil
-}
-
 // splitDocuments decodes every non-empty document into a map.
 func splitDocuments(data []byte, source string) ([]map[string]any, error) {
 	reader := utilyaml.NewYAMLReader(bufio.NewReader(bytes.NewReader(data)))
@@ -131,9 +121,9 @@ func splitDocuments(data []byte, source string) ([]map[string]any, error) {
 	}
 }
 
-// ReadPath reads all resources from a file, a directory (recursively, *.yaml
+// readPath reads all resources from a file, a directory (recursively, *.yaml
 // and *.yml) or stdin (path "-").
-func ReadPath(inputPath string, stdin io.Reader) ([]Resource, error) {
+func readPath(inputPath string, stdin io.Reader) ([]Resource, error) {
 	if inputPath == StdinPath {
 		data, err := io.ReadAll(stdin)
 		if err != nil {
@@ -151,7 +141,7 @@ func ReadPath(inputPath string, stdin io.Reader) ([]Resource, error) {
 	files := []string{inputPath}
 
 	if info.IsDir() {
-		files, err = FindYAMLFiles(inputPath)
+		files, err = findYAMLFiles(inputPath)
 		if err != nil {
 			return nil, err
 		}
@@ -182,7 +172,7 @@ func ReadPath(inputPath string, stdin io.Reader) ([]Resource, error) {
 	return resources, nil
 }
 
-// ReadPaths reads all resources from several inputs, see ReadPath. stdin
+// ReadPaths reads all resources from several inputs, see readPath. stdin
 // ("-") must be the only input.
 func ReadPaths(inputPaths []string, stdin io.Reader) ([]Resource, error) {
 	if len(inputPaths) > 1 && slices.Contains(inputPaths, StdinPath) {
@@ -192,7 +182,7 @@ func ReadPaths(inputPaths []string, stdin io.Reader) ([]Resource, error) {
 	var resources []Resource
 
 	for _, p := range inputPaths {
-		r, err := ReadPath(p, stdin)
+		r, err := readPath(p, stdin)
 		if err != nil {
 			return nil, err
 		}
@@ -203,8 +193,8 @@ func ReadPaths(inputPaths []string, stdin io.Reader) ([]Resource, error) {
 	return resources, nil
 }
 
-// FindYAMLFiles returns all *.yaml / *.yml files below dirPath, sorted.
-func FindYAMLFiles(dirPath string) ([]string, error) {
+// findYAMLFiles returns all *.yaml / *.yml files below dirPath, sorted.
+func findYAMLFiles(dirPath string) ([]string, error) {
 	info, err := os.Stat(dirPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to inspect directory %s: %w", dirPath, err)
@@ -221,7 +211,7 @@ func FindYAMLFiles(dirPath string) ([]string, error) {
 			return walkErr
 		}
 
-		if !d.IsDir() && IsYAMLFile(currentPath) {
+		if !d.IsDir() && isYAMLFile(currentPath) {
 			yamlFiles = append(yamlFiles, currentPath)
 		}
 
@@ -236,8 +226,8 @@ func FindYAMLFiles(dirPath string) ([]string, error) {
 	return yamlFiles, nil
 }
 
-// IsYAMLFile reports whether the file name ends with .yaml or .yml.
-func IsYAMLFile(filePath string) bool {
+// isYAMLFile reports whether the file name ends with .yaml or .yml.
+func isYAMLFile(filePath string) bool {
 	switch strings.ToLower(filepath.Ext(filePath)) {
 	case ".yaml", ".yml":
 		return true
@@ -344,8 +334,8 @@ func describe(r Resource) string {
 	return fmt.Sprintf("%s %s/%s from %s", u.GetKind(), u.GetNamespace(), u.GetName(), r.Source)
 }
 
-// ErrDuplicate is returned by Render when two resources map to the same path.
-var ErrDuplicate = errors.New("duplicate resource")
+// errDuplicate is returned by Render when two resources map to the same path.
+var errDuplicate = errors.New("duplicate resource")
 
 // Rendered maps the relative output path (see RelPath) to the encoded YAML.
 type Rendered map[string][]byte
@@ -353,13 +343,17 @@ type Rendered map[string][]byte
 // Render encodes each resource. Two resources with the same identity are an
 // error, because one would silently overwrite the other.
 func Render(resources []Resource, headerLines ...string) (Rendered, error) {
+	return render(resources, true, headerLines...)
+}
+
+func render(resources []Resource, parallel bool, headerLines ...string) (Rendered, error) {
 	sources := make(map[string]string, len(resources))
 	paths := make([]string, len(resources))
 
 	for i, r := range resources {
 		rel := r.RelPath()
 		if prev, ok := sources[rel]; ok {
-			return nil, fmt.Errorf("%w %s: found in %s and %s", ErrDuplicate, rel, prev, r.Source)
+			return nil, fmt.Errorf("%w %s: found in %s and %s", errDuplicate, rel, prev, r.Source)
 		}
 
 		sources[rel] = r.Source
@@ -368,7 +362,12 @@ func Render(resources []Resource, headerLines ...string) (Rendered, error) {
 
 	encoded := make([][]byte, len(resources))
 
-	err := parallelFor(len(resources), func(i int) error {
+	forEach := parallelFor
+	if !parallel {
+		forEach = sequentialFor
+	}
+
+	err := forEach(len(resources), func(i int) error {
 		var buf bytes.Buffer
 
 		err := Encode(&buf, resources[i].Object, headerLines...)

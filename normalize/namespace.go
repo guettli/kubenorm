@@ -172,9 +172,9 @@ func (o *Options) scopeResolver(resources []Resource) *scopeResolver {
 	return s
 }
 
-// IsClusterScoped reports whether the built-in list knows gk as
+// isBuiltinClusterScoped reports whether the built-in list knows gk as
 // cluster-scoped.
-func IsClusterScoped(gk schema.GroupKind) bool {
+func isBuiltinClusterScoped(gk schema.GroupKind) bool {
 	_, ok := builtinClusterScoped[gk]
 	return ok
 }
@@ -190,13 +190,13 @@ func (s *scopeResolver) isClusterScoped(gk schema.GroupKind) bool {
 		}
 	}
 
-	return IsClusterScoped(gk)
+	return isBuiltinClusterScoped(gk)
 }
 
 var dns1123LabelRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 
-// ValidateNamespaceName checks that ns is a valid RFC 1123 label.
-func ValidateNamespaceName(ns string) error {
+// validateNamespaceName checks that ns is a valid RFC 1123 label.
+func validateNamespaceName(ns string) error {
 	if len(ns) > 63 || !dns1123LabelRegex.MatchString(ns) {
 		return fmt.Errorf("invalid namespace %q: must be a lowercase RFC 1123 label (a-z, 0-9, '-', max 63 chars)", ns)
 	}
@@ -215,7 +215,7 @@ func (o *Options) Validate() error {
 			continue
 		}
 
-		err := ValidateNamespaceName(ns)
+		err := validateNamespaceName(ns)
 		if err != nil {
 			return err
 		}

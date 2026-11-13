@@ -67,7 +67,7 @@ type Options struct {
 
 	// AddNamespaceIfMissing sets metadata.namespace on namespaced resources
 	// that have none. Cluster-scoped resources are left alone (see
-	// IsClusterScoped). Applied before filtering.
+	// isBuiltinClusterScoped). Applied before filtering.
 	AddNamespaceIfMissing string
 
 	// OverwriteNamespace sets metadata.namespace on all namespaced resources,
@@ -75,23 +75,23 @@ type Options struct {
 	OverwriteNamespace string
 }
 
-// Identity identifies a resource for rule matching. Cluster-scoped resources
+// objectIdentity identifies a resource for rule matching. Cluster-scoped resources
 // have Namespace == ClusterNamespace.
-type Identity struct {
+type objectIdentity struct {
 	Group     string
 	Kind      string
 	Namespace string
 	Name      string
 }
 
-// IdentityOf returns the identity of item.
-func IdentityOf(item *unstructured.Unstructured, isNamespaced bool) Identity {
+// identityOf returns the identity of item.
+func identityOf(item *unstructured.Unstructured, isNamespaced bool) objectIdentity {
 	namespace := item.GetNamespace()
 	if !isNamespaced {
 		namespace = ClusterNamespace
 	}
 
-	return Identity{
+	return objectIdentity{
 		Group:     getGroup(item.GetAPIVersion()),
 		Kind:      item.GetKind(),
 		Namespace: namespace,
@@ -150,16 +150,16 @@ func (o *Options) applyRemoveRules(obj map[string]any, t *tracer) {
 			}
 
 			t.step(obj, rule.Origin+": "+field.raw, func() {
-				deleteFieldPath(obj, field.segments, field.value, field.valueConstrained, field.omitEmpty, field.omitIfEqualToSibling)
+				deleteField(obj, field)
 			})
 		}
 	}
 }
 
-func identityFromObject(obj map[string]any) Identity {
+func identityFromObject(obj map[string]any) objectIdentity {
 	u := &unstructured.Unstructured{Object: obj}
 
-	return IdentityOf(u, u.GetNamespace() != "")
+	return identityOf(u, u.GetNamespace() != "")
 }
 
 func pruneEmptyMetadataMaps(obj map[string]any) {
@@ -173,15 +173,8 @@ func pruneEmptyMetadataMaps(obj map[string]any) {
 }
 
 func pruneEmptyMetadataMap(metadata map[string]any, field string) {
-	switch typed := metadata[field].(type) {
-	case map[string]any:
-		if len(typed) == 0 {
-			delete(metadata, field)
-		}
-	case map[string]string:
-		if len(typed) == 0 {
-			delete(metadata, field)
-		}
+	if typed, ok := metadata[field].(map[string]any); ok && len(typed) == 0 {
+		delete(metadata, field)
 	}
 }
 

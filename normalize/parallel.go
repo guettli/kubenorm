@@ -11,14 +11,7 @@ import (
 func parallelFor(n int, fn func(i int) error) error {
 	workers := min(runtime.GOMAXPROCS(0), n)
 	if workers <= 1 {
-		for i := range n {
-			err := fn(i)
-			if err != nil {
-				return err
-			}
-		}
-
-		return nil
+		return sequentialFor(n, fn)
 	}
 
 	errs := make([]error, n)
@@ -42,6 +35,17 @@ func parallelFor(n int, fn func(i int) error) error {
 	wg.Wait()
 
 	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func sequentialFor(n int, fn func(i int) error) error {
+	for i := range n {
+		err := fn(i)
 		if err != nil {
 			return err
 		}

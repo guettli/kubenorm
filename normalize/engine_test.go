@@ -342,7 +342,7 @@ func secretObject(fixtureValue string) map[string]any {
 func TestParseNamespaceFilter(t *testing.T) {
 	t.Parallel()
 
-	filter, err := parseNamespaceFilter("alpha, beta ,alpha")
+	filter, err := ParseNamespacesCSV("alpha, beta ,alpha")
 	if err != nil {
 		t.Fatalf("parseNamespaceFilter returned error: %v", err)
 	}
@@ -363,60 +363,32 @@ func TestParseNamespaceFilter(t *testing.T) {
 func TestParseNamespaceFilter_InvalidOnlySeparators(t *testing.T) {
 	t.Parallel()
 
-	filter, err := parseNamespaceFilter(" , , ")
+	filter, err := ParseNamespacesCSV(" , , ")
 	if err == nil {
 		t.Fatalf("expected error, got nil with filter %v", filter)
 	}
 }
 
-func TestParseNameFilterRegex(t *testing.T) {
+func TestParseNameRegex(t *testing.T) {
 	t.Parallel()
 
-	re, enabled, err := parseNameFilterRegex("^my-secret$")
-	if err != nil {
-		t.Fatalf("parseNameFilterRegex returned error: %v", err)
+	re, err := ParseNameRegex("^my-secret$")
+	if err != nil || re == nil {
+		t.Fatalf("expected regex, got %v %v", re, err)
 	}
 
-	if !enabled {
-		t.Fatalf("expected enabled=true")
+	if !re.MatchString("my-secret") || re.MatchString("my-secret-2") {
+		t.Fatal("unexpected match result")
 	}
 
-	if re == nil {
-		t.Fatalf("expected regex, got nil")
-	}
-
-	if !re.MatchString("my-secret") {
-		t.Fatalf("expected regex to match")
-	}
-
-	if re.MatchString("my-secret-2") {
-		t.Fatalf("expected regex to not match")
-	}
-}
-
-func TestParseNameFilterRegex_Invalid(t *testing.T) {
-	t.Parallel()
-
-	re, enabled, err := parseNameFilterRegex("[")
+	_, err = ParseNameRegex("[")
 	if err == nil {
-		t.Fatalf("expected error, got nil and regex %v enabled=%v", re, enabled)
-	}
-}
-
-func TestParseNameFilterRegex_Empty(t *testing.T) {
-	t.Parallel()
-
-	re, enabled, err := parseNameFilterRegex("  ")
-	if err != nil {
-		t.Fatalf("parseNameFilterRegex returned error: %v", err)
+		t.Fatal("expected error for invalid regex")
 	}
 
-	if enabled {
-		t.Fatalf("expected enabled=false")
-	}
-
-	if re == nil {
-		t.Fatalf("expected non-nil regex for disabled state")
+	re, err = ParseNameRegex("  ")
+	if err != nil || re != nil {
+		t.Fatalf("expected nil regex for empty input, got %v %v", re, err)
 	}
 }
 
@@ -625,8 +597,7 @@ func TestShouldProcessItem_NameRegexAndNamespaceFilter(t *testing.T) {
 		namespaceFilter: map[string]struct{}{
 			"alpha": {},
 		},
-		nameFilterEnabled: true,
-		nameFilterRegex:   regexp.MustCompile(`^my-secret$`),
+		nameFilterRegex: regexp.MustCompile(`^my-secret$`),
 	}
 
 	tests := []struct {

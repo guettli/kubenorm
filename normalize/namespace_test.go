@@ -82,8 +82,8 @@ func TestIsClusterScoped(t *testing.T) {
 		{Group: "rbac.authorization.k8s.io", Kind: "Role"}: false,
 		{Group: "example.com", Kind: "Widget"}:             false,
 	} {
-		if got := IsClusterScoped(gk); got != want {
-			t.Errorf("IsClusterScoped(%v) = %v, want %v", gk, got, want)
+		if got := isBuiltinClusterScoped(gk); got != want {
+			t.Errorf("isBuiltinClusterScoped(%v) = %v, want %v", gk, got, want)
 		}
 	}
 }
@@ -139,7 +139,7 @@ func TestNoNamespaceFlagsKeepsNamespaces(t *testing.T) {
 func TestClusterScopedResourcesConfig(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := ParseConfig("test", []byte(`
+	cfg, err := parseConfig("test", []byte(`
 clusterScopedResources:
   - group: example.com
     kind: Wid*
@@ -161,7 +161,7 @@ clusterScopedResources:
 func TestClusterScopedResourcesConfig_KindRequired(t *testing.T) {
 	t.Parallel()
 
-	_, err := ParseConfig("test", []byte(`
+	_, err := parseConfig("test", []byte(`
 clusterScopedResources:
   - group: example.com
 `))

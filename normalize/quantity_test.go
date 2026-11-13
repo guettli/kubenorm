@@ -23,15 +23,15 @@ func TestCanonicalQuantity(t *testing.T) {
 		"129e6":     "129e6",
 		"500M":      "500M",
 	} {
-		got, ok := CanonicalQuantity(in)
+		got, ok := canonicalQuantity(in)
 		if !ok || got != want {
-			t.Errorf("CanonicalQuantity(%#v) = %q, %v; want %q", in, got, ok, want)
+			t.Errorf("canonicalQuantity(%#v) = %q, %v; want %q", in, got, ok, want)
 		}
 	}
 
 	for _, in := range []any{"abc", "", true, nil, map[string]any{}} {
-		if _, ok := CanonicalQuantity(in); ok {
-			t.Errorf("CanonicalQuantity(%#v) should not be a quantity", in)
+		if _, ok := canonicalQuantity(in); ok {
+			t.Errorf("canonicalQuantity(%#v) should not be a quantity", in)
 		}
 	}
 }
@@ -116,7 +116,7 @@ spec:
 func TestQuantityFields_UserConfig(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := ParseConfig("test", []byte(`
+	cfg, err := parseConfig("test", []byte(`
 quantityFields:
   - group: example.com
     kind: Widget

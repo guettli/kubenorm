@@ -25,7 +25,6 @@ type options struct {
 	excludeNamespaces   []string
 	namespaceFilter     map[string]struct{}
 	kindFilter          []string
-	nameFilterEnabled   bool
 	nameFilterRegex     *regexp.Regexp
 }
 
@@ -44,9 +43,7 @@ func (o *options) toOptions() *Options {
 		SecretsAsStringData: o.secretsAsStringData,
 	}
 
-	if o.nameFilterEnabled {
-		opts.NameRegex = o.nameFilterRegex
-	}
+	opts.NameRegex = o.nameFilterRegex
 
 	return opts
 }
@@ -77,7 +74,7 @@ func applyIgnoreRules(obj map[string]any, o *options) {
 }
 
 func readYamlFromDir(dir string, o *options) error {
-	resources, err := ReadPath(dir, nil)
+	resources, err := readPath(dir, nil)
 	if err != nil {
 		return err
 	}

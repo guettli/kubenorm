@@ -21,28 +21,6 @@ const (
 	defaultName       = "default"
 )
 
-// ParseNamespacesCSV parses a comma-separated list of namespace names.
-// An empty string returns an empty (match-all) filter.
-func ParseNamespacesCSV(csv string) (map[string]struct{}, error) {
-	return parseNamespaceFilter(csv)
-}
-
-// ParseKindsCSV parses a comma-separated list of kind globs.
-// An empty string returns nil (match all).
-func ParseKindsCSV(csv string) ([]string, error) {
-	return parseKindFilter(csv)
-}
-
-// ParseNameRegex compiles the regex. An empty string returns nil (match all).
-func ParseNameRegex(nameRegex string) (*regexp.Regexp, error) {
-	re, enabled, err := parseNameFilterRegex(nameRegex)
-	if err != nil || !enabled {
-		return nil, err
-	}
-
-	return re, nil
-}
-
 // Include reports whether the item passes all filters of o (skip rules,
 // excluded namespaces, kind/name/namespace filters and SkipOwned).
 // isNamespaced tells whether the resource is namespace-scoped. For resources
@@ -78,7 +56,7 @@ func (o *Options) SkipReason(item *unstructured.Unstructured, isNamespaced bool)
 	}
 
 	if len(skipRules) > 0 {
-		identity := IdentityOf(item, isNamespaced)
+		identity := identityOf(item, isNamespaced)
 		for _, rule := range skipRules {
 			if rule.matches(identity) {
 				return rule.Origin
@@ -115,7 +93,9 @@ func (o *Options) SkipReason(item *unstructured.Unstructured, isNamespaced bool)
 	return ""
 }
 
-func parseNamespaceFilter(namespacesCSV string) (map[string]struct{}, error) {
+// ParseNamespacesCSV parses a comma-separated list of namespace names.
+// An empty string returns an empty (match-all) filter.
+func ParseNamespacesCSV(namespacesCSV string) (map[string]struct{}, error) {
 	filter := make(map[string]struct{})
 
 	trimmed := strings.TrimSpace(namespacesCSV)
@@ -139,7 +119,9 @@ func parseNamespaceFilter(namespacesCSV string) (map[string]struct{}, error) {
 	return filter, nil
 }
 
-func parseKindFilter(kindFilterCSV string) ([]string, error) {
+// ParseKindsCSV parses a comma-separated list of kind globs.
+// An empty string returns nil (match all).
+func ParseKindsCSV(kindFilterCSV string) ([]string, error) {
 	trimmed := strings.TrimSpace(kindFilterCSV)
 	if trimmed == "" {
 		return nil, nil
@@ -168,18 +150,19 @@ func parseKindFilter(kindFilterCSV string) ([]string, error) {
 	return patterns, nil
 }
 
-func parseNameFilterRegex(nameRegex string) (*regexp.Regexp, bool, error) {
+// ParseNameRegex compiles the regex. An empty string returns nil (match all).
+func ParseNameRegex(nameRegex string) (*regexp.Regexp, error) {
 	trimmed := strings.TrimSpace(nameRegex)
 	if trimmed == "" {
-		return regexp.MustCompile(""), false, nil
+		return nil, nil //nolint:nilnil // nil means: no filter
 	}
 
 	re, err := regexp.Compile(trimmed)
 	if err != nil {
-		return nil, false, fmt.Errorf("invalid --name-regex %q: %w", nameRegex, err)
+		return nil, fmt.Errorf("invalid --name-regex %q: %w", nameRegex, err)
 	}
 
-	return re, true, nil
+	return re, nil
 }
 
 // matchesExcludedNamespace reports whether the item should be dropped because
