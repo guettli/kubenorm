@@ -204,3 +204,26 @@ func TestRender_MissingName(t *testing.T) {
 		t.Fatalf("expected a missing name error, got %v", err)
 	}
 }
+
+func TestValueMatches(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		actual, expected any
+		want             bool
+	}{
+		{int64(600), 600, true},
+		{float64(600), 600, true},
+		{"600", 600, false},
+		{"true", true, false},
+		{"<nil>", nil, false},
+		{nil, nil, true},
+		{map[string]any{}, map[string]any{}, true},
+		{[]any{}, []any{}, true},
+		{"25%", "25%", true},
+	} {
+		if got := valueMatches(tc.actual, tc.expected); got != tc.want {
+			t.Errorf("valueMatches(%#v, %#v) = %v, want %v", tc.actual, tc.expected, got, tc.want)
+		}
+	}
+}

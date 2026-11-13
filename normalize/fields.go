@@ -1,7 +1,8 @@
 package normalize
 
 import (
-	"fmt"
+	"bytes"
+	"encoding/json"
 	"path"
 	"strings"
 )
@@ -122,8 +123,13 @@ func visitFieldPathRecursive(current any, remaining []string, fn func(m map[stri
 	}
 }
 
+// valueMatches compares the JSON encodings, so 600 (int from the config)
+// equals 600 (int64 from the object), but "600" (string) does not.
 func valueMatches(actual, expected any) bool {
-	return fmt.Sprintf("%v", actual) == fmt.Sprintf("%v", expected)
+	a, errA := json.Marshal(actual)
+	b, errB := json.Marshal(expected)
+
+	return errA == nil && errB == nil && bytes.Equal(a, b)
 }
 
 // isEmpty reports whether v is absent or empty, mirroring json:",omitempty" semantics:
