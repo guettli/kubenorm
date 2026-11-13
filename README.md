@@ -281,6 +281,30 @@ rendered, _ := normalize.Render(resources)
 _ = rendered.WriteDir("out")
 ```
 
+## Why not kyaml?
+
+kubenorm reads and writes YAML like kubectl (`sigs.k8s.io/yaml` and
+apimachinery), not with [kyaml](https://pkg.go.dev/sigs.k8s.io/kustomize/kyaml)
+from kustomize/kpt. The two libraries have different goals:
+
+- kyaml edits files that humans maintain. It keeps comments, key order and
+  style, so that a tool changes as little as possible. Its formatter
+  (`kio/filters.FormatFilter`) only reorders keys, and does not remove defaults,
+  server fields or tool noise.
+- kubenorm brings every input into one canonical form: two inputs with the same
+  meaning must become byte-identical.
+
+Using kubectl's libraries gives:
+
+- output byte-identical to `kubectl get -o yaml` (keys sorted, lists not indented),
+- the same parsing as kubectl and the api-server: YAML 1.1 (`image: y` becomes
+  `true`, as kubectl would send it), integers as int64,
+- fewer dependencies, and a single object model (`map[string]any`).
+
+The trade-off: comments are lost. This is fine for rendered manifests, but it
+means kubenorm does not rewrite hand-written files in place: `norm --check`
+reports, `norm -o` writes a new tree.
+
 ## Related
 
 - [dumpall](https://github.com/guettli/dumpall) Dump all resources of a cluster into the same layout.
