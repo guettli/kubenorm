@@ -33,6 +33,8 @@ type Config struct {
 	removeRules       []ignoreRule
 	skipRules         []skipRule
 	excludeNamespaces []string
+	// quantityRules select fields that hold quantities.
+	quantityRules []ignoreRule
 	// clusterScopedPattern extends the built-in list of cluster-scoped kinds.
 	clusterScopedPattern []groupKindPattern
 }
@@ -87,6 +89,7 @@ func (c *Config) Merge(other *Config) {
 	c.skipRules = append(c.skipRules, other.skipRules...)
 	c.excludeNamespaces = append(c.excludeNamespaces, other.excludeNamespaces...)
 	c.clusterScopedPattern = append(c.clusterScopedPattern, other.clusterScopedPattern...)
+	c.quantityRules = append(c.quantityRules, other.quantityRules...)
 }
 
 // AddSkipNameGlob adds a skip rule matching resources whose metadata.name
@@ -153,10 +156,22 @@ func slicesClone(s []string) []string {
 }
 
 type ignoreConfig struct {
-	Rules             []ignoreRuleFile `yaml:"removeFields"`
-	Skip              []skipRuleFile   `yaml:"skipResources"`
-	ExcludeNamespaces []string         `yaml:"excludeNamespaces"`
-	ClusterScoped     []groupKindFile  `yaml:"clusterScopedResources"`
+	Rules             []ignoreRuleFile   `yaml:"removeFields"`
+	Skip              []skipRuleFile     `yaml:"skipResources"`
+	ExcludeNamespaces []string           `yaml:"excludeNamespaces"`
+	ClusterScoped     []groupKindFile    `yaml:"clusterScopedResources"`
+	Quantities        []quantityRuleFile `yaml:"quantityFields"`
+}
+
+// quantityRuleFile selects fields whose values are Kubernetes quantities
+// (cpu, memory, storage, ...). They are rewritten to the canonical form the
+// api-server returns: 1000m -> "1", 0.5 -> 500m, 1024Mi -> 1Gi.
+type quantityRuleFile struct {
+	Group     *string  `yaml:"group"`
+	Kind      *string  `yaml:"kind"`
+	Namespace *string  `yaml:"namespace"`
+	Name      *string  `yaml:"name"`
+	Fields    []string `yaml:"fields"`
 }
 
 type skipRuleFile struct {
@@ -347,7 +362,24 @@ func parseIgnoreConfigBytes(name string, data []byte) (*Config, error) {
 		return nil, err
 	}
 
+	quantityRules := make([]ignoreRule, 0, len(cfg.Quantities))
+
+	for idx, q := range cfg.Quantities {
+		fields := make([]ignoreFieldEntryFile, 0, len(q.Fields))
+		for _, f := range q.Fields {
+			fields = append(fields, ignoreFieldEntryFile{Path: f})
+		}
+
+		rule, err := compileIgnoreRule(ignoreRuleFile{Group: q.Group, Kind: q.Kind, Namespace: q.Namespace, Name: q.Name, Fields: fields})
+		if err != nil {
+			return nil, fmt.Errorf("invalid quantityFields rule %d in %s: %w", idx+1, name, err)
+		}
+
+		quantityRules = append(quantityRules, rule)
+	}
+
 	return &Config{
+		quantityRules:        quantityRules,
 		removeRules:          rules,
 		skipRules:            skips,
 		excludeNamespaces:    excludes,

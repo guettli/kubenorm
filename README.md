@@ -14,6 +14,8 @@ What normalization does:
   `resourceVersion`, `creationTimestamp`, ...)
 - removes values equal to the Kubernetes defaults (`imagePullPolicy: IfNotPresent`,
   `protocol: TCP`, `revisionHistoryLimit: 10`, probe defaults, ...)
+- writes quantities in the canonical form of the api-server
+  (`cpu: 1000m` → `cpu: "1"`, `memory: 1024Mi` → `memory: 1Gi`, `cpu: 0.5` → `cpu: 500m`)
 - removes tool noise (`helm.sh/chart` labels, kapp/argocd tracking labels,
   `last-applied-configuration`, ...)
 - drops noise resources (Pods, Events, ControllerRevisions, cert-manager
@@ -144,6 +146,13 @@ excludeNamespaces:
 clusterScopedResources:
   - group: example.com
     kind: Cluster*
+
+quantityFields:
+  - group: example.com
+    kind: Database
+    fields:
+      - spec.storage.size
+      - ...resources.limits.*
 ```
 
 - Matchers (`group`, `kind`, `namespace`, `name`) are globs; omitted means `*`.
@@ -152,6 +161,11 @@ clusterScopedResources:
   `...` matches any depth (`...labels.helm\.sh/chart`). Lists are walked
   automatically (`webhooks.clientConfig.caBundle`).
 - `excludeNamespaces` drops the Namespace object and everything inside.
+- `quantityFields` lists fields holding quantities. They are canonicalized
+  exactly like the api-server does (`resource.ParseQuantity(v).String()`).
+  The common config covers Pod specs of all built-in workloads, PVCs, PVs,
+  ResourceQuotas and LimitRanges. CRDs are not touched unless you list them,
+  because their fields may only look like quantities.
 - The config is parsed strictly; unknown keys are an error.
 
 `--config FILE` (repeatable) adds your rules to the common config,

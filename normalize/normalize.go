@@ -123,6 +123,7 @@ func (o *Options) Normalize(obj map[string]any) error {
 		convertSecretDataToStringData(obj)
 	}
 
+	o.applyQuantityRules(obj)
 	o.applyRemoveRules(obj)
 	pruneEmptyMetadataMaps(obj)
 

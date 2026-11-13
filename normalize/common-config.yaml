@@ -604,6 +604,57 @@ removeFields:
       - path: subjects.apiGroup
         value: ""
 
+# Quantities (cpu, memory, storage, ...) are rewritten to the canonical form
+# the api-server returns: 1000m -> "1", 0.5 -> 500m, 1024Mi -> 1Gi, 2 -> "2".
+quantityFields:
+  - kind: Pod
+    fields: &podSpecQuantities
+      - ...containers.resources.limits.*
+      - ...containers.resources.requests.*
+      - ...initContainers.resources.limits.*
+      - ...initContainers.resources.requests.*
+      - ...ephemeralContainers.resources.limits.*
+      - ...ephemeralContainers.resources.requests.*
+      # Pod-level resources (PodLevelResources).
+      - ...spec.resources.limits.*
+      - ...spec.resources.requests.*
+      - ...spec.overhead.*
+      - ...volumes.emptyDir.sizeLimit
+      - ...volumes.ephemeral.volumeClaimTemplate.spec.resources.requests.*
+      - ...volumes.ephemeral.volumeClaimTemplate.spec.resources.limits.*
+  - kind: PodTemplate
+    fields: *podSpecQuantities
+  - kind: ReplicationController
+    fields: *podSpecQuantities
+  - group: apps
+    kind: "*"
+    fields: *podSpecQuantities
+  - group: batch
+    kind: "*"
+    fields: *podSpecQuantities
+  - group: apps
+    kind: StatefulSet
+    fields:
+      - spec.volumeClaimTemplates.spec.resources.requests.*
+      - spec.volumeClaimTemplates.spec.resources.limits.*
+  - kind: PersistentVolumeClaim
+    fields:
+      - spec.resources.requests.*
+      - spec.resources.limits.*
+  - kind: PersistentVolume
+    fields:
+      - spec.capacity.*
+  - kind: ResourceQuota
+    fields:
+      - spec.hard.*
+  - kind: LimitRange
+    fields:
+      - spec.limits.default.*
+      - spec.limits.defaultRequest.*
+      - spec.limits.max.*
+      - spec.limits.min.*
+      - spec.limits.maxLimitRequestRatio.*
+
 skipResources:
   # Ephemeral metrics resources
   - group: metrics.k8s.io
