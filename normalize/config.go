@@ -247,81 +247,74 @@ type ignoreFieldEntryFile struct {
 	// spec.ports.targetPort which Kubernetes sets to the same value as spec.ports.port.
 	// Mutually exclusive with value and omitempty.
 	OmitIfEqualToSibling string
+	// ExceptValue removes the field unless it has this value (e.g. keep
+	// clusterIP: None). Mutually exclusive with the other modifiers.
+	ExceptValue       any
+	exceptConstrained bool
 }
 
 func (e *ignoreFieldEntryFile) UnmarshalYAML(value *yaml.Node) error {
-	switch value.Kind {
-	case yaml.ScalarNode:
+	if value.Kind == yaml.ScalarNode {
 		e.Path = value.Value
 		return nil
-	case yaml.MappingNode:
-		hasValue, hasOmitEmpty, hasOmitIfEqualToSibling := false, false, false
-
-		for i := 0; i < len(value.Content)-1; i += 2 {
-			key := value.Content[i].Value
-			switch key {
-			case "path":
-			case "value":
-				hasValue = true
-			case "omitempty":
-				hasOmitEmpty = true
-			case "omitIfEqualToSibling":
-				hasOmitIfEqualToSibling = true
-			default:
-				return fmt.Errorf("unknown field %q in field entry (allowed: path, value, omitempty, omitIfEqualToSibling)", key)
-			}
-		}
-
-		modifiers := 0
-
-		for _, has := range []bool{hasValue, hasOmitEmpty, hasOmitIfEqualToSibling} {
-			if has {
-				modifiers++
-			}
-		}
-
-		if modifiers > 1 {
-			return fmt.Errorf("field entry can only set one of 'value', 'omitempty', or 'omitIfEqualToSibling'")
-		}
-
-		var m struct {
-			Path                 string `yaml:"path"`
-			Value                any    `yaml:"value"`
-			OmitEmpty            bool   `yaml:"omitempty"`
-			OmitIfEqualToSibling string `yaml:"omitIfEqualToSibling"`
-		}
-
-		err := value.Decode(&m)
-		if err != nil {
-			return fmt.Errorf("failed to decode field entry: %w", err)
-		}
-
-		if m.Path == "" {
-			return fmt.Errorf("field entry map must have a non-empty 'path' key")
-		}
-
-		e.Path = m.Path
-		if hasValue {
-			e.Value = m.Value
-			e.valueConstrained = true
-		}
-
-		e.OmitEmpty = m.OmitEmpty
-
-		if hasOmitIfEqualToSibling {
-			if strings.TrimSpace(m.OmitIfEqualToSibling) == "" {
-				return fmt.Errorf("field entry 'omitIfEqualToSibling' must not be empty")
-			}
-
-			e.OmitIfEqualToSibling = m.OmitIfEqualToSibling
-		}
-
-		return nil
-	case yaml.DocumentNode, yaml.SequenceNode, yaml.AliasNode:
-		return fmt.Errorf("field entry must be a string or a map with 'path', 'value', or 'omitempty' keys")
 	}
 
-	return fmt.Errorf("field entry must be a string or a map with 'path', 'value', or 'omitempty' keys")
+	if value.Kind != yaml.MappingNode {
+		return errors.New("field entry must be a string or a map with 'path' and one optional modifier")
+	}
+
+	seen := map[string]bool{}
+	modifiers := 0
+
+	for i := 0; i+1 < len(value.Content); i += 2 {
+		key := value.Content[i].Value
+		switch key {
+		case "path":
+		case "value", "exceptValue", "omitempty", "omitIfEqualToSibling":
+			modifiers++
+		default:
+			return fmt.Errorf("unknown field %q in field entry (allowed: path, value, exceptValue, omitempty, omitIfEqualToSibling)", key)
+		}
+
+		seen[key] = true
+	}
+
+	if modifiers > 1 {
+		return errors.New("field entry can only set one of 'value', 'exceptValue', 'omitempty', or 'omitIfEqualToSibling'")
+	}
+
+	var m struct {
+		Path                 string `yaml:"path"`
+		Value                any    `yaml:"value"`
+		ExceptValue          any    `yaml:"exceptValue"`
+		OmitEmpty            bool   `yaml:"omitempty"`
+		OmitIfEqualToSibling string `yaml:"omitIfEqualToSibling"`
+	}
+
+	err := value.Decode(&m)
+	if err != nil {
+		return fmt.Errorf("failed to decode field entry: %w", err)
+	}
+
+	if m.Path == "" {
+		return errors.New("field entry map must have a non-empty 'path' key")
+	}
+
+	if seen["omitIfEqualToSibling"] && strings.TrimSpace(m.OmitIfEqualToSibling) == "" {
+		return errors.New("field entry 'omitIfEqualToSibling' must not be empty")
+	}
+
+	*e = ignoreFieldEntryFile{
+		Path:                 m.Path,
+		Value:                m.Value,
+		valueConstrained:     seen["value"],
+		OmitEmpty:            m.OmitEmpty,
+		OmitIfEqualToSibling: m.OmitIfEqualToSibling,
+		ExceptValue:          m.ExceptValue,
+		exceptConstrained:    seen["exceptValue"],
+	}
+
+	return nil
 }
 
 type ignoreRule struct {
@@ -340,6 +333,8 @@ type ignoreFieldPath struct {
 	valueConstrained     bool
 	omitEmpty            bool
 	omitIfEqualToSibling string
+	exceptValue          any
+	exceptConstrained    bool
 }
 
 func parseIgnoreConfigBytes(name string, data []byte) (*Config, error) {
@@ -501,6 +496,8 @@ func compileIgnoreRule(fileRule ignoreRuleFile) (ignoreRule, error) {
 			valueConstrained:     field.valueConstrained,
 			omitEmpty:            field.OmitEmpty,
 			omitIfEqualToSibling: field.OmitIfEqualToSibling,
+			exceptValue:          field.ExceptValue,
+			exceptConstrained:    field.exceptConstrained,
 		})
 	}
 

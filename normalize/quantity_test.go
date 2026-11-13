@@ -232,3 +232,100 @@ spec:
 		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
 	}
 }
+
+func TestCommonConfig_KeepsExplicitValues(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := LoadConfig(true, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resources, err := ParseYAML([]byte(`
+apiVersion: v1
+kind: Service
+metadata:
+  name: headless
+  namespace: ns
+spec:
+  clusterIP: None
+  clusterIPs: [None]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: normal
+  namespace: ns
+spec:
+  clusterIP: 10.43.0.7
+  clusterIPs: [10.43.0.7]
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: hook
+webhooks:
+- name: a.example.com
+  clientConfig:
+    service:
+      name: webhook
+      namespace: ns
+      port: 9443
+  timeoutSeconds: 10
+  objectSelector:
+    matchLabels:
+      skip: "false"
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: db
+  namespace: ns
+spec:
+  template:
+    spec:
+      containers:
+      - name: db
+        image: db:latest
+        imagePullPolicy: Always
+        resources:
+          limits: {}
+      securityContext:
+        sysctls: []
+`), "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resources, err = (&Options{Config: cfg}).Process(resources)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered, err := Render(resources)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertContains(t, string(rendered["ns/Service/headless.yaml"]), "clusterIP: None\n")
+	assertContains(t, string(rendered["ns/Service/headless.yaml"]), "clusterIPs:\n  - None\n")
+
+	if strings.Contains(string(rendered["ns/Service/normal.yaml"]), "10.43.0.7") {
+		t.Errorf("allocated clusterIP must be removed:\n%s", rendered["ns/Service/normal.yaml"])
+	}
+
+	hook := string(rendered["_cluster/admissionregistration.k8s.io_ValidatingWebhookConfiguration/hook.yaml"])
+	assertContains(t, hook, "port: 9443\n")
+	assertContains(t, hook, "skip: \"false\"\n")
+
+	if strings.Contains(hook, "timeoutSeconds") {
+		t.Errorf("default timeoutSeconds must be removed:\n%s", hook)
+	}
+
+	sts := string(rendered["ns/apps_StatefulSet/db.yaml"])
+	assertContains(t, sts, "imagePullPolicy: Always\n")
+
+	if strings.Contains(sts, "securityContext") || strings.Contains(sts, "resources") {
+		t.Errorf("emptied securityContext/resources must be removed:\n%s", sts)
+	}
+}

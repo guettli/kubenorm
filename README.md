@@ -178,6 +178,8 @@ removeFields:
         omitempty: true
       - path: spec.ports.targetPort
         omitIfEqualToSibling: port
+      - path: spec.clusterIP     # remove unless the value is None
+        exceptValue: None
 
 skipResources:
   - kind: Event

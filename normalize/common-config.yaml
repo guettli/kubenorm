@@ -49,24 +49,33 @@ removeFields:
       # API server returns spec: {} even when no spec was written.
       - path: spec
         value: {}
-  # Webhook defaults and injected CA bundles.
+  # Webhook defaults and injected CA bundles. Values other than the defaults
+  # are explicit choices and kept.
   - group: admissionregistration.k8s.io
     kind: "*WebhookConfiguration"
     fields:
       - webhooks.clientConfig.caBundle
-      - webhooks.clientConfig.service.port
-      - webhooks.matchPolicy
-      - webhooks.namespaceSelector
-      - webhooks.objectSelector
-      - webhooks.reinvocationPolicy
-      - webhooks.rules.scope
-      - webhooks.timeoutSeconds
+      - path: webhooks.clientConfig.service.port
+        value: 443
+      - path: webhooks.matchPolicy
+        value: Equivalent
+      - path: webhooks.namespaceSelector
+        value: {}
+      - path: webhooks.objectSelector
+        value: {}
+      - path: webhooks.reinvocationPolicy
+        value: Never
+      - path: webhooks.rules.scope
+        value: "*"
+      - path: webhooks.timeoutSeconds
+        value: 10
   # CRD conversion webhook defaults and None-strategy cleanup.
   - group: apiextensions.k8s.io
     kind: CustomResourceDefinition
     fields:
       - spec.conversion.webhook.clientConfig.caBundle
-      - spec.conversion.webhook.clientConfig.service.port
+      - path: spec.conversion.webhook.clientConfig.service.port
+        value: 443
       # CRDs without webhook conversion have spec.conversion: {strategy: None}.
       # Removing strategy (only when None) leaves an empty map, then removes it.
       # CRDs with webhook conversion keep strategy: Webhook and all webhook fields.
@@ -100,8 +109,11 @@ removeFields:
     fields:
       # Assigned by the API server from the cluster's service CIDR at creation
       # time. Never written in source YAML. Changes on every new Service object.
-      - spec.clusterIP
-      - spec.clusterIPs
+      # None (headless Service) is an explicit choice and kept.
+      - path: spec.clusterIP
+        exceptValue: None
+      - path: spec.clusterIPs
+        exceptValue: [None]
 
       # Derived from the cluster's primary IP family; varies between IPv4-only,
       # IPv6-only, and dual-stack clusters. Never written in source YAML.
@@ -153,479 +165,15 @@ removeFields:
       - path: data
         value: {}
 
-  # ── Deployment ────────────────────────────────────────────────────────────────
+  # ── Pod templates of workloads ────────────────────────────────────────────────
+  # Defaults of the pod template, shared by Deployment, StatefulSet, DaemonSet,
+  # Job and CronJob via a YAML anchor. "...template" matches spec.template and
+  # spec.jobTemplate.spec.template. Fields are removed leaf-to-root, so an
+  # emptied parent matches its {} rule afterwards.
   - group: apps
-    kind: Deployment
-    fields:
-      # Default: 600.
-      - path: spec.progressDeadlineSeconds
-        value: 600
-
-      # Default: 10.
-      - path: spec.revisionHistoryLimit
-        value: 10
-
-      # Default RollingUpdate strategy. Fields are removed leaf-to-root so that
-      # each parent map becomes empty and matches its {} constraint in sequence.
-      # Recreate strategy and non-default maxSurge/maxUnavailable are preserved.
-      - path: spec.strategy.rollingUpdate.maxSurge
-        value: 25%
-      - path: spec.strategy.rollingUpdate.maxUnavailable
-        value: 25%
-      - path: spec.strategy.rollingUpdate
-        value: {}
-      - path: spec.strategy.type
-        value: RollingUpdate
-      - path: spec.strategy
-        value: {}
-
+    kind: "*"
+    fields: &podTemplateDefaults
       # Always null in the API response for pod templates.
-      - spec.template.metadata.creationTimestamp
-
-      # Default: Always. The only valid value for Deployment pod templates.
-      - path: spec.template.spec.restartPolicy
-        value: Always
-
-      # Default: default-scheduler.
-      - path: spec.template.spec.schedulerName
-        value: default-scheduler
-
-      # Default: ClusterFirst.
-      - path: spec.template.spec.dnsPolicy
-        value: ClusterFirst
-
-      # Default: 30 seconds.
-      - path: spec.template.spec.terminationGracePeriodSeconds
-        value: 30
-
-      # Deprecated alias for serviceAccountName. Copied automatically by the API server.
-      - spec.template.spec.serviceAccount
-
-      # Default: /dev/termination-log.
-      - path: spec.template.spec.containers.terminationMessagePath
-        value: /dev/termination-log
-      - path: spec.template.spec.initContainers.terminationMessagePath
-        value: /dev/termination-log
-
-      # Default: File.
-      - path: spec.template.spec.containers.terminationMessagePolicy
-        value: File
-      - path: spec.template.spec.initContainers.terminationMessagePolicy
-        value: File
-
-      # API server always sets apiVersion: v1 on fieldRef. It is the only valid value.
-      - path: spec.template.spec.containers.env.valueFrom.fieldRef.apiVersion
-        value: v1
-
-      # Default protocol for container port declarations. UDP/SCTP would be explicit.
-      - path: spec.template.spec.containers.ports.protocol
-        value: TCP
-
-      # Probe defaults (failureThreshold: 3, successThreshold: 1, timeoutSeconds: 1,
-      # periodSeconds: 10, httpGet.scheme: HTTP, tcpSocket.protocol: TCP).
-      - path: spec.template.spec.containers.livenessProbe.failureThreshold
-        value: 3
-      - path: spec.template.spec.containers.livenessProbe.successThreshold
-        value: 1
-      - path: spec.template.spec.containers.livenessProbe.timeoutSeconds
-        value: 1
-      - path: spec.template.spec.containers.livenessProbe.periodSeconds
-        value: 10
-      - path: spec.template.spec.containers.livenessProbe.httpGet.scheme
-        value: HTTP
-      - path: spec.template.spec.containers.livenessProbe.tcpSocket.protocol
-        value: TCP
-      - path: spec.template.spec.containers.readinessProbe.failureThreshold
-        value: 3
-      - path: spec.template.spec.containers.readinessProbe.successThreshold
-        value: 1
-      - path: spec.template.spec.containers.readinessProbe.timeoutSeconds
-        value: 1
-      - path: spec.template.spec.containers.readinessProbe.periodSeconds
-        value: 10
-      - path: spec.template.spec.containers.readinessProbe.httpGet.scheme
-        value: HTTP
-      - path: spec.template.spec.containers.readinessProbe.tcpSocket.protocol
-        value: TCP
-      - path: spec.template.spec.containers.startupProbe.failureThreshold
-        value: 3
-      - path: spec.template.spec.containers.startupProbe.successThreshold
-        value: 1
-      - path: spec.template.spec.containers.startupProbe.timeoutSeconds
-        value: 1
-      - path: spec.template.spec.containers.startupProbe.periodSeconds
-        value: 10
-      - path: spec.template.spec.containers.startupProbe.httpGet.scheme
-        value: HTTP
-      - path: spec.template.spec.containers.startupProbe.tcpSocket.protocol
-        value: TCP
-
-      # Default file-permission mode: 0644 (decimal 420).
-      - path: spec.template.spec.volumes.configMap.defaultMode
-        value: 420
-      - path: spec.template.spec.volumes.projected.defaultMode
-        value: 420
-      - path: spec.template.spec.volumes.secret.defaultMode
-        value: 420
-
-      # Empty pod-level security context. Real settings (runAsGroup, fsGroup, …)
-      # produce a non-empty map and are preserved by the value constraint.
-      - path: spec.template.spec.securityContext
-        value: {}
-
-      # Default imagePullPolicy. IfNotPresent is the default for pinned tags;
-      # Always is the default for "latest" (or absent) tags.
-      - path: spec.template.spec.containers.imagePullPolicy
-        value: IfNotPresent
-      - path: spec.template.spec.initContainers.imagePullPolicy
-        value: IfNotPresent
-
-      # Empty container resources means no requests/limits are set.
-      - path: spec.template.spec.containers.resources
-        value: {}
-      - path: spec.template.spec.initContainers.resources
-        value: {}
-
-      # Empty nodeSelector/tolerations are equivalent to absent.
-      - path: spec.template.spec.nodeSelector
-        value: {}
-      - path: spec.template.spec.tolerations
-        value: []
-
-      # Default limits, volumeMounts, and affinity
-      - path: spec.template.spec.containers.resources.limits
-        value: {}
-      - path: spec.template.spec.initContainers.resources.limits
-        value: {}
-      - path: spec.template.spec.containers.volumeMounts
-        value: null
-      - path: spec.template.spec.initContainers.volumeMounts
-        value: null
-      - path: spec.template.spec.containers.volumeMounts.subPath
-        value: null
-      - path: spec.template.spec.initContainers.volumeMounts.subPath
-        value: null
-      - path: spec.template.spec.affinity.nodeAffinity
-        value: null
-      - path: spec.template.spec.affinity.podAffinity
-        value: null
-      - path: spec.template.spec.hostNetwork
-        value: false
-      - path: spec.template.spec.securityContext.supplementalGroups
-        value: []
-      - path: spec.template.spec.securityContext.sysctls
-        value: []
-
-      # After stripping runtime labels/annotations the pod template metadata
-      # maps may be left empty. Remove them if so.
-      - path: spec.template.metadata.annotations
-        omitempty: true
-      - path: spec.template.metadata.labels
-        omitempty: true
-
-  # ── StatefulSet ───────────────────────────────────────────────────────────────
-  - group: apps
-    kind: StatefulSet
-    fields:
-      # Default: OrderedReady.
-      - path: spec.podManagementPolicy
-        value: OrderedReady
-
-      # Default: 10.
-      - path: spec.revisionHistoryLimit
-        value: 10
-
-      # Default RollingUpdate update strategy (leaf-to-root). OnDelete and
-      # non-zero partition values are preserved by the value constraints.
-      - path: spec.updateStrategy.rollingUpdate.partition
-        value: 0
-      - path: spec.updateStrategy.rollingUpdate
-        value: {}
-      - path: spec.updateStrategy.type
-        value: RollingUpdate
-      - path: spec.updateStrategy
-        value: {}
-
-      # Default PVC retention policy (Retain/Retain). Delete policies preserved.
-      - path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
-        value: Retain
-      - path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
-        value: Retain
-      - path: spec.persistentVolumeClaimRetentionPolicy
-        value: {}
-
-      # Same pod-template defaults as Deployment — see comments above.
-      - spec.template.metadata.creationTimestamp
-      - path: spec.template.spec.restartPolicy
-        value: Always
-      - path: spec.template.spec.schedulerName
-        value: default-scheduler
-      - path: spec.template.spec.dnsPolicy
-        value: ClusterFirst
-      - path: spec.template.spec.terminationGracePeriodSeconds
-        value: 30
-      - spec.template.spec.serviceAccount
-      - path: spec.template.spec.containers.terminationMessagePath
-        value: /dev/termination-log
-      - path: spec.template.spec.initContainers.terminationMessagePath
-        value: /dev/termination-log
-      - path: spec.template.spec.containers.terminationMessagePolicy
-        value: File
-      - path: spec.template.spec.initContainers.terminationMessagePolicy
-        value: File
-      - path: spec.template.spec.containers.env.valueFrom.fieldRef.apiVersion
-        value: v1
-      - path: spec.template.spec.containers.ports.protocol
-        value: TCP
-      - path: spec.template.spec.containers.livenessProbe.failureThreshold
-        value: 3
-      - path: spec.template.spec.containers.livenessProbe.successThreshold
-        value: 1
-      - path: spec.template.spec.containers.livenessProbe.timeoutSeconds
-        value: 1
-      - path: spec.template.spec.containers.livenessProbe.periodSeconds
-        value: 10
-      - path: spec.template.spec.containers.livenessProbe.httpGet.scheme
-        value: HTTP
-      - path: spec.template.spec.containers.livenessProbe.tcpSocket.protocol
-        value: TCP
-      - path: spec.template.spec.containers.readinessProbe.failureThreshold
-        value: 3
-      - path: spec.template.spec.containers.readinessProbe.successThreshold
-        value: 1
-      - path: spec.template.spec.containers.readinessProbe.timeoutSeconds
-        value: 1
-      - path: spec.template.spec.containers.readinessProbe.periodSeconds
-        value: 10
-      - path: spec.template.spec.containers.readinessProbe.httpGet.scheme
-        value: HTTP
-      - path: spec.template.spec.containers.readinessProbe.tcpSocket.protocol
-        value: TCP
-      - path: spec.template.spec.containers.startupProbe.failureThreshold
-        value: 3
-      - path: spec.template.spec.containers.startupProbe.successThreshold
-        value: 1
-      - path: spec.template.spec.containers.startupProbe.timeoutSeconds
-        value: 1
-      - path: spec.template.spec.containers.startupProbe.periodSeconds
-        value: 10
-      - path: spec.template.spec.containers.startupProbe.httpGet.scheme
-        value: HTTP
-      - path: spec.template.spec.containers.startupProbe.tcpSocket.protocol
-        value: TCP
-      - path: spec.template.spec.volumes.configMap.defaultMode
-        value: 420
-      - path: spec.template.spec.volumes.projected.defaultMode
-        value: 420
-      - path: spec.template.spec.volumes.secret.defaultMode
-        value: 420
-      - path: spec.template.spec.securityContext
-        value: {}
-      - path: spec.template.spec.containers.imagePullPolicy
-        value: IfNotPresent
-      - path: spec.template.spec.initContainers.imagePullPolicy
-        value: IfNotPresent
-      - path: spec.template.spec.containers.imagePullPolicy
-        value: Always
-      - path: spec.template.spec.initContainers.imagePullPolicy
-        value: Always
-      - path: spec.template.spec.containers.resources
-        value: {}
-      - path: spec.template.spec.initContainers.resources
-        value: {}
-      - path: spec.template.spec.nodeSelector
-        value: {}
-      - path: spec.template.spec.tolerations
-        value: []
-
-      # Default limits, volumeMounts, and affinity
-      - path: spec.template.spec.containers.resources.limits
-        value: {}
-      - path: spec.template.spec.initContainers.resources.limits
-        value: {}
-      - path: spec.template.spec.containers.volumeMounts
-        value: null
-      - path: spec.template.spec.initContainers.volumeMounts
-        value: null
-      - path: spec.template.spec.containers.volumeMounts.subPath
-        value: null
-      - path: spec.template.spec.initContainers.volumeMounts.subPath
-        value: null
-      - path: spec.template.spec.affinity.nodeAffinity
-        value: null
-      - path: spec.template.spec.affinity.podAffinity
-        value: null
-      - path: spec.template.spec.hostNetwork
-        value: false
-      - path: spec.template.spec.securityContext.supplementalGroups
-        value: []
-      - path: spec.template.spec.securityContext.sysctls
-        value: []
-      - path: spec.template.metadata.annotations
-        omitempty: true
-      - path: spec.template.metadata.labels
-        omitempty: true
-      # API server adds apiVersion, kind, and status to inline PVC templates.
-      - spec.volumeClaimTemplates.apiVersion
-      - spec.volumeClaimTemplates.kind
-      - spec.volumeClaimTemplates.status
-      - path: spec.volumeClaimTemplates.spec.volumeMode
-        value: Filesystem
-
-  # ── DaemonSet ─────────────────────────────────────────────────────────────────
-  - group: apps
-    kind: DaemonSet
-    fields:
-      # Default: 10.
-      - path: spec.revisionHistoryLimit
-        value: 10
-
-      # Default RollingUpdate update strategy (leaf-to-root). OnDelete and
-      # non-zero maxUnavailable/maxSurge are preserved by the value constraints.
-      - path: spec.updateStrategy.rollingUpdate.maxUnavailable
-        value: 1
-      - path: spec.updateStrategy.rollingUpdate.maxSurge
-        value: 0
-      - path: spec.updateStrategy.rollingUpdate
-        value: {}
-      - path: spec.updateStrategy.type
-        value: RollingUpdate
-      - path: spec.updateStrategy
-        value: {}
-
-      # Same pod-template defaults as Deployment — see comments above.
-      - spec.template.metadata.creationTimestamp
-      - path: spec.template.spec.restartPolicy
-        value: Always
-      - path: spec.template.spec.schedulerName
-        value: default-scheduler
-      - path: spec.template.spec.dnsPolicy
-        value: ClusterFirst
-      - path: spec.template.spec.terminationGracePeriodSeconds
-        value: 30
-      - spec.template.spec.serviceAccount
-      - path: spec.template.spec.containers.terminationMessagePath
-        value: /dev/termination-log
-      - path: spec.template.spec.initContainers.terminationMessagePath
-        value: /dev/termination-log
-      - path: spec.template.spec.containers.terminationMessagePolicy
-        value: File
-      - path: spec.template.spec.initContainers.terminationMessagePolicy
-        value: File
-      - path: spec.template.spec.containers.env.valueFrom.fieldRef.apiVersion
-        value: v1
-      - path: spec.template.spec.containers.ports.protocol
-        value: TCP
-      - path: spec.template.spec.containers.livenessProbe.failureThreshold
-        value: 3
-      - path: spec.template.spec.containers.livenessProbe.successThreshold
-        value: 1
-      - path: spec.template.spec.containers.livenessProbe.timeoutSeconds
-        value: 1
-      - path: spec.template.spec.containers.livenessProbe.periodSeconds
-        value: 10
-      - path: spec.template.spec.containers.livenessProbe.httpGet.scheme
-        value: HTTP
-      - path: spec.template.spec.containers.livenessProbe.tcpSocket.protocol
-        value: TCP
-      - path: spec.template.spec.containers.readinessProbe.failureThreshold
-        value: 3
-      - path: spec.template.spec.containers.readinessProbe.successThreshold
-        value: 1
-      - path: spec.template.spec.containers.readinessProbe.timeoutSeconds
-        value: 1
-      - path: spec.template.spec.containers.readinessProbe.periodSeconds
-        value: 10
-      - path: spec.template.spec.containers.readinessProbe.httpGet.scheme
-        value: HTTP
-      - path: spec.template.spec.containers.readinessProbe.tcpSocket.protocol
-        value: TCP
-      - path: spec.template.spec.containers.startupProbe.failureThreshold
-        value: 3
-      - path: spec.template.spec.containers.startupProbe.successThreshold
-        value: 1
-      - path: spec.template.spec.containers.startupProbe.timeoutSeconds
-        value: 1
-      - path: spec.template.spec.containers.startupProbe.periodSeconds
-        value: 10
-      - path: spec.template.spec.containers.startupProbe.httpGet.scheme
-        value: HTTP
-      - path: spec.template.spec.containers.startupProbe.tcpSocket.protocol
-        value: TCP
-      - path: spec.template.spec.volumes.configMap.defaultMode
-        value: 420
-      - path: spec.template.spec.volumes.projected.defaultMode
-        value: 420
-      - path: spec.template.spec.volumes.secret.defaultMode
-        value: 420
-      - path: spec.template.spec.securityContext
-        value: {}
-      - path: spec.template.spec.containers.imagePullPolicy
-        value: IfNotPresent
-      - path: spec.template.spec.initContainers.imagePullPolicy
-        value: IfNotPresent
-      - path: spec.template.spec.containers.resources
-        value: {}
-      - path: spec.template.spec.initContainers.resources
-        value: {}
-      - path: spec.template.spec.nodeSelector
-        value: {}
-      - path: spec.template.spec.tolerations
-        value: []
-
-      # Default limits, volumeMounts, and affinity
-      - path: spec.template.spec.containers.resources.limits
-        value: {}
-      - path: spec.template.spec.initContainers.resources.limits
-        value: {}
-      - path: spec.template.spec.containers.volumeMounts
-        value: null
-      - path: spec.template.spec.initContainers.volumeMounts
-        value: null
-      - path: spec.template.spec.containers.volumeMounts.subPath
-        value: null
-      - path: spec.template.spec.initContainers.volumeMounts.subPath
-        value: null
-      - path: spec.template.spec.affinity.nodeAffinity
-        value: null
-      - path: spec.template.spec.affinity.podAffinity
-        value: null
-      - path: spec.template.spec.hostNetwork
-        value: false
-      - path: spec.template.spec.securityContext.supplementalGroups
-        value: []
-      - path: spec.template.spec.securityContext.sysctls
-        value: []
-      - path: spec.template.metadata.annotations
-        omitempty: true
-      - path: spec.template.metadata.labels
-        omitempty: true
-
-  # ── More pod template defaults for apps workloads ─────────────────────────────
-  - group: apps
-    fields:
-      - path: spec.template.spec.initContainers.ports.protocol
-        value: TCP
-      - path: spec.template.spec.volumes.hostPath.type
-        value: ""
-      - path: spec.template.spec.volumes.downwardAPI.defaultMode
-        value: 420
-      - path: spec.template.spec.volumes.projected.sources.serviceAccountToken.expirationSeconds
-        value: 3600
-
-  # ── Job / CronJob ─────────────────────────────────────────────────────────────
-  # Pod template defaults, shared via a YAML anchor. "...template.spec" matches
-  # spec.template.spec (Job) and spec.jobTemplate.spec.template.spec (CronJob).
-  # Fields are removed leaf-to-root, so emptied parents match their {} rule.
-  - group: batch
-    kind: Job
-    fields: &jobPodTemplateDefaults
-      # Generated by the Job controller from the Job's uid and name, unless
-      # manualSelector is used. Never part of source YAML.
-      - ...template.metadata.labels.batch\.kubernetes\.io/controller-uid
-      - ...template.metadata.labels.batch\.kubernetes\.io/job-name
-      - ...template.metadata.labels.controller-uid
-      - ...template.metadata.labels.job-name
       - ...template.metadata.creationTimestamp
       - path: ...template.metadata.labels
         omitempty: true
@@ -633,15 +181,38 @@ removeFields:
         omitempty: true
       - path: ...template.metadata
         value: {}
+
+      # Always is the only valid value for Deployment/StatefulSet/DaemonSet;
+      # Jobs must set OnFailure or Never explicitly.
+      - path: ...template.spec.restartPolicy
+        value: Always
       - path: ...template.spec.schedulerName
         value: default-scheduler
       - path: ...template.spec.dnsPolicy
         value: ClusterFirst
       - path: ...template.spec.terminationGracePeriodSeconds
         value: 30
+      - path: ...template.spec.hostNetwork
+        value: false
+      # Deprecated alias for serviceAccountName, copied by the API server.
       - ...template.spec.serviceAccount
+      - path: ...template.spec.nodeSelector
+        value: {}
+      - path: ...template.spec.tolerations
+        value: []
+      - path: ...template.spec.affinity.nodeAffinity
+        value: null
+      - path: ...template.spec.affinity.podAffinity
+        value: null
+      - path: ...template.spec.securityContext.supplementalGroups
+        value: []
+      - path: ...template.spec.securityContext.sysctls
+        value: []
       - path: ...template.spec.securityContext
         value: {}
+
+      # Containers. imagePullPolicy defaults to IfNotPresent for pinned tags;
+      # Always (the default for :latest) is kept, it may be explicit.
       - path: ...template.spec.containers.terminationMessagePath
         value: /dev/termination-log
       - path: ...template.spec.initContainers.terminationMessagePath
@@ -658,10 +229,40 @@ removeFields:
         value: v1
       - path: ...template.spec.containers.ports.protocol
         value: TCP
+      - path: ...template.spec.initContainers.ports.protocol
+        value: TCP
+      - path: ...template.spec.containers.volumeMounts.subPath
+        value: null
+      - path: ...template.spec.initContainers.volumeMounts.subPath
+        value: null
+      - path: ...template.spec.containers.volumeMounts
+        value: null
+      - path: ...template.spec.initContainers.volumeMounts
+        value: null
+      - path: ...template.spec.containers.resources.limits
+        value: {}
+      - path: ...template.spec.initContainers.resources.limits
+        value: {}
       - path: ...template.spec.containers.resources
         value: {}
       - path: ...template.spec.initContainers.resources
         value: {}
+
+      # Probe defaults.
+      - path: ...template.spec.containers.*Probe.failureThreshold
+        value: 3
+      - path: ...template.spec.containers.*Probe.successThreshold
+        value: 1
+      - path: ...template.spec.containers.*Probe.timeoutSeconds
+        value: 1
+      - path: ...template.spec.containers.*Probe.periodSeconds
+        value: 10
+      - path: ...template.spec.containers.*Probe.httpGet.scheme
+        value: HTTP
+      - path: ...template.spec.containers.*Probe.tcpSocket.protocol
+        value: TCP
+
+      # Volumes. File mode 0644 (decimal 420).
       - path: ...template.spec.volumes.configMap.defaultMode
         value: 420
       - path: ...template.spec.volumes.secret.defaultMode
@@ -674,6 +275,84 @@ removeFields:
         value: ""
       - path: ...template.spec.volumes.projected.sources.serviceAccountToken.expirationSeconds
         value: 3600
+
+  - group: apps
+    kind: Deployment
+    fields:
+      - path: spec.progressDeadlineSeconds
+        value: 600
+      - path: spec.revisionHistoryLimit
+        value: 10
+      # Default RollingUpdate strategy, leaf-to-root. Recreate and other
+      # maxSurge/maxUnavailable values are explicit and kept.
+      - path: spec.strategy.rollingUpdate.maxSurge
+        value: 25%
+      - path: spec.strategy.rollingUpdate.maxUnavailable
+        value: 25%
+      - path: spec.strategy.rollingUpdate
+        value: {}
+      - path: spec.strategy.type
+        value: RollingUpdate
+      - path: spec.strategy
+        value: {}
+
+  - group: apps
+    kind: StatefulSet
+    fields:
+      - path: spec.podManagementPolicy
+        value: OrderedReady
+      - path: spec.revisionHistoryLimit
+        value: 10
+      - path: spec.updateStrategy.rollingUpdate.partition
+        value: 0
+      - path: spec.updateStrategy.rollingUpdate
+        value: {}
+      - path: spec.updateStrategy.type
+        value: RollingUpdate
+      - path: spec.updateStrategy
+        value: {}
+      - path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+        value: Retain
+      - path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+        value: Retain
+      - path: spec.persistentVolumeClaimRetentionPolicy
+        value: {}
+      # The API server adds apiVersion, kind and status to inline PVC templates.
+      - spec.volumeClaimTemplates.apiVersion
+      - spec.volumeClaimTemplates.kind
+      - spec.volumeClaimTemplates.status
+      - path: spec.volumeClaimTemplates.spec.volumeMode
+        value: Filesystem
+
+  - group: apps
+    kind: DaemonSet
+    fields:
+      - path: spec.revisionHistoryLimit
+        value: 10
+      - path: spec.updateStrategy.rollingUpdate.maxUnavailable
+        value: 1
+      - path: spec.updateStrategy.rollingUpdate.maxSurge
+        value: 0
+      - path: spec.updateStrategy.rollingUpdate
+        value: {}
+      - path: spec.updateStrategy.type
+        value: RollingUpdate
+      - path: spec.updateStrategy
+        value: {}
+
+  # Labels and selector the Job controller generates from the Job's uid and
+  # name (unless manualSelector is used). Must run before the shared
+  # template rules, which then remove the emptied labels map.
+  - group: batch
+    fields:
+      - ...template.metadata.labels.batch\.kubernetes\.io/controller-uid
+      - ...template.metadata.labels.batch\.kubernetes\.io/job-name
+      - ...template.metadata.labels.controller-uid
+      - ...template.metadata.labels.job-name
+  - group: batch
+    kind: "*"
+    fields: *podTemplateDefaults
+
   - group: batch
     kind: Job
     fields:
@@ -691,15 +370,12 @@ removeFields:
         value: false
       - path: spec.podReplacementPolicy
         value: TerminatingOrFailed
-      # Generated selector (see the template labels above).
       - spec.selector.matchLabels.batch\.kubernetes\.io/controller-uid
       - path: spec.selector.matchLabels
         omitempty: true
       - path: spec.selector
         value: {}
-  - group: batch
-    kind: CronJob
-    fields: *jobPodTemplateDefaults
+
   - group: batch
     kind: CronJob
     fields:

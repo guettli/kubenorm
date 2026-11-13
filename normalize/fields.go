@@ -42,6 +42,8 @@ func deleteField(obj map[string]any, f ignoreFieldPath) {
 			remove = ok && valueMatches(m[key], sibling)
 		case f.valueConstrained:
 			remove = valueMatches(m[key], f.value)
+		case f.exceptConstrained:
+			remove = !valueMatches(m[key], f.exceptValue)
 		case f.omitEmpty:
 			remove = isEmpty(m[key])
 		default:
