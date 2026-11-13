@@ -25,7 +25,7 @@ const (
 	ClusterNamespace = "_cluster"
 
 	// RedactionMarker replaces Secret values when Options.RedactSecrets is set.
-	RedactionMarker = "REDCATED-BY-DUMPALL"
+	RedactionMarker = "REDACTED"
 
 	fieldMetadata         = "metadata"
 	kindSecret            = "Secret"

@@ -217,7 +217,7 @@ kubenorm diff <old> <new> [flags]
       --no-common-config                  Do not apply the embedded common config (see show-common-config)
       --no-config-discovery               Do not load .kubenorm.yaml from the current directory or its parents
       --overwrite-namespace string        Set metadata.namespace on all namespaced resources, replacing existing values, and move references to the replaced namespaces
-      --redact-secrets                    Replace values of Secrets with REDCATED-BY-DUMPALL
+      --redact-secrets                    Replace values of Secrets with REDACTED
       --secrets-as-stringdata             Convert base64 Secret data to stringData
       --skip-name-glob string             Drop resources whose metadata.name matches this anchored glob
   -O, --skip-owned                        Drop resources with a controlling ownerReference and objects Kubernetes autogenerates
@@ -251,7 +251,7 @@ kubenorm explain <file|dir|->... [flags]
       --no-common-config                  Do not apply the embedded common config (see show-common-config)
       --no-config-discovery               Do not load .kubenorm.yaml from the current directory or its parents
       --overwrite-namespace string        Set metadata.namespace on all namespaced resources, replacing existing values, and move references to the replaced namespaces
-      --redact-secrets                    Replace values of Secrets with REDCATED-BY-DUMPALL
+      --redact-secrets                    Replace values of Secrets with REDACTED
       --secrets-as-stringdata             Convert base64 Secret data to stringData
       --skip-name-glob string             Drop resources whose metadata.name matches this anchored glob
   -O, --skip-owned                        Drop resources with a controlling ownerReference and objects Kubernetes autogenerates
@@ -310,7 +310,7 @@ kubenorm norm <file|dir|->... [flags]
       --no-config-discovery               Do not load .kubenorm.yaml from the current directory or its parents
   -o, --out-dir string                    Write one file per resource into this directory (must not exist, see --remove-out-dir)
       --overwrite-namespace string        Set metadata.namespace on all namespaced resources, replacing existing values, and move references to the replaced namespaces
-      --redact-secrets                    Replace values of Secrets with REDCATED-BY-DUMPALL
+      --redact-secrets                    Replace values of Secrets with REDACTED
   -r, --remove-out-dir                    Remove --out-dir before writing
       --secrets-as-stringdata             Convert base64 Secret data to stringData
       --skip-name-glob string             Drop resources whose metadata.name matches this anchored glob
