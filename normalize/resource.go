@@ -74,7 +74,21 @@ func ParseYAML(data []byte, source string) ([]Resource, error) {
 
 	resources := make([]Resource, 0, len(docs))
 
-	for _, m := range docs {
+	// Index loop: items of Lists are appended to docs while iterating.
+	for i := 0; i < len(docs); i++ {
+		m := docs[i]
+
+		// kubectl get -o yaml returns a List; its items are the resources.
+		if items, ok := m["items"].([]any); ok && strings.HasSuffix(fmt.Sprint(m["kind"]), "List") {
+			for _, item := range items {
+				if obj, ok := item.(map[string]any); ok {
+					docs = append(docs, obj)
+				}
+			}
+
+			continue
+		}
+
 		if _, hasMetadata := m[fieldMetadata]; !hasMetadata {
 			continue
 		}
@@ -121,10 +135,15 @@ func splitDocuments(data []byte, source string) ([]map[string]any, error) {
 	}
 }
 
-// readPath reads all resources from a file, a directory (recursively, *.yaml
-// and *.yml) or stdin (path "-").
-func readPath(inputPath string, stdin io.Reader) ([]Resource, error) {
-	if inputPath == StdinPath {
+// ReadPaths reads all resources from files, directories (recursively,
+// *.yaml and *.yml) or stdin ("-", which must be the only input). A file
+// given twice (directly and via its directory) is read once.
+func ReadPaths(inputPaths []string, stdin io.Reader) ([]Resource, error) {
+	if slices.Contains(inputPaths, StdinPath) {
+		if len(inputPaths) > 1 {
+			return nil, errors.New("stdin (-) cannot be combined with other inputs")
+		}
+
 		data, err := io.ReadAll(stdin)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read stdin: %w", err)
@@ -133,24 +152,37 @@ func readPath(inputPath string, stdin io.Reader) ([]Resource, error) {
 		return ParseYAML(data, StdinPath)
 	}
 
-	info, err := os.Stat(inputPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to inspect %q: %w", inputPath, err)
-	}
+	var files []string
 
-	files := []string{inputPath}
+	seen := map[string]bool{}
 
-	if info.IsDir() {
-		files, err = findYAMLFiles(inputPath)
+	for _, inputPath := range inputPaths {
+		info, err := os.Stat(inputPath)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to inspect %q: %w", inputPath, err)
+		}
+
+		found := []string{inputPath}
+
+		if info.IsDir() {
+			found, err = findYAMLFiles(inputPath)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		for _, f := range found {
+			if !seen[filepath.Clean(f)] {
+				seen[filepath.Clean(f)] = true
+				files = append(files, f)
+			}
 		}
 	}
 
 	// Parsing dominates the runtime, so files are parsed in parallel.
 	perFile := make([][]Resource, len(files))
 
-	err = parallelFor(len(files), func(i int) error {
+	err := parallelFor(len(files), func(i int) error {
 		data, err := os.ReadFile(files[i])
 		if err != nil {
 			return fmt.Errorf("failed to read file %s: %w", files[i], err)
@@ -167,27 +199,6 @@ func readPath(inputPath string, stdin io.Reader) ([]Resource, error) {
 	var resources []Resource
 	for _, parsed := range perFile {
 		resources = append(resources, parsed...)
-	}
-
-	return resources, nil
-}
-
-// ReadPaths reads all resources from several inputs, see readPath. stdin
-// ("-") must be the only input.
-func ReadPaths(inputPaths []string, stdin io.Reader) ([]Resource, error) {
-	if len(inputPaths) > 1 && slices.Contains(inputPaths, StdinPath) {
-		return nil, errors.New("stdin (-) cannot be combined with other inputs")
-	}
-
-	var resources []Resource
-
-	for _, p := range inputPaths {
-		r, err := readPath(p, stdin)
-		if err != nil {
-			return nil, err
-		}
-
-		resources = append(resources, r...)
 	}
 
 	return resources, nil
@@ -351,6 +362,10 @@ func render(resources []Resource, parallel bool, headerLines ...string) (Rendere
 	paths := make([]string, len(resources))
 
 	for i, r := range resources {
+		if r.Unstructured().GetName() == "" {
+			return nil, fmt.Errorf("%s: metadata.name is missing or not a string (generateName is not supported)", describe(r))
+		}
+
 		rel := r.RelPath()
 		if prev, ok := sources[rel]; ok {
 			return nil, fmt.Errorf("%w %s: found in %s and %s", errDuplicate, rel, prev, r.Source)

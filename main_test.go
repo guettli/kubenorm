@@ -314,3 +314,16 @@ func TestExplain(t *testing.T) {
 		}
 	}
 }
+
+func TestNorm_OverlappingInputs(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	file := filepath.Join(dir, "web.yaml")
+	writeFile(t, file, normalizedDeployment)
+
+	code, out, errOut := runCLI(t, "", "norm", dir, file)
+	if code != 0 || strings.Count(out, "kind: Deployment") != 1 {
+		t.Fatalf("expected the file once, got %d:\n%s%s", code, out, errOut)
+	}
+}

@@ -74,7 +74,7 @@ func applyIgnoreRules(obj map[string]any, o *options) {
 }
 
 func readYamlFromDir(dir string, o *options) error {
-	resources, err := readPath(dir, nil)
+	resources, err := ReadPaths([]string{dir}, nil)
 	if err != nil {
 		return err
 	}

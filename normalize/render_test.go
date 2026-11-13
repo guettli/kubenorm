@@ -178,3 +178,29 @@ func TestSecretsAsStringData_KeepsBinaryInData(t *testing.T) {
 		t.Errorf("binary and broken values must stay in data: %v", data)
 	}
 }
+
+func TestParseYAML_ExpandsLists(t *testing.T) {
+	t.Parallel()
+
+	list := "apiVersion: v1\nkind: List\nitems:\n- " + strings.ReplaceAll(strings.TrimSuffix(cmA, "\n"), "\n", "\n  ") + "\n- " +
+		strings.ReplaceAll(strings.TrimSuffix(strings.Replace(cmA, "name: a", "name: b", 1), "\n"), "\n", "\n  ") + "\n"
+
+	rendered := renderYAML(t, list)
+	if len(rendered) != 2 || rendered["ns/ConfigMap/a.yaml"] == nil || rendered["ns/ConfigMap/b.yaml"] == nil {
+		t.Fatalf("expected both items, got %v from:\n%s", rendered.SortedPaths(), list)
+	}
+}
+
+func TestRender_MissingName(t *testing.T) {
+	t.Parallel()
+
+	resources, err := ParseYAML([]byte("apiVersion: v1\nkind: Pod\nmetadata:\n  generateName: p-\n"), "x")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = Render(resources)
+	if err == nil || !strings.Contains(err.Error(), "metadata.name") {
+		t.Fatalf("expected a missing name error, got %v", err)
+	}
+}
