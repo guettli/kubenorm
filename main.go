@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"runtime/debug"
 	"strings"
 
@@ -422,34 +423,60 @@ func runCheck(cmd *cobra.Command, flags *normFlags, inputs []string) error {
 		return err
 	}
 
-	raw, err := processRendered(read, rawOpts)
+	rawResources, err := processResources(read, rawOpts)
 	if err != nil {
 		return err
 	}
 
-	normalized, err := processRendered(read, normOpts)
+	normResources, err := processResources(read, normOpts)
 	if err != nil {
 		return err
 	}
 
-	label := "input"
-	if len(inputs) == 1 {
-		label = diffLabel(inputs[0])
+	// Compare file by file: separate trees (one per cluster, say) may
+	// legitimately contain the same resource.
+	rawBySource, files := groupBySource(rawResources)
+	normBySource, _ := groupBySource(normResources)
+
+	var notNormalized []string
+
+	for _, file := range files {
+		raw, err := normalize.Render(rawBySource[file])
+		if err != nil {
+			return err
+		}
+
+		norm, err := normalize.Render(normBySource[file])
+		if err != nil {
+			return err
+		}
+
+		result, err := normalize.Diff(cmd.OutOrStdout(), raw, norm, diffLabel(file), path.Join("normalized", diffLabel(file)))
+		if err != nil {
+			return err
+		}
+
+		if !result.Equal() {
+			notNormalized = append(notNormalized, diffLabel(file))
+		}
 	}
 
-	result, err := normalize.Diff(cmd.OutOrStdout(), raw, normalized, label, "normalized")
-	if err != nil {
-		return err
-	}
-
-	if result.Equal() {
+	if len(notNormalized) == 0 {
 		return nil
 	}
 
-	fmt.Fprintf(cmd.ErrOrStderr(), "%s is not normalized: %d changed, %d dropped, %d added\n",
-		strings.Join(inputs, " "), len(result.Changed), len(result.Removed), len(result.Added))
+	fmt.Fprintf(cmd.ErrOrStderr(), "not normalized (fix with kubenorm norm --write): %s\n", strings.Join(notNormalized, " "))
 
 	return errDifferences
+}
+
+func processResources(read func() ([]normalize.Resource, error), opts *normalize.Options) ([]normalize.Resource, error) {
+	resources, err := read()
+	if err != nil {
+		return nil, err
+	}
+
+	return opts.Process(resources)
 }
 
 func diffLabel(input string) string {

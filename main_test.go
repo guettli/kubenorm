@@ -134,7 +134,7 @@ func TestNorm_Check(t *testing.T) {
 		t.Fatalf("expected exit 1, got %d: %s", code, errOut)
 	}
 
-	if !strings.Contains(out, "-  uid:") || !strings.Contains(errOut, "is not normalized") {
+	if !strings.Contains(out, "-  uid:") || !strings.Contains(errOut, "not normalized") {
 		t.Fatalf("unexpected output:\nstdout:\n%s\nstderr:\n%s", out, errOut)
 	}
 
@@ -368,5 +368,18 @@ func TestNorm_WriteRejects(t *testing.T) {
 		if code != 2 {
 			t.Errorf("%v: expected exit 2, got %d: %s", args, code, errOut)
 		}
+	}
+}
+
+func TestNorm_CheckSameResourceInTwoTrees(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "cluster-a", "web.yaml"), normalizedDeployment)
+	writeFile(t, filepath.Join(dir, "cluster-b", "web.yaml"), strings.Replace(normalizedDeployment, "replicas: 2", "replicas: 5", 1))
+
+	code, out, errOut := runCLI(t, "", "norm", "--check", dir)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d:\n%s%s", code, out, errOut)
 	}
 }
