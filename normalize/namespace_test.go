@@ -249,175 +249,6 @@ func assertNamespaces(t *testing.T, got, want map[string]string) {
 	}
 }
 
-const refsInput = `
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: app
-  namespace: old
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: webhook
-  namespace: old
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: app
-subjects:
-- kind: ServiceAccount
-  name: app
-  namespace: old
-- kind: ServiceAccount
-  name: foreign
-  namespace: old
-- kind: ServiceAccount
-  name: app
-  namespace: other
-- kind: User
-  name: app
-  namespace: old
----
-apiVersion: admissionregistration.k8s.io/v1
-kind: ValidatingWebhookConfiguration
-metadata:
-  name: hook
-webhooks:
-- name: a.example.com
-  clientConfig:
-    service:
-      name: webhook
-      namespace: old
-- name: b.example.com
-  clientConfig:
-    url: https://example.com
----
-apiVersion: apiregistration.k8s.io/v1
-kind: APIService
-metadata:
-  name: v1.example.com
-spec:
-  service:
-    name: webhook
-    namespace: old
----
-apiVersion: apiextensions.k8s.io/v1
-kind: CustomResourceDefinition
-metadata:
-  name: widgets.example.com
-spec:
-  group: example.com
-  scope: Namespaced
-  names:
-    kind: Widget
-  conversion:
-    strategy: Webhook
-    webhook:
-      clientConfig:
-        service:
-          name: webhook
-          namespace: old
-`
-
-func processRefs(t *testing.T, opts *Options) Rendered {
-	t.Helper()
-
-	resources, err := ParseYAML([]byte(refsInput), "test")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	resources, err = opts.Process(resources)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	rendered, err := Render(resources)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	return rendered
-}
-
-func TestOverwriteNamespace_UpdatesReferences(t *testing.T) {
-	t.Parallel()
-
-	rendered := processRefs(t, &Options{OverwriteNamespace: "new"})
-
-	crb := string(rendered["_cluster/rbac.authorization.k8s.io_ClusterRoleBinding/app.yaml"])
-	for _, want := range []string{
-		"- kind: ServiceAccount\n  name: app\n  namespace: new\n",
-		"- kind: ServiceAccount\n  name: foreign\n  namespace: old\n", // not in the input
-		"- kind: ServiceAccount\n  name: app\n  namespace: other\n",   // other namespace
-		"- kind: User\n  name: app\n  namespace: old\n",               // not a ServiceAccount
-	} {
-		assertContains(t, crb, want)
-	}
-
-	for _, p := range []string{
-		"_cluster/admissionregistration.k8s.io_ValidatingWebhookConfiguration/hook.yaml",
-		"_cluster/apiregistration.k8s.io_APIService/v1.example.com.yaml",
-		"_cluster/apiextensions.k8s.io_CustomResourceDefinition/widgets.example.com.yaml",
-	} {
-		content := string(rendered[p])
-		assertContains(t, content, "name: webhook\n")
-		assertContains(t, content, "namespace: new\n")
-
-		if strings.Contains(content, "namespace: old") {
-			t.Errorf("%s still references the old namespace:\n%s", p, content)
-		}
-	}
-}
-
-func TestOverwriteNamespace_KeepReferences(t *testing.T) {
-	t.Parallel()
-
-	rendered := processRefs(t, &Options{OverwriteNamespace: "new", KeepNamespaceReferences: true})
-
-	assertContains(t, string(rendered["_cluster/apiregistration.k8s.io_APIService/v1.example.com.yaml"]), "namespace: old\n")
-	assertContains(t, string(rendered["new/ServiceAccount/app.yaml"]), "namespace: new\n")
-}
-
-func TestAddNamespaceIfMissing_UpdatesEmptyReferences(t *testing.T) {
-	t.Parallel()
-
-	input := `
-apiVersion: v1
-kind: Service
-metadata:
-  name: webhook
----
-apiVersion: apiregistration.k8s.io/v1
-kind: APIService
-metadata:
-  name: v1.example.com
-spec:
-  service:
-    name: webhook
-`
-
-	resources, err := ParseYAML([]byte(input), "test")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	resources, err = (&Options{AddNamespaceIfMissing: "liqo"}).Process(resources)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	rendered, err := Render(resources)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	assertContains(t, string(rendered["_cluster/apiregistration.k8s.io_APIService/v1.example.com.yaml"]), "name: webhook\n    namespace: liqo\n")
-	assertContains(t, string(rendered["liqo/Service/webhook.yaml"]), "namespace: liqo\n")
-}
-
 func TestExplain_MatchesProcess(t *testing.T) {
 	t.Parallel()
 
@@ -428,7 +259,7 @@ func TestExplain_MatchesProcess(t *testing.T) {
 
 	opts := &Options{Config: cfg, OverwriteNamespace: "new"}
 
-	resources, err := ParseYAML([]byte(refsInput), "test")
+	resources, err := ParseYAML([]byte(nsTestInput+"---\napiVersion: v1\nkind: Pod\nmetadata:\n  name: p\n"), "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -438,7 +269,7 @@ func TestExplain_MatchesProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resources, err = ParseYAML([]byte(refsInput), "test")
+	resources, err = ParseYAML([]byte(nsTestInput+"---\napiVersion: v1\nkind: Pod\nmetadata:\n  name: p\n"), "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -457,19 +288,5 @@ func TestExplain_MatchesProcess(t *testing.T) {
 		if keptPaths[e.Path] == (e.Dropped != "") {
 			t.Errorf("%s: explain says dropped=%q, process kept=%v", e.Path, e.Dropped, keptPaths[e.Path])
 		}
-	}
-
-	var found bool
-
-	for _, e := range explanations {
-		for _, c := range e.Changes {
-			if c.Reason == "reference to an object in a new namespace" && c.Path == "spec.service.namespace" && c.Old == "old" && c.New == "new" {
-				found = true
-			}
-		}
-	}
-
-	if !found {
-		t.Errorf("expected the APIService reference change in %+v", explanations)
 	}
 }

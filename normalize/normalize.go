@@ -74,11 +74,6 @@ type Options struct {
 	// replacing an existing value. Applied before filtering.
 	OverwriteNamespace string
 
-	// KeepNamespaceReferences disables updating references to objects moved
-	// by AddNamespaceIfMissing / OverwriteNamespace (RoleBinding subjects,
-	// webhook, APIService and CRD conversion service references).
-	KeepNamespaceReferences bool
-
 	// SkipSOPS drops SOPS-encrypted documents instead of returning
 	// ErrSOPSEncrypted from Process.
 	SkipSOPS bool

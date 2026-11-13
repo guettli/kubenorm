@@ -272,7 +272,6 @@ func (o *Options) process(resources []Resource, explain bool) ([]Resource, []Exp
 	var explanations []Explanation
 
 	candidates := make([]candidate, 0, len(resources))
-	moves := namespaceMoves{}
 
 	for _, r := range resources {
 		if r.SOPSEncrypted {
@@ -294,17 +293,9 @@ func (o *Options) process(resources []Resource, explain bool) ([]Resource, []Exp
 			explanations = append(explanations, Explanation{Source: r.Source})
 		}
 
-		o.applyNamespace(r.Unstructured(), scope, moves, c.tracer)
+		o.applyNamespace(r.Unstructured(), scope, c.tracer)
 
 		candidates = append(candidates, c)
-	}
-
-	if !o.KeepNamespaceReferences && len(moves) > 0 {
-		for _, c := range candidates {
-			c.tracer.step(c.resource.Object, "reference to an object in a new namespace", func() {
-				moves.updateReferences(c.resource.Object)
-			})
-		}
 	}
 
 	include := make([]bool, len(candidates))
