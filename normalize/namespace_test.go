@@ -417,3 +417,59 @@ spec:
 	assertContains(t, string(rendered["_cluster/apiregistration.k8s.io_APIService/v1.example.com.yaml"]), "name: webhook\n    namespace: liqo\n")
 	assertContains(t, string(rendered["liqo/Service/webhook.yaml"]), "namespace: liqo\n")
 }
+
+func TestExplain_MatchesProcess(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := LoadConfig(true, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	opts := &Options{Config: cfg, OverwriteNamespace: "new"}
+
+	resources, err := ParseYAML([]byte(refsInput), "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	explanations, err := opts.Explain(resources)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resources, err = ParseYAML([]byte(refsInput), "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	kept, err := opts.Process(resources)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	keptPaths := map[string]bool{}
+	for _, r := range kept {
+		keptPaths[r.RelPath()] = true
+	}
+
+	for _, e := range explanations {
+		if keptPaths[e.Path] == (e.Dropped != "") {
+			t.Errorf("%s: explain says dropped=%q, process kept=%v", e.Path, e.Dropped, keptPaths[e.Path])
+		}
+	}
+
+	var found bool
+
+	for _, e := range explanations {
+		for _, c := range e.Changes {
+			if c.Reason == "reference to an object in a new namespace" && c.Path == "spec.service.namespace" && c.Old == "old" && c.New == "new" {
+				found = true
+			}
+		}
+	}
+
+	if !found {
+		t.Errorf("expected the APIService reference change in %+v", explanations)
+	}
+}

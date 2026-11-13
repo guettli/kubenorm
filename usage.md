@@ -26,6 +26,7 @@ kubenorm [command] [global flags] [command flags]
 - [kubenorm completion powershell](#kubenorm-completion-powershell)
 - [kubenorm completion zsh](#kubenorm-completion-zsh)
 - [kubenorm diff](#kubenorm-diff)
+- [kubenorm explain](#kubenorm-explain)
 - [kubenorm help](#kubenorm-help)
 - [kubenorm norm](#kubenorm-norm)
 - [kubenorm show-common-config](#kubenorm-show-common-config)
@@ -225,6 +226,42 @@ kubenorm diff <old> <new> [flags]
   -O, --skip-owned                        Drop resources with a controlling ownerReference and objects Kubernetes autogenerates
       --skip-sops                         Drop SOPS-encrypted documents instead of failing (normalizing them would break the SOPS MAC)
       --stat                              Show a summary per resource instead of the diff (like git diff --stat)
+```
+
+## `kubenorm explain`
+
+Normalize like "norm" and print, for every resource, each change and the
+rule or option that made it. Useful to write and debug your own config.
+
+  - removed field     + added field     ~ changed value
+
+Example:
+  kubenorm explain deployment.yaml --config my-rules.yaml
+
+```text
+kubenorm explain <file|dir|->... [flags]
+```
+
+### Command Flags
+
+```text
+      --add-namespace-if-missing string   Set metadata.namespace on namespaced resources without namespace (cluster-scoped kinds are left alone)
+  -c, --config stringArray                YAML config with removeFields/skipResources/excludeNamespaces/clusterScopedResources rules (repeatable; merged with the common config)
+      --exclude-namespaces string         Drop these namespaces (globs, comma-separated): the Namespace object and everything inside
+  -h, --help                              help for explain
+      --keep-managed-fields               Keep metadata.managedFields
+      --keep-namespace-references         With --add-namespace-if-missing/--overwrite-namespace: do not update RoleBinding subjects and webhook/APIService/CRD service references to moved objects
+      --kind string                       Only keep kinds matching these globs (comma-separated, e.g. 'ConfigMap,Cluster*')
+  -x, --name-regex string                 Only keep resources whose metadata.name matches this regex
+  -n, --namespaces string                 Only keep resources in these namespaces (comma-separated)
+      --no-common-config                  Do not apply the embedded common config (see show-common-config)
+      --no-config-discovery               Do not load .kubenorm.yaml from the current directory or its parents
+      --overwrite-namespace string        Set metadata.namespace on all namespaced resources, replacing existing values
+      --redact-secrets                    Replace values of Secrets with REDCATED-BY-DUMPALL
+      --secrets-as-stringdata             Convert base64 Secret data to stringData
+      --skip-name-glob string             Drop resources whose metadata.name matches this anchored glob
+  -O, --skip-owned                        Drop resources with a controlling ownerReference and objects Kubernetes autogenerates
+      --skip-sops                         Drop SOPS-encrypted documents instead of failing (normalizing them would break the SOPS MAC)
 ```
 
 ## `kubenorm help`

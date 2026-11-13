@@ -45,7 +45,7 @@ func LoadConfig(useCommon bool, userConfigFile string) (*Config, error) {
 	cfg := &Config{}
 
 	if useCommon {
-		common, err := ParseConfig("embedded common config", commonConfig)
+		common, err := ParseConfig("common config", commonConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -104,6 +104,7 @@ func (c *Config) AddSkipNameGlob(glob string) error {
 		return fmt.Errorf("invalid skip-name-glob: %w", err)
 	}
 
+	rule.Origin = "--skip-name-glob " + glob
 	c.skipRules = append(c.skipRules, rule)
 
 	return nil
@@ -186,6 +187,8 @@ type skipRule struct {
 	KindPattern      string
 	NamespacePattern string
 	NamePattern      string
+	// Origin describes where the rule comes from, for explain.
+	Origin string
 }
 
 type ignoreRuleFile struct {
@@ -295,9 +298,13 @@ type ignoreRule struct {
 	NamespacePattern string
 	NamePattern      string
 	Fields           []ignoreFieldPath
+	// Origin describes where the rule comes from, for explain.
+	Origin string
 }
 
 type ignoreFieldPath struct {
+	// raw is the path as written in the config.
+	raw                  string
 	segments             []string
 	value                any
 	valueConstrained     bool
@@ -339,6 +346,7 @@ func parseIgnoreConfigBytes(name string, data []byte) (*Config, error) {
 			return nil, fmt.Errorf("invalid ignore rule %d in %s: %w", idx+1, name, err)
 		}
 
+		rule.Origin = fmt.Sprintf("removeFields[%d] in %s", idx+1, name)
 		rules = append(rules, rule)
 	}
 
@@ -349,6 +357,7 @@ func parseIgnoreConfigBytes(name string, data []byte) (*Config, error) {
 			return nil, fmt.Errorf("invalid skip rule %d in %s: %w", idx+1, name, err)
 		}
 
+		skip.Origin = fmt.Sprintf("skipResources[%d] in %s", idx+1, name)
 		skips = append(skips, skip)
 	}
 
@@ -375,6 +384,7 @@ func parseIgnoreConfigBytes(name string, data []byte) (*Config, error) {
 			return nil, fmt.Errorf("invalid quantityFields rule %d in %s: %w", idx+1, name, err)
 		}
 
+		rule.Origin = fmt.Sprintf("quantityFields[%d] in %s", idx+1, name)
 		quantityRules = append(quantityRules, rule)
 	}
 
@@ -455,6 +465,7 @@ func compileIgnoreRule(fileRule ignoreRuleFile) (ignoreRule, error) {
 		}
 
 		fields = append(fields, ignoreFieldPath{
+			raw:                  trimmed,
 			segments:             segments,
 			value:                field.Value,
 			valueConstrained:     field.valueConstrained,

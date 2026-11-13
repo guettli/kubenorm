@@ -425,3 +425,26 @@ func TestDiff_OutputFormats(t *testing.T) {
 		t.Errorf("expected invalid --color error, got %d: %s", code, errOut)
 	}
 }
+
+func TestExplain(t *testing.T) {
+	t.Parallel()
+
+	in := deploymentYAML + "---\napiVersion: v1\nkind: Pod\nmetadata:\n  name: p\n  namespace: demo\n"
+
+	code, out, errOut := runCLI(t, in, "explain", "-", "--skip-name-glob", "nothing")
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut)
+	}
+
+	for _, want := range []string{
+		"demo/apps_Deployment/web.yaml (from -)\n",
+		"  - metadata.uid: 1234  [removeFields[1] in common config: metadata.uid]\n",
+		"  - status: {\"readyReplicas\":2}  [removeFields[1] in common config: status]\n",
+		"  - spec.progressDeadlineSeconds: 600  [removeFields[",
+		"demo/Pod/p.yaml (from -)\n  dropped: skipResources[",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+}

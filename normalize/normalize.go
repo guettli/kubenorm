@@ -111,31 +111,38 @@ func IdentityOf(item *unstructured.Unstructured, isNamespaced bool) Identity {
 // Normalize modifies obj in place: removes managed fields, handles Secrets,
 // applies the removeFields rules and prunes empty labels/annotations.
 func (o *Options) Normalize(obj map[string]any) error {
+	return o.normalize(obj, nil)
+}
+
+// normalize is Normalize; t records every step for Explain (nil: no tracing).
+func (o *Options) normalize(obj map[string]any, t *tracer) error {
 	metadata, ok := obj[fieldMetadata].(map[string]any)
 	if !ok {
 		return fmt.Errorf("metadata not found in object")
 	}
 
 	if !o.KeepManagedFields {
-		delete(metadata, "managedFields")
+		t.step(obj, "managedFields are removed (--keep-managed-fields keeps them)", func() {
+			delete(metadata, "managedFields")
+		})
 	}
 
 	if o.RedactSecrets {
-		redactSecretValues(obj)
+		t.step(obj, "--redact-secrets", func() { redactSecretValues(obj) })
 	}
 
 	if o.SecretsAsStringData {
-		convertSecretDataToStringData(obj)
+		t.step(obj, "--secrets-as-stringdata", func() { convertSecretDataToStringData(obj) })
 	}
 
-	o.applyQuantityRules(obj)
-	o.applyRemoveRules(obj)
-	pruneEmptyMetadataMaps(obj)
+	o.applyQuantityRules(obj, t)
+	o.applyRemoveRules(obj, t)
+	t.step(obj, "empty labels/annotations are removed", func() { pruneEmptyMetadataMaps(obj) })
 
 	return nil
 }
 
-func (o *Options) applyRemoveRules(obj map[string]any) {
+func (o *Options) applyRemoveRules(obj map[string]any, t *tracer) {
 	if !o.Config.HasRemoveRules() {
 		return
 	}
@@ -151,7 +158,9 @@ func (o *Options) applyRemoveRules(obj map[string]any) {
 				continue
 			}
 
-			deleteFieldPath(obj, field.segments, field.value, field.valueConstrained, field.omitEmpty, field.omitIfEqualToSibling)
+			t.step(obj, rule.Origin+": "+field.raw, func() {
+				deleteFieldPath(obj, field.segments, field.value, field.valueConstrained, field.omitEmpty, field.omitIfEqualToSibling)
+			})
 		}
 	}
 }

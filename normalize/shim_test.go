@@ -73,7 +73,7 @@ func shouldProcessItem(item *unstructured.Unstructured, isNamespaced bool, o *op
 }
 
 func applyIgnoreRules(obj map[string]any, o *options) {
-	o.toOptions().applyRemoveRules(obj)
+	o.toOptions().applyRemoveRules(obj, nil)
 }
 
 func readYamlFromDir(dir string, o *options) error {

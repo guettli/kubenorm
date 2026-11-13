@@ -33,7 +33,7 @@ func CanonicalQuantity(v any) (string, bool) {
 	return q.String(), true
 }
 
-func (o *Options) applyQuantityRules(obj map[string]any) {
+func (o *Options) applyQuantityRules(obj map[string]any, t *tracer) {
 	if o.Config == nil || len(o.Config.quantityRules) == 0 {
 		return
 	}
@@ -45,10 +45,12 @@ func (o *Options) applyQuantityRules(obj map[string]any) {
 		}
 
 		for _, field := range rule.Fields {
-			visitFieldPath(obj, field.segments, func(m map[string]any, key string) {
-				if canonical, ok := CanonicalQuantity(m[key]); ok {
-					m[key] = canonical
-				}
+			t.step(obj, rule.Origin+": "+field.raw, func() {
+				visitFieldPath(obj, field.segments, func(m map[string]any, key string) {
+					if canonical, ok := CanonicalQuantity(m[key]); ok {
+						m[key] = canonical
+					}
+				})
 			})
 		}
 	}

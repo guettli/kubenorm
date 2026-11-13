@@ -74,7 +74,7 @@ Exit codes: 0 ok, 1 differences found (diff, norm --check), 2 error.`,
 	root.SetOut(stdout)
 	root.SetErr(stderr)
 
-	root.AddCommand(buildNormCmd(), buildDiffCmd(), buildShowCommonConfigCmd(), buildVersionCmd(), buildGendocsCmd())
+	root.AddCommand(buildNormCmd(), buildDiffCmd(), buildExplainCmd(), buildShowCommonConfigCmd(), buildVersionCmd(), buildGendocsCmd())
 
 	return root
 }

@@ -247,47 +247,90 @@ func IsYAMLFile(filePath string) bool {
 // Process applies namespace handling, filters and normalization. Resources
 // that are filtered out are dropped. The objects are modified in place.
 func (o *Options) Process(resources []Resource) ([]Resource, error) {
+	kept, _, err := o.process(resources, false)
+
+	return kept, err
+}
+
+// process is Process. With explain set it also returns what happened to
+// every resource.
+func (o *Options) process(resources []Resource, explain bool) ([]Resource, []Explanation, error) {
 	scope := o.scopeResolver(resources)
 
-	candidates := make([]Resource, 0, len(resources))
+	type candidate struct {
+		resource Resource
+		tracer   *tracer
+		index    int
+	}
+
+	var explanations []Explanation
+
+	candidates := make([]candidate, 0, len(resources))
 	moves := namespaceMoves{}
 
 	for _, r := range resources {
 		if r.SOPSEncrypted {
-			if o.SkipSOPS {
-				continue
+			if !o.SkipSOPS {
+				return nil, nil, fmt.Errorf("%s: %w: normalizing it would break the SOPS MAC; exclude the file or use --skip-sops", describe(r), ErrSOPSEncrypted)
 			}
 
-			return nil, fmt.Errorf("%s: %w: normalizing it would break the SOPS MAC; exclude the file or use --skip-sops", describe(r), ErrSOPSEncrypted)
+			if explain {
+				explanations = append(explanations, Explanation{Source: r.Source, Path: r.RelPath(), Dropped: "SOPS-encrypted (--skip-sops)"})
+			}
+
+			continue
 		}
 
-		o.applyNamespace(r.Unstructured(), scope, moves)
+		c := candidate{resource: r, index: -1}
+		if explain {
+			c.tracer = &tracer{}
+			c.index = len(explanations)
+			explanations = append(explanations, Explanation{Source: r.Source})
+		}
 
-		candidates = append(candidates, r)
+		o.applyNamespace(r.Unstructured(), scope, moves, c.tracer)
+
+		candidates = append(candidates, c)
 	}
 
-	if !o.KeepNamespaceReferences {
-		for _, r := range candidates {
-			moves.updateReferences(r.Object)
+	if !o.KeepNamespaceReferences && len(moves) > 0 {
+		for _, c := range candidates {
+			c.tracer.step(c.resource.Object, "reference to an object in a new namespace", func() {
+				moves.updateReferences(c.resource.Object)
+			})
 		}
 	}
 
 	kept := make([]Resource, 0, len(candidates))
 
-	for _, r := range candidates {
-		if !o.Include(r.Unstructured(), r.Namespaced()) {
+	for _, c := range candidates {
+		r := c.resource
+
+		if explain {
+			explanations[c.index].Path = r.RelPath()
+		}
+
+		if reason := o.SkipReason(r.Unstructured(), r.Namespaced()); reason != "" {
+			if explain {
+				explanations[c.index].Dropped = reason
+			}
+
 			continue
 		}
 
-		err := o.Normalize(r.Object)
+		err := o.normalize(r.Object, c.tracer)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", describe(r), err)
+			return nil, nil, fmt.Errorf("%s: %w", describe(r), err)
+		}
+
+		if explain {
+			explanations[c.index].Changes = c.tracer.changes
 		}
 
 		kept = append(kept, r)
 	}
 
-	return kept, nil
+	return kept, explanations, nil
 }
 
 func describe(r Resource) string {

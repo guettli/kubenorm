@@ -232,7 +232,7 @@ func (o *Options) Validate() error {
 // or OverwriteNamespace and records the change in moves. Cluster-scoped
 // resources are never modified; a cluster-scoped resource that carries a
 // namespace is left as is.
-func (o *Options) applyNamespace(u *unstructured.Unstructured, scope *scopeResolver, moves namespaceMoves) {
+func (o *Options) applyNamespace(u *unstructured.Unstructured, scope *scopeResolver, moves namespaceMoves, t *tracer) {
 	if o.AddNamespaceIfMissing == "" && o.OverwriteNamespace == "" {
 		return
 	}
@@ -245,9 +245,9 @@ func (o *Options) applyNamespace(u *unstructured.Unstructured, scope *scopeResol
 
 	switch {
 	case o.OverwriteNamespace != "":
-		u.SetNamespace(o.OverwriteNamespace)
+		t.step(u.Object, "--overwrite-namespace", func() { u.SetNamespace(o.OverwriteNamespace) })
 	case oldNamespace == "":
-		u.SetNamespace(o.AddNamespaceIfMissing)
+		t.step(u.Object, "--add-namespace-if-missing", func() { u.SetNamespace(o.AddNamespaceIfMissing) })
 	}
 
 	if u.GetNamespace() != oldNamespace {

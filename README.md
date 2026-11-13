@@ -161,6 +161,21 @@ default: colored on a terminal, respecting `NO_COLOR`.
 
 Exit codes: `0` no differences, `1` differences, `2` error.
 
+## `kubenorm explain`
+
+Shows, per resource, every change and the rule that made it, or why the
+resource is dropped. Useful when writing your own config:
+
+```text
+$ kubenorm explain deploy.yaml
+demo/apps_Deployment/web.yaml (from deploy.yaml)
+  ~ spec.template.spec.containers[0].resources.limits.cpu: "1000m" -> "1"  [quantityFields[4] in common config: ...containers.resources.limits.*]
+  - metadata.uid: "1234"  [removeFields[1] in common config: metadata.uid]
+  - spec.progressDeadlineSeconds: 600  [removeFields[8] in common config: spec.progressDeadlineSeconds]
+demo/Pod/p.yaml (from deploy.yaml)
+  dropped: skipResources[3] in common config
+```
+
 ## Config
 
 ```yaml
@@ -245,6 +260,7 @@ Usage:
 Available Commands:
   completion         Generate the autocompletion script for the specified shell
   diff               Normalize both sides and show a unified diff
+  explain            Show which rule changes or drops what
   help               Help about any command
   norm               Normalize YAML manifests
   show-common-config Print the embedded common config
