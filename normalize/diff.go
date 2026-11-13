@@ -155,3 +155,66 @@ func Diff(w io.Writer, oldSide, newSide Rendered, oldPrefix, newPrefix string) (
 
 	return Summarize(diffs), nil
 }
+
+// SourceDiff holds the differences of one input file.
+type SourceDiff struct {
+	Source string
+	Diffs  []FileDiff
+}
+
+// DiffBySource compares two processed versions of the same input file by
+// file (for example raw and normalized). Comparing per file allows separate
+// trees with the same resources. prefixes returns the diff path prefixes for
+// a source file. Files are compared in parallel, the result keeps the order
+// in which the files first appear in oldSide.
+func DiffBySource(oldSide, newSide []Resource, prefixes func(source string) (string, string)) ([]SourceDiff, error) {
+	oldBySource, files := groupResourcesBySource(oldSide)
+	newBySource, newFiles := groupResourcesBySource(newSide)
+
+	for _, f := range newFiles {
+		if _, ok := oldBySource[f]; !ok {
+			files = append(files, f)
+		}
+	}
+
+	result := make([]SourceDiff, len(files))
+
+	err := parallelFor(len(files), func(i int) error {
+		oldRendered, err := Render(oldBySource[files[i]])
+		if err != nil {
+			return err
+		}
+
+		newRendered, err := Render(newBySource[files[i]])
+		if err != nil {
+			return err
+		}
+
+		oldPrefix, newPrefix := prefixes(files[i])
+		result[i] = SourceDiff{Source: files[i], Diffs: ComputeDiff(oldRendered, newRendered, oldPrefix, newPrefix)}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+// groupResourcesBySource groups resources by file, keeping the order.
+func groupResourcesBySource(resources []Resource) (map[string][]Resource, []string) {
+	bySource := map[string][]Resource{}
+
+	var files []string
+
+	for _, r := range resources {
+		if _, ok := bySource[r.Source]; !ok {
+			files = append(files, r.Source)
+		}
+
+		bySource[r.Source] = append(bySource[r.Source], r)
+	}
+
+	return bySource, files
+}

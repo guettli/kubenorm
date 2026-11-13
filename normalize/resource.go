@@ -161,19 +161,25 @@ func ReadPath(inputPath string, stdin io.Reader) ([]Resource, error) {
 		}
 	}
 
+	// Parsing dominates the runtime, so files are parsed in parallel.
+	perFile := make([][]Resource, len(files))
+
+	err = parallelFor(len(files), func(i int) error {
+		data, err := os.ReadFile(files[i])
+		if err != nil {
+			return fmt.Errorf("failed to read file %s: %w", files[i], err)
+		}
+
+		perFile[i], err = ParseYAML(data, files[i])
+
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	var resources []Resource
-
-	for _, file := range files {
-		data, err := os.ReadFile(file)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read file %s: %w", file, err)
-		}
-
-		parsed, err := ParseYAML(data, file)
-		if err != nil {
-			return nil, err
-		}
-
+	for _, parsed := range perFile {
 		resources = append(resources, parsed...)
 	}
 
@@ -301,9 +307,12 @@ func (o *Options) process(resources []Resource, explain bool) ([]Resource, []Exp
 		}
 	}
 
-	kept := make([]Resource, 0, len(candidates))
+	include := make([]bool, len(candidates))
 
-	for _, c := range candidates {
+	// Each resource is normalized independently, so this runs in parallel.
+	// Every goroutine only writes its own index.
+	err := parallelFor(len(candidates), func(i int) error {
+		c := candidates[i]
 		r := c.resource
 
 		if explain {
@@ -315,19 +324,32 @@ func (o *Options) process(resources []Resource, explain bool) ([]Resource, []Exp
 				explanations[c.index].Dropped = reason
 			}
 
-			continue
+			return nil
 		}
 
 		err := o.normalize(r.Object, c.tracer)
 		if err != nil {
-			return nil, nil, fmt.Errorf("%s: %w", describe(r), err)
+			return fmt.Errorf("%s: %w", describe(r), err)
 		}
 
 		if explain {
 			explanations[c.index].Changes = c.tracer.changes
 		}
 
-		kept = append(kept, r)
+		include[i] = true
+
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	kept := make([]Resource, 0, len(candidates))
+
+	for i, c := range candidates {
+		if include[i] {
+			kept = append(kept, c.resource)
+		}
 	}
 
 	return kept, explanations, nil
@@ -348,25 +370,40 @@ type Rendered map[string][]byte
 // Render encodes each resource. Two resources with the same identity are an
 // error, because one would silently overwrite the other.
 func Render(resources []Resource, headerLines ...string) (Rendered, error) {
-	out := make(Rendered, len(resources))
 	sources := make(map[string]string, len(resources))
+	paths := make([]string, len(resources))
 
-	for _, r := range resources {
+	for i, r := range resources {
 		rel := r.RelPath()
 		if prev, ok := sources[rel]; ok {
 			return nil, fmt.Errorf("%w %s: found in %s and %s", ErrDuplicate, rel, prev, r.Source)
 		}
 
 		sources[rel] = r.Source
+		paths[i] = rel
+	}
 
+	encoded := make([][]byte, len(resources))
+
+	err := parallelFor(len(resources), func(i int) error {
 		var buf bytes.Buffer
 
-		err := Encode(&buf, r.Object, headerLines...)
+		err := Encode(&buf, resources[i].Object, headerLines...)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", describe(r), err)
+			return fmt.Errorf("%s: %w", describe(resources[i]), err)
 		}
 
-		out[rel] = buf.Bytes()
+		encoded[i] = buf.Bytes()
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	out := make(Rendered, len(resources))
+	for i, rel := range paths {
+		out[rel] = encoded[i]
 	}
 
 	return out, nil

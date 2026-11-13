@@ -441,42 +441,51 @@ func runCheck(cmd *cobra.Command, flags *normFlags, inputs []string) error {
 		return err
 	}
 
-	rawResources, err := processResources(read, rawOpts)
+	resources, err := read()
 	if err != nil {
 		return err
 	}
 
-	normResources, err := processResources(read, normOpts)
+	// Parse once; Process modifies objects in place, so work on a copy.
+	rawResources, err := rawOpts.Process(normalize.CloneResources(resources))
+	if err != nil {
+		return err
+	}
+
+	normResources, err := normOpts.Process(resources)
 	if err != nil {
 		return err
 	}
 
 	// Compare file by file: separate trees (one per cluster, say) may
 	// legitimately contain the same resource.
-	rawBySource, files := groupBySource(rawResources)
-	normBySource, _ := groupBySource(normResources)
+	sourceDiffs, err := normalize.DiffBySource(rawResources, normResources, func(source string) (string, string) {
+		return diffLabel(source), path.Join("normalized", diffLabel(source))
+	})
+	if err != nil {
+		return err
+	}
 
-	var notNormalized []string
+	var (
+		notNormalized []string
+		out           strings.Builder
+	)
 
-	for _, file := range files {
-		raw, err := normalize.Render(rawBySource[file])
-		if err != nil {
-			return err
+	for _, sd := range sourceDiffs {
+		if len(sd.Diffs) == 0 {
+			continue
 		}
 
-		norm, err := normalize.Render(normBySource[file])
-		if err != nil {
-			return err
-		}
+		notNormalized = append(notNormalized, diffLabel(sd.Source))
 
-		result, err := normalize.Diff(cmd.OutOrStdout(), raw, norm, diffLabel(file), path.Join("normalized", diffLabel(file)))
-		if err != nil {
-			return err
+		for _, d := range sd.Diffs {
+			out.WriteString(d.Unified)
 		}
+	}
 
-		if !result.Equal() {
-			notNormalized = append(notNormalized, diffLabel(file))
-		}
+	_, err = io.WriteString(cmd.OutOrStdout(), out.String())
+	if err != nil {
+		return fmt.Errorf("writing diff: %w", err)
 	}
 
 	if len(notNormalized) == 0 {
@@ -486,15 +495,6 @@ func runCheck(cmd *cobra.Command, flags *normFlags, inputs []string) error {
 	fmt.Fprintf(cmd.ErrOrStderr(), "not normalized (fix with kubenorm norm --write): %s\n", strings.Join(notNormalized, " "))
 
 	return errDifferences
-}
-
-func processResources(read func() ([]normalize.Resource, error), opts *normalize.Options) ([]normalize.Resource, error) {
-	resources, err := read()
-	if err != nil {
-		return nil, err
-	}
-
-	return opts.Process(resources)
 }
 
 func diffLabel(input string) string {

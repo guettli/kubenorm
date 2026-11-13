@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -47,22 +46,46 @@ func runWrite(cmd *cobra.Command, flags *normFlags, inputs []string) error {
 
 	rawOpts.KeepManagedFields = true
 
-	rawResources, err := readAndProcessResources(rawOpts, inputs)
+	resources, err := normalize.ReadPaths(inputs, nil)
 	if err != nil {
 		return err
 	}
 
-	normResources, err := readAndProcessResources(normOpts, inputs)
+	// Parse once; Process modifies objects in place, so work on a copy.
+	rawResources, err := rawOpts.Process(normalize.CloneResources(resources))
+	if err != nil {
+		return err
+	}
+
+	normResources, err := normOpts.Process(resources)
 	if err != nil {
 		return err
 	}
 
 	// Duplicates are only checked within a file: separate trees (one per
 	// cluster, say) legitimately contain the same resource.
+	// Which files change is decided like --check does, in parallel.
+	sourceDiffs, err := normalize.DiffBySource(rawResources, normResources, func(string) (string, string) { return "", "" })
+	if err != nil {
+		return err
+	}
+
 	rawBySource, files := groupBySource(rawResources)
 	normBySource, _ := groupBySource(normResources)
 
+	changedFiles := map[string]bool{}
+
+	for _, sd := range sourceDiffs {
+		if len(sd.Diffs) > 0 {
+			changedFiles[sd.Source] = true
+		}
+	}
+
 	for _, file := range files {
+		if !changedFiles[file] {
+			continue
+		}
+
 		changed, err := rewriteFile(file, rawBySource[file], normBySource[file])
 		if err != nil {
 			return err
@@ -77,15 +100,6 @@ func runWrite(cmd *cobra.Command, flags *normFlags, inputs []string) error {
 	}
 
 	return nil
-}
-
-func readAndProcessResources(opts *normalize.Options, inputs []string) ([]normalize.Resource, error) {
-	resources, err := normalize.ReadPaths(inputs, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return opts.Process(resources)
 }
 
 // groupBySource groups resources by file, keeping the document order.
@@ -105,23 +119,9 @@ func groupBySource(resources []normalize.Resource) (map[string][]normalize.Resou
 	return bySource, files
 }
 
-// rewriteFile writes the normalized documents to file if they differ from
-// the raw ones. It returns true if the file was rewritten or removed.
+// rewriteFile writes the normalized documents to file, or removes the file
+// if no document is left. The caller decides that the file changes.
 func rewriteFile(file string, raw, norm []normalize.Resource) (bool, error) {
-	rawRendered, err := normalize.Render(raw)
-	if err != nil {
-		return false, err
-	}
-
-	normRendered, err := normalize.Render(norm)
-	if err != nil {
-		return false, err
-	}
-
-	if maps.EqualFunc(rawRendered, normRendered, bytes.Equal) {
-		return false, nil
-	}
-
 	original, err := os.ReadFile(file)
 	if err != nil {
 		return false, fmt.Errorf("failed to read %s: %w", file, err)
