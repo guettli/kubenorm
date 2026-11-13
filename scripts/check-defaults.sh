@@ -2,8 +2,8 @@
 # Checks the default rules of the common config against a real kube-apiserver:
 # every testdata/golden/*/want.yaml (already normalized) is sent to the
 # api-server with `kubectl apply --dry-run=server`. The api-server adds its
-# defaults; after normalizing, the answer must be identical to the file.
-# A difference means a default that the common config does not remove.
+# defaults (and drops some explicit zero values); after normalizing, the
+# answer must be identical to the file. A difference means a rule is missing.
 #
 # Needs no container runtime: etcd and kube-apiserver come from envtest.
 set -euo pipefail
@@ -65,7 +65,7 @@ for want in "$repo"/testdata/golden/*/want.yaml; do
 		    fields: [{path: spec.replicas, value: 1}]
 		skipResources:
 	YAML
-	grep -h '^apiVersion: .*/' "$want" | sed 's#apiVersion: ##; s#/.*##' | sort -u |
+	{ grep -h '^apiVersion: .*/' "$want" || true; } | sed 's#apiVersion: ##; s#/.*##' | sort -u |
 		comm -23 - <(echo "$served") | sed 's/.*/  - group: "&"/' >>"$work/check.yaml"
 	"$work/kubenorm" norm --no-config-discovery --config "$work/check.yaml" "$want" >"$work/$name.yaml"
 
@@ -74,7 +74,7 @@ for want in "$repo"/testdata/golden/*/want.yaml; do
 	done
 	kubectl apply --dry-run=server -o yaml -f "$work/$name.yaml" >"$work/$name-server.yaml"
 	if ! "$work/kubenorm" diff --no-config-discovery --config "$work/check.yaml" "$work/$name.yaml" "$work/$name-server.yaml"; then
-		echo "FAIL $name: the api-server adds defaults that are not normalized away (diff above)"
+		echo "FAIL $name: the api-server changes fields that normalizing does not cover (diff above)"
 		failed=1
 	else
 		echo "ok   $name ($(grep -c '^kind:' "$work/$name.yaml") resources)"

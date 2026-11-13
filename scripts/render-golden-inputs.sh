@@ -3,7 +3,9 @@
 # Update the versions here, run the script, then: go test -run TestGolden -update
 set -euo pipefail
 golden=$(realpath "$(dirname "$0")/../testdata/golden")
-cd "$(mktemp -d)" # helm prefers a local directory named like the chart
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+cd "$tmp" # helm prefers a local directory named like the chart
 
 render() { # case release chart repo version helm-args...
 	local dir=$1 release=$2 chart=$3 repo=$4 version=$5

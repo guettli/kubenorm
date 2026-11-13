@@ -19,9 +19,12 @@ func discoverConfig() (string, error) {
 		return "", fmt.Errorf("getting working directory: %w", err)
 	}
 
-	home, _ := os.UserHomeDir() // "" if unknown: search up to the root
+	home, err := os.UserHomeDir()
+	if err == nil {
+		home = filepath.Clean(home) // $HOME may end with a slash
+	}
 
-	return discoverConfigFrom(dir, home)
+	return discoverConfigFrom(dir, home) // "" if unknown: search up to the root
 }
 
 func discoverConfigFrom(dir, home string) (string, error) {
