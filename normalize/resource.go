@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -128,6 +129,27 @@ func ReadPath(inputPath string, stdin io.Reader) ([]Resource, error) {
 		}
 
 		resources = append(resources, parsed...)
+	}
+
+	return resources, nil
+}
+
+// ReadPaths reads all resources from several inputs, see ReadPath. stdin
+// ("-") must be the only input.
+func ReadPaths(inputPaths []string, stdin io.Reader) ([]Resource, error) {
+	if len(inputPaths) > 1 && slices.Contains(inputPaths, StdinPath) {
+		return nil, errors.New("stdin (-) cannot be combined with other inputs")
+	}
+
+	var resources []Resource
+
+	for _, p := range inputPaths {
+		r, err := ReadPath(p, stdin)
+		if err != nil {
+			return nil, err
+		}
+
+		resources = append(resources, r...)
 	}
 
 	return resources, nil

@@ -236,7 +236,7 @@ kubenorm help [command] [flags]
 
 ## `kubenorm norm`
 
-Normalize YAML manifests from a file, a directory (recursive) or stdin ("-").
+Normalize YAML manifests from files, directories (recursive) or stdin ("-").
 
 Without --out-dir the result is written to stdout as one multi-document YAML
 stream, sorted by NAMESPACE/KIND/NAME. With --out-dir every resource is
@@ -252,7 +252,7 @@ Examples:
   kubenorm norm liqo.yaml --add-namespace-if-missing liqo -o out/
 
 ```text
-kubenorm norm <file|dir|-> [flags]
+kubenorm norm <file|dir|->... [flags]
 ```
 
 ### Command Flags

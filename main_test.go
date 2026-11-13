@@ -258,3 +258,29 @@ func TestNorm_SOPS(t *testing.T) {
 		t.Fatalf("expected --check to fail with SOPS error, got %d: %s", code, errOut)
 	}
 }
+
+func TestNorm_SeveralInputs(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	a := filepath.Join(dir, "a.yaml")
+	b := filepath.Join(dir, "sub", "b.yaml")
+
+	writeFile(t, a, deploymentYAML)
+	writeFile(t, b, strings.Replace(normalizedDeployment, "name: web", "name: api", 1))
+
+	code, out, errOut := runCLI(t, "", "norm", a, filepath.Dir(b))
+	if code != 0 || !strings.Contains(out, "name: web") || !strings.Contains(out, "name: api") {
+		t.Fatalf("got %d:\n%s%s", code, out, errOut)
+	}
+
+	code, _, errOut = runCLI(t, "", "norm", a, "-")
+	if code != 2 || !strings.Contains(errOut, "stdin") {
+		t.Fatalf("expected stdin combination error, got %d: %s", code, errOut)
+	}
+
+	code, _, _ = runCLI(t, "", "norm", "--check", a, b)
+	if code != 1 {
+		t.Fatalf("expected --check to fail for a.yaml, got %d", code)
+	}
+}

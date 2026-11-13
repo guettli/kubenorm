@@ -212,9 +212,9 @@ func buildNormCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "norm <file|dir|->",
+		Use:   "norm <file|dir|->...",
 		Short: "Normalize YAML manifests",
-		Long: `Normalize YAML manifests from a file, a directory (recursive) or stdin ("-").
+		Long: `Normalize YAML manifests from files, directories (recursive) or stdin ("-").
 
 Without --out-dir the result is written to stdout as one multi-document YAML
 stream, sorted by NAMESPACE/KIND/NAME. With --out-dir every resource is
@@ -228,17 +228,17 @@ Examples:
   helm template my-chart | kubenorm norm - -o rendered/
   kubenorm norm ./k8s/plain --check
   kubenorm norm liqo.yaml --add-namespace-if-missing liqo -o out/`,
-		Args: cobra.ExactArgs(1),
+		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if check && outDir != "" {
 				return errors.New("--check and --out-dir are mutually exclusive")
 			}
 
 			if check {
-				return runCheck(cmd, &flags, args[0])
+				return runCheck(cmd, &flags, args)
 			}
 
-			return runNorm(cmd, &flags, args[0], outDir, removeOutDir, comment, verbose)
+			return runNorm(cmd, &flags, args, outDir, removeOutDir, comment, verbose)
 		},
 	}
 
@@ -263,10 +263,10 @@ func header(comment string) []string {
 
 // inputReader returns a function that reads the input resources. stdin is
 // buffered, so the function can be called more than once.
-func inputReader(cmd *cobra.Command, input string) (func() ([]normalize.Resource, error), error) {
-	if input != normalize.StdinPath {
+func inputReader(cmd *cobra.Command, inputs ...string) (func() ([]normalize.Resource, error), error) {
+	if len(inputs) != 1 || inputs[0] != normalize.StdinPath {
 		return func() ([]normalize.Resource, error) {
-			return normalize.ReadPath(input, nil)
+			return normalize.ReadPaths(inputs, nil)
 		}, nil
 	}
 
@@ -303,13 +303,13 @@ func processRendered(read func() ([]normalize.Resource, error), opts *normalize.
 	return normalize.Render(resources)
 }
 
-func runNorm(cmd *cobra.Command, flags *normFlags, input, outDir string, removeOutDir bool, comment string, verbose bool) error {
+func runNorm(cmd *cobra.Command, flags *normFlags, inputs []string, outDir string, removeOutDir bool, comment string, verbose bool) error {
 	opts, err := flags.options()
 	if err != nil {
 		return err
 	}
 
-	resources, err := normalize.ReadPath(input, cmd.InOrStdin())
+	resources, err := normalize.ReadPaths(inputs, cmd.InOrStdin())
 	if err != nil {
 		return err
 	}
@@ -377,7 +377,7 @@ func prepareOutDir(outDir string, remove bool) error {
 	return nil
 }
 
-func runCheck(cmd *cobra.Command, flags *normFlags, input string) error {
+func runCheck(cmd *cobra.Command, flags *normFlags, inputs []string) error {
 	normOpts, err := flags.options()
 	if err != nil {
 		return err
@@ -397,7 +397,7 @@ func runCheck(cmd *cobra.Command, flags *normFlags, input string) error {
 
 	rawOpts.KeepManagedFields = true
 
-	read, err := inputReader(cmd, input)
+	read, err := inputReader(cmd, inputs...)
 	if err != nil {
 		return err
 	}
@@ -412,7 +412,12 @@ func runCheck(cmd *cobra.Command, flags *normFlags, input string) error {
 		return err
 	}
 
-	result, err := normalize.Diff(cmd.OutOrStdout(), raw, normalized, diffLabel(input), "normalized")
+	label := "input"
+	if len(inputs) == 1 {
+		label = diffLabel(inputs[0])
+	}
+
+	result, err := normalize.Diff(cmd.OutOrStdout(), raw, normalized, label, "normalized")
 	if err != nil {
 		return err
 	}
@@ -422,7 +427,7 @@ func runCheck(cmd *cobra.Command, flags *normFlags, input string) error {
 	}
 
 	fmt.Fprintf(cmd.ErrOrStderr(), "%s is not normalized: %d changed, %d dropped, %d added\n",
-		input, len(result.Changed), len(result.Removed), len(result.Added))
+		strings.Join(inputs, " "), len(result.Changed), len(result.Removed), len(result.Added))
 
 	return errDifferences
 }
