@@ -146,9 +146,8 @@ dumpall --read-resource-names-from ./rendered -o current
 kubenorm diff current ./rendered
 ```
 
-`--stat` prints a summary per resource (like `git diff --stat`),
-`--name-status` only lists `A`/`M`/`D` and the path. `--color` is `auto` by
-default: colored on a terminal, respecting `NO_COLOR`.
+For a summary or colors, write both sides with `norm -o` and use git:
+`git diff --no-index --stat old/ new/`.
 
 Exit codes: `0` no differences, `1` differences, `2` error.
 

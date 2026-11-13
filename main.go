@@ -486,10 +486,7 @@ func diffLabel(input string) string {
 }
 
 func buildDiffCmd() *cobra.Command {
-	var (
-		flags  normFlags
-		output diffOutput
-	)
+	var flags normFlags
 
 	cmd := &cobra.Command{
 		Use:   "diff <old> <new>",
@@ -501,17 +498,11 @@ trees can be compared. Exits 1 if there are differences.
 
 Examples:
   kubenorm diff zz_generated-main/ zz_generated-pr/
-  kubenorm diff --stat zz_generated-main/ zz_generated-pr/
   helm template ./chart | kubenorm diff deployed-dump/ -`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if args[0] == normalize.StdinPath && args[1] == normalize.StdinPath {
 				return errors.New("only one side can be read from stdin")
-			}
-
-			err := output.validate()
-			if err != nil {
-				return err
 			}
 
 			opts, err := flags.options()
@@ -531,9 +522,11 @@ Examples:
 
 			diffs := normalize.ComputeDiff(oldSide, newSide, diffLabel(args[0]), diffLabel(args[1]))
 
-			err = output.write(cmd.OutOrStdout(), diffs)
-			if err != nil {
-				return err
+			for _, d := range diffs {
+				_, err = io.WriteString(cmd.OutOrStdout(), d.Unified)
+				if err != nil {
+					return fmt.Errorf("writing diff: %w", err)
+				}
 			}
 
 			if len(diffs) == 0 {
@@ -545,9 +538,6 @@ Examples:
 	}
 
 	flags.register(cmd)
-	cmd.Flags().BoolVar(&output.stat, "stat", false, "Show a summary per resource instead of the diff (like git diff --stat)")
-	cmd.Flags().BoolVar(&output.nameStatus, "name-status", false, "Only list the resources with A (added), M (modified) or D (deleted)")
-	cmd.Flags().StringVar(&output.color, "color", "auto", "Color the output: auto (terminal, respects NO_COLOR), always or never")
 
 	return cmd
 }

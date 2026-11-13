@@ -32,9 +32,7 @@ type FileDiff struct {
 	Path   string
 	Status FileStatus
 	// Unified is the unified diff (git apply compatible).
-	Unified    string
-	Insertions int
-	Deletions  int
+	Unified string
 }
 
 // DiffResult summarizes a Diff run.
@@ -90,8 +88,7 @@ func ComputeDiff(oldSide, newSide Rendered, oldPrefix, newPrefix string) []FileD
 		}
 
 		edits := myers.ComputeEdits(span.URIFromPath(rel), string(oldContent), string(newContent))
-		unified := gotextdiff.ToUnified(fromLabel, toLabel, string(oldContent), edits)
-		text := fmt.Sprint(unified)
+		text := fmt.Sprint(gotextdiff.ToUnified(fromLabel, toLabel, string(oldContent), edits))
 
 		// gotextdiff writes "-1" / "+1" for an empty side; patch and git
 		// apply expect "-0,0" / "+0,0" for created and deleted files.
@@ -103,21 +100,7 @@ func ComputeDiff(oldSide, newSide Rendered, oldPrefix, newPrefix string) []FileD
 		case StatusModified:
 		}
 
-		d := FileDiff{Path: rel, Status: status, Unified: text}
-
-		for _, hunk := range unified.Hunks {
-			for _, line := range hunk.Lines {
-				switch line.Kind {
-				case gotextdiff.Insert:
-					d.Insertions++
-				case gotextdiff.Delete:
-					d.Deletions++
-				case gotextdiff.Equal:
-				}
-			}
-		}
-
-		diffs = append(diffs, d)
+		diffs = append(diffs, FileDiff{Path: rel, Status: status, Unified: text})
 	}
 
 	return diffs
