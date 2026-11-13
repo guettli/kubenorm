@@ -323,6 +323,8 @@ apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   name: vwc
+  annotations:
+    cert-manager.io/inject-ca-from: old/webhook-cert
 webhooks:
 - name: a.example.com
   clientConfig: {service: {name: webhook, namespace: old}}
@@ -366,7 +368,7 @@ func TestNamespaceReferences(t *testing.T) {
 			want: []string{
 				"crb subjects: moved=new other=kube-system empty=new alice=",
 				"rb subjects: moved=new own=",
-				"vwc services: webhook=new other=kube-system",
+				"vwc services: webhook=new other=kube-system ca=new/webhook-cert",
 				"v1.example.com service: api=new",
 				"widgets.example.com conversion: webhook=new",
 			},
@@ -377,7 +379,7 @@ func TestNamespaceReferences(t *testing.T) {
 			want: []string{
 				"crb subjects: moved=old other=kube-system empty=new alice=",
 				"rb subjects: moved=old own=",
-				"vwc services: webhook=old other=kube-system",
+				"vwc services: webhook=old other=kube-system ca=old/webhook-cert",
 				"v1.example.com service: api=new",
 				"widgets.example.com conversion: webhook=old",
 			},
@@ -388,7 +390,7 @@ func TestNamespaceReferences(t *testing.T) {
 			want: []string{
 				"crb subjects: moved=old other=kube-system empty= alice=",
 				"rb subjects: moved=old own=",
-				"vwc services: webhook=old other=kube-system",
+				"vwc services: webhook=old other=kube-system ca=old/webhook-cert",
 				"v1.example.com service: api=",
 				"widgets.example.com conversion: webhook=old",
 			},
@@ -435,6 +437,10 @@ func TestNamespaceReferences(t *testing.T) {
 					ns, _ := m["namespace"].(string)
 					refs = append(refs, name+"="+ns)
 				})
+
+				if ca := u.GetAnnotations()["cert-manager.io/inject-ca-from"]; ca != "" {
+					refs = append(refs, "ca="+ca)
+				}
 
 				label := ref.label
 				got = append(got, u.GetName()+" "+label+": "+strings.Join(refs, " "))

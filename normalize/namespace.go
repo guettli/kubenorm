@@ -278,8 +278,8 @@ var namespaceRefs = []struct {
 
 // applyNamespace sets metadata.namespace according to AddNamespaceIfMissing
 // or OverwriteNamespace and moves references to namespaces that move: RBAC
-// ServiceAccount subjects and service references of webhooks, APIServices and
-// CRD conversion webhooks. Cluster-scoped resources keep their namespace; a
+// ServiceAccount subjects, service references of webhooks, APIServices and
+// CRD conversion webhooks, and the cert-manager inject-ca-from annotations. Cluster-scoped resources keep their namespace; a
 // cluster-scoped resource that carries a namespace is left as is.
 func (o *Options) applyNamespace(u *unstructured.Unstructured, scope *scopeResolver, move namespaceMover, t *tracer) {
 	if move == nil {
@@ -296,6 +296,18 @@ func (o *Options) applyNamespace(u *unstructured.Unstructured, scope *scopeResol
 	if !scope.isClusterScoped(gk) {
 		if ns := move(u.GetNamespace()); ns != "" && ns != u.GetNamespace() {
 			t.step(u.Object, reason, func() { u.SetNamespace(ns) })
+		}
+	}
+
+	for _, key := range []string{"cert-manager.io/inject-ca-from", "cert-manager.io/inject-ca-from-secret"} {
+		annotations := u.GetAnnotations()
+
+		old, name, ok := strings.Cut(annotations[key], "/") // value: namespace/name
+		if ns := move(old); ok && ns != "" && ns != old {
+			t.step(u.Object, reason, func() {
+				annotations[key] = ns + "/" + name
+				u.SetAnnotations(annotations)
+			})
 		}
 	}
 

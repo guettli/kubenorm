@@ -105,7 +105,9 @@ References to namespaces inside objects move along:
 - `webhooks[].clientConfig.service.namespace` of Mutating- and
   ValidatingWebhookConfigurations,
 - `spec.service.namespace` of APIServices,
-- `spec.conversion.webhook.clientConfig.service.namespace` of CRDs.
+- `spec.conversion.webhook.clientConfig.service.namespace` of CRDs,
+- the cert-manager annotations `cert-manager.io/inject-ca-from` and
+  `inject-ca-from-secret` (`namespace/name`).
 
 `--overwrite-namespace` rewrites a reference if it points to a namespace of a
 resource in the input (these resources move, so the reference has to move
