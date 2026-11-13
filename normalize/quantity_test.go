@@ -152,3 +152,83 @@ func assertContains(t *testing.T, s, want string) {
 		t.Errorf("missing %q in:\n%s", want, s)
 	}
 }
+
+func TestCommonConfig_CronJobDefaults(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := LoadConfig(true, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// As returned by the api-server for a minimal CronJob.
+	resources, err := ParseYAML([]byte(`
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: prune
+  namespace: ops
+  annotations:
+    meta.helm.sh/release-name: ops
+    meta.helm.sh/release-namespace: ops
+spec:
+  concurrencyPolicy: Allow
+  failedJobsHistoryLimit: 1
+  schedule: "0 * * * *"
+  successfulJobsHistoryLimit: 3
+  suspend: false
+  jobTemplate:
+    metadata:
+      creationTimestamp: null
+    spec:
+      template:
+        metadata:
+          creationTimestamp: null
+        spec:
+          containers:
+          - image: busybox:1.36
+            imagePullPolicy: IfNotPresent
+            name: prune
+            resources: {}
+            terminationMessagePath: /dev/termination-log
+            terminationMessagePolicy: File
+          dnsPolicy: ClusterFirst
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
+          securityContext: {}
+          terminationGracePeriodSeconds: 30
+`), "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resources, err = (&Options{Config: cfg}).Process(resources)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered, err := Render(resources)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := `apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: prune
+  namespace: ops
+spec:
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - image: busybox:1.36
+            name: prune
+          restartPolicy: OnFailure
+  schedule: 0 * * * *
+`
+	if got := string(rendered["ops/batch_CronJob/prune.yaml"]); got != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
+	}
+}
