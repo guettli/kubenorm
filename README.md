@@ -185,7 +185,8 @@ jobs:
 ```
 
 `-r` removes the output directory first, so deleted resources disappear from
-`rendered/`. Use the same commands in a script or Taskfile to render locally.
+`rendered/`. Use the same commands in a script or Taskfile to render locally,
+with the same kubenorm version: every file starts with a header naming it.
 
 ## `kubenorm diff`
 
@@ -277,7 +278,9 @@ quantityFields:
   ResourceQuotas and LimitRanges. Custom resources are only touched if their
   CRD is part of the input (fields of type `resource.Quantity`, recognized by
   `x-kubernetes-int-or-string` and the quantity pattern) or if you list the
-  fields here: other fields may only look like quantities.
+  fields here: other fields may only look like quantities. The CRD-based
+  detection also works with `--no-common-config`. With `kubenorm diff`, put the
+  CRDs on both sides (or on none), else the quantities differ.
 - The config is parsed strictly; unknown keys are an error.
 
 `--config FILE` (repeatable) adds your rules to the common config,
