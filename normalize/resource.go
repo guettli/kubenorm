@@ -260,7 +260,7 @@ func (o *Options) Process(resources []Resource) ([]Resource, error) {
 func (o *Options) process(resources []Resource, explain bool) ([]Resource, []Explanation, error) {
 	o = o.withCRDQuantities(resources)
 	scope := o.scopeResolver(resources)
-	move := o.namespaceMover(resources, scope)
+	move := o.namespaceMove(resources, scope)
 
 	type candidate struct {
 		resource Resource

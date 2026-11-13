@@ -3,6 +3,7 @@ package normalize
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"regexp"
 	"strings"
 
@@ -233,38 +234,54 @@ func (o *Options) Validate() error {
 	return nil
 }
 
-// namespaceMover returns the new namespace for something in namespace old,
-// or "" if it stays where it is.
-type namespaceMover func(old string) string
+// namespaceMove describes how --add-namespace-if-missing or
+// --overwrite-namespace moves namespaces.
+type namespaceMove struct {
+	target string
+	reason string
+	// moved holds the namespaces that move to target.
+	moved map[string]bool
+	// inInput holds the namespaces of the namespaced resources in the input.
+	inInput map[string]bool
+}
 
-// namespaceMover decides which namespaces move: with OverwriteNamespace every
+// namespaceMove decides which namespaces move: with OverwriteNamespace every
 // namespace of a namespaced resource in the input (and ""), with
 // AddNamespaceIfMissing only "". It returns nil if no namespace option is set.
-func (o *Options) namespaceMover(resources []Resource, scope *scopeResolver) namespaceMover {
-	target := o.OverwriteNamespace
-	moved := map[string]bool{"": true}
+func (o *Options) namespaceMove(resources []Resource, scope *scopeResolver) *namespaceMove {
+	m := &namespaceMove{moved: map[string]bool{"": true}, inInput: map[string]bool{}}
 
 	switch {
 	case o.OverwriteNamespace != "":
-		for _, r := range resources {
-			u := r.Unstructured()
-			if !r.SOPSEncrypted && !scope.isClusterScoped(u.GroupVersionKind().GroupKind()) {
-				moved[u.GetNamespace()] = true
-			}
-		}
+		m.target, m.reason = o.OverwriteNamespace, "--overwrite-namespace"
 	case o.AddNamespaceIfMissing != "":
-		target = o.AddNamespaceIfMissing
+		m.target, m.reason = o.AddNamespaceIfMissing, "--add-namespace-if-missing"
 	default:
 		return nil
 	}
 
-	return func(old string) string {
-		if moved[old] {
-			return target
+	for _, r := range resources {
+		u := r.Unstructured()
+		if !r.SOPSEncrypted && !scope.isClusterScoped(u.GroupVersionKind().GroupKind()) {
+			m.inInput[u.GetNamespace()] = true
 		}
-
-		return ""
 	}
+
+	if o.OverwriteNamespace != "" {
+		maps.Copy(m.moved, m.inInput)
+	}
+
+	return m
+}
+
+// to returns the new namespace for something in namespace old, or "" if it
+// stays where it is.
+func (m *namespaceMove) to(old string) string {
+	if m.moved[old] {
+		return m.target
+	}
+
+	return ""
 }
 
 // namespaceRefs lists references to namespaces in other objects. path leads
@@ -286,21 +303,36 @@ var namespaceRefs = []struct {
 // ServiceAccount subjects, service references of webhooks, APIServices and
 // CRD conversion webhooks, and the cert-manager inject-ca-from annotations. Cluster-scoped resources keep their namespace; a
 // cluster-scoped resource that carries a namespace is left as is.
-func (o *Options) applyNamespace(u *unstructured.Unstructured, scope *scopeResolver, move namespaceMover, t *tracer) {
+func (o *Options) applyNamespace(u *unstructured.Unstructured, scope *scopeResolver, move *namespaceMove, t *tracer) {
 	if move == nil {
 		return
 	}
 
-	reason := "--add-namespace-if-missing"
-	if o.OverwriteNamespace != "" {
-		reason = "--overwrite-namespace"
-	}
-
+	reason := move.reason
 	gk := u.GroupVersionKind().GroupKind()
 
+	if gk == (schema.GroupKind{Kind: "Namespace"}) && move.moved[u.GetName()] && u.GetName() != move.target {
+		o.warnf("Namespace %s is in the input, but %s moves its resources to %s", u.GetName(), reason, move.target)
+	}
+
 	if !scope.isClusterScoped(gk) {
-		if ns := move(u.GetNamespace()); ns != "" && ns != u.GetNamespace() {
+		if ns := move.to(u.GetNamespace()); ns != "" && ns != u.GetNamespace() {
 			t.step(u.Object, reason, func() { u.SetNamespace(ns) })
+		}
+	}
+
+	warned := false
+
+	// moveRef moves a reference to namespace old with set.
+	moveRef := func(old string, set func(ns string)) {
+		switch ns := move.to(old); {
+		case ns != "" && ns != old:
+			t.step(u.Object, reason, func() { set(ns) })
+		case old == "default" && !move.inInput["default"] && !warned:
+			warned = true
+
+			o.warnf("%s %s refers to namespace default, which no resource of the input uses. Rendered without helm template --namespace?",
+				gk.Kind, u.GetName())
 		}
 	}
 
@@ -308,8 +340,8 @@ func (o *Options) applyNamespace(u *unstructured.Unstructured, scope *scopeResol
 		annotations := u.GetAnnotations()
 
 		old, name, ok := strings.Cut(annotations[key], "/") // value: namespace/name
-		if ns := move(old); ok && ns != "" && ns != old {
-			t.step(u.Object, reason, func() {
+		if ok {
+			moveRef(old, func(ns string) {
 				annotations[key] = ns + "/" + name
 				u.SetAnnotations(annotations)
 			})
@@ -331,9 +363,7 @@ func (o *Options) applyNamespace(u *unstructured.Unstructured, scope *scopeResol
 				return // means the namespace of the RoleBinding
 			}
 
-			if ns := move(old); ns != "" && ns != old {
-				t.step(u.Object, reason, func() { m["namespace"] = ns })
-			}
+			moveRef(old, func(ns string) { m["namespace"] = ns })
 		})
 	}
 }

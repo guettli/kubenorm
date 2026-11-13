@@ -72,6 +72,9 @@ type Options struct {
 	// OverwriteNamespace sets metadata.namespace on all namespaced resources,
 	// replacing an existing value. Applied before filtering.
 	OverwriteNamespace string
+	// Warn receives warnings about the input, for example a reference to a
+	// namespace that the namespace options cannot move. Nil discards them.
+	Warn func(msg string)
 }
 
 // objectIdentity identifies a resource for rule matching. Cluster-scoped resources
@@ -225,4 +228,10 @@ func Encode(w io.Writer, obj map[string]any, headerLines ...string) error {
 	}
 
 	return nil
+}
+
+func (o *Options) warnf(format string, args ...any) {
+	if o.Warn != nil {
+		o.Warn(fmt.Sprintf(format, args...))
+	}
 }

@@ -133,7 +133,7 @@ func (f *normFlags) cliConfig() (*normalize.Config, error) {
 	return cfg, nil
 }
 
-func (f *normFlags) options() (*normalize.Options, error) {
+func (f *normFlags) options(stderr io.Writer) (*normalize.Options, error) {
 	cfg, err := normalize.LoadConfig(!f.noCommonConfig, "")
 	if err != nil {
 		return nil, err
@@ -183,6 +183,8 @@ func (f *normFlags) options() (*normalize.Options, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	opts.Warn = func(msg string) { fmt.Fprintln(stderr, "Warning: "+msg) }
 
 	return opts, nil
 }
@@ -306,7 +308,7 @@ func readRendered(cmd *cobra.Command, opts *normalize.Options, inputs ...string)
 }
 
 func runNorm(cmd *cobra.Command, flags *normFlags, inputs []string, outDir string, removeOutDir bool, comment string, verbose bool) error {
-	opts, err := flags.options()
+	opts, err := flags.options(cmd.ErrOrStderr())
 	if err != nil {
 		return err
 	}
@@ -380,7 +382,7 @@ func prepareOutDir(outDir string, remove bool) error {
 }
 
 func runCheck(cmd *cobra.Command, flags *normFlags, inputs []string) error {
-	normOpts, err := flags.options()
+	normOpts, err := flags.options(cmd.ErrOrStderr())
 	if err != nil {
 		return err
 	}
@@ -486,7 +488,7 @@ Examples:
 				return errors.New("only one side can be read from stdin")
 			}
 
-			opts, err := flags.options()
+			opts, err := flags.options(cmd.ErrOrStderr())
 			if err != nil {
 				return err
 			}

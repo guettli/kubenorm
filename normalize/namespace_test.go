@@ -452,3 +452,70 @@ func TestNamespaceReferences(t *testing.T) {
 		})
 	}
 }
+
+func TestNamespaceWarnings(t *testing.T) {
+	t.Parallel()
+
+	input := `
+apiVersion: v1
+kind: Namespace
+metadata: {name: old}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: c, namespace: old}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: crb}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: r}
+subjects:
+- {kind: ServiceAccount, name: a, namespace: default}
+- {kind: ServiceAccount, name: b, namespace: default}
+`
+
+	for _, tc := range []struct {
+		name string
+		opts Options
+		want []string
+	}{
+		{
+			name: "overwrite",
+			opts: Options{OverwriteNamespace: "new"},
+			want: []string{
+				"Namespace old is in the input, but --overwrite-namespace moves its resources to new",
+				"ClusterRoleBinding crb refers to namespace default, which no resource of the input uses. Rendered without helm template --namespace?",
+			},
+		},
+		{
+			name: "add if missing",
+			opts: Options{AddNamespaceIfMissing: "new"},
+			want: []string{
+				"ClusterRoleBinding crb refers to namespace default, which no resource of the input uses. Rendered without helm template --namespace?",
+			},
+		},
+		{name: "no option", opts: Options{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var got []string
+
+			tc.opts.Warn = func(msg string) { got = append(got, msg) }
+
+			resources, err := ParseYAML([]byte(input), "test")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = tc.opts.Process(resources)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if strings.Join(got, "\n") != strings.Join(tc.want, "\n") {
+				t.Errorf("got:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(tc.want, "\n"))
+			}
+		})
+	}
+}

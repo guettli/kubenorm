@@ -25,7 +25,7 @@ Example:
   kubenorm explain deployment.yaml --config my-rules.yaml`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			opts, err := flags.options()
+			opts, err := flags.options(cmd.ErrOrStderr())
 			if err != nil {
 				return err
 			}

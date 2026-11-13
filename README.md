@@ -116,6 +116,11 @@ too). References to other namespaces, like `kube-system`, stay.
 namespace in a RoleBinding means the namespace of the RoleBinding and stays
 empty. `kubenorm explain` shows every change.
 
+kubenorm warns on stderr if a `Namespace` object of the input is left behind by
+`--overwrite-namespace`, and if a reference points to `default` although no
+resource of the input is in `default`: usually the chart was rendered without
+`helm template --namespace`, which charts use for references.
+
 Compared to the namespace transformer of kustomize: kubenorm knows cluster-scoped
 CRDs (kustomize sets a namespace on a `ClusterIssuer`), does not rename
 `Namespace` objects, rewrites webhook service references, and only moves
