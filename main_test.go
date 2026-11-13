@@ -237,3 +237,24 @@ func TestShowCommonConfig(t *testing.T) {
 		t.Fatalf("got %d:\n%s", code, out)
 	}
 }
+
+func TestNorm_SOPS(t *testing.T) {
+	t.Parallel()
+
+	in := "apiVersion: v1\nkind: Secret\nmetadata:\n  name: s\n  namespace: n\ndata:\n  pw: ENC[x]\nsops:\n  mac: ENC[y]\n"
+
+	code, _, errOut := runCLI(t, in, "norm", "-")
+	if code != 2 || !strings.Contains(errOut, "SOPS") {
+		t.Fatalf("expected exit 2 with SOPS error, got %d: %s", code, errOut)
+	}
+
+	code, out, errOut := runCLI(t, in, "norm", "-", "--skip-sops")
+	if code != 0 || strings.Contains(out, "kind: Secret") {
+		t.Fatalf("expected the secret to be skipped, got %d:\n%s%s", code, out, errOut)
+	}
+
+	code, _, errOut = runCLI(t, in, "norm", "-", "--check")
+	if code != 2 || !strings.Contains(errOut, "SOPS") {
+		t.Fatalf("expected --check to fail with SOPS error, got %d: %s", code, errOut)
+	}
+}

@@ -110,3 +110,58 @@ func TestParseYAML_SkipsDocumentsWithoutMetadata(t *testing.T) {
 		t.Fatalf("expected 1 resource, got %d", len(resources))
 	}
 }
+
+//nolint:gosec // test fixture with fake ciphertext
+const sopsSecret = `apiVersion: v1
+kind: Secret
+metadata:
+  name: s
+  namespace: ns
+data:
+  pw: ENC[AES256_GCM,data:abc,iv:def,tag:ghi,type:str]
+sops:
+  mac: ENC[AES256_GCM,data:xyz,iv:1,tag:2,type:str]
+  lastmodified: "2026-01-01T00:00:00Z"
+  version: 3.9.0
+`
+
+func TestProcess_SOPS(t *testing.T) {
+	t.Parallel()
+
+	resources, err := ParseYAML([]byte(sopsSecret+"---\n"+cmA), "secret.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !resources[0].SOPSEncrypted || resources[1].SOPSEncrypted {
+		t.Fatalf("SOPS detection wrong: %v %v", resources[0].SOPSEncrypted, resources[1].SOPSEncrypted)
+	}
+
+	_, err = (&Options{}).Process(resources)
+	if !errors.Is(err, ErrSOPSEncrypted) || !strings.Contains(err.Error(), "secret.yaml") {
+		t.Fatalf("expected ErrSOPSEncrypted naming the file, got %v", err)
+	}
+
+	resources, err = ParseYAML([]byte(sopsSecret+"---\n"+cmA), "secret.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	kept, err := (&Options{SkipSOPS: true}).Process(resources)
+	if err != nil || len(kept) != 1 || kept[0].Unstructured().GetKind() != "ConfigMap" {
+		t.Fatalf("expected only the ConfigMap, got %d %v", len(kept), err)
+	}
+}
+
+func TestParseYAML_SOPSKeyWithoutMACIsNotEncrypted(t *testing.T) {
+	t.Parallel()
+
+	resources, err := ParseYAML([]byte(strings.Replace(cmA, "\ndata:", "\nsops:\n  note: x\ndata:", 1)), "x")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if resources[0].SOPSEncrypted {
+		t.Fatal("a sops key without mac must not count as encrypted")
+	}
+}

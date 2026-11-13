@@ -93,6 +93,7 @@ type normFlags struct {
 	secretsAsStringData   bool
 	addNamespaceIfMissing string
 	overwriteNamespace    string
+	skipSOPS              bool
 }
 
 func (f *normFlags) register(cmd *cobra.Command) {
@@ -110,6 +111,7 @@ func (f *normFlags) register(cmd *cobra.Command) {
 	fl.BoolVar(&f.secretsAsStringData, "secrets-as-stringdata", false, "Convert base64 Secret data to stringData")
 	fl.StringVar(&f.addNamespaceIfMissing, "add-namespace-if-missing", "", "Set metadata.namespace on namespaced resources without namespace (cluster-scoped kinds are left alone)")
 	fl.StringVar(&f.overwriteNamespace, "overwrite-namespace", "", "Set metadata.namespace on all namespaced resources, replacing existing values")
+	fl.BoolVar(&f.skipSOPS, "skip-sops", false, "Drop SOPS-encrypted documents instead of failing (normalizing them would break the SOPS MAC)")
 }
 
 // cliConfig returns the rules that come from command-line flags only
@@ -195,6 +197,7 @@ func (f *normFlags) scopeOptions(cfg *normalize.Config) (*normalize.Options, err
 		Kinds:      kinds,
 		NameRegex:  nameRegex,
 		SkipOwned:  f.skipOwned,
+		SkipSOPS:   f.skipSOPS,
 	}, nil
 }
 

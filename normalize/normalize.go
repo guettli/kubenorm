@@ -73,6 +73,10 @@ type Options struct {
 	// OverwriteNamespace sets metadata.namespace on all namespaced resources,
 	// replacing an existing value. Applied before filtering.
 	OverwriteNamespace string
+
+	// SkipSOPS drops SOPS-encrypted documents instead of returning
+	// ErrSOPSEncrypted from Process.
+	SkipSOPS bool
 }
 
 // Identity identifies a resource for rule matching. Cluster-scoped resources

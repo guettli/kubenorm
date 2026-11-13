@@ -24,6 +24,25 @@ type Resource struct {
 	Object map[string]any
 	// Source is the file the document was read from ("-" for stdin).
 	Source string
+	// SOPSEncrypted is true if the document carries SOPS metadata (a
+	// top-level "sops" map with a "mac"). Re-encoding such a document
+	// reorders keys and breaks the MAC, so Process refuses or skips it.
+	SOPSEncrypted bool
+}
+
+// ErrSOPSEncrypted is returned by Process for SOPS-encrypted documents
+// unless Options.SkipSOPS is set.
+var ErrSOPSEncrypted = errors.New("document is SOPS-encrypted")
+
+func isSOPSEncrypted(obj map[string]any) bool {
+	sops, ok := obj["sops"].(map[string]any)
+	if !ok {
+		return false
+	}
+
+	_, hasMAC := sops["mac"]
+
+	return hasMAC
 }
 
 // Unstructured wraps the object without copying it.
@@ -63,7 +82,7 @@ func ParseYAML(data []byte, source string) ([]Resource, error) {
 			continue
 		}
 
-		resources = append(resources, Resource{Object: m, Source: source})
+		resources = append(resources, Resource{Object: m, Source: source, SOPSEncrypted: isSOPSEncrypted(m)})
 	}
 
 	return resources, nil
@@ -165,6 +184,14 @@ func (o *Options) Process(resources []Resource) ([]Resource, error) {
 	kept := make([]Resource, 0, len(resources))
 
 	for _, r := range resources {
+		if r.SOPSEncrypted {
+			if o.SkipSOPS {
+				continue
+			}
+
+			return nil, fmt.Errorf("%s: %w: normalizing it would break the SOPS MAC; exclude the file or use --skip-sops", describe(r), ErrSOPSEncrypted)
+		}
+
 		u := r.Unstructured()
 
 		o.applyNamespace(u, scope)
