@@ -40,8 +40,8 @@ spec:
   template:
     spec:
       containers:
-        - image: nginx:1.27
-          name: web
+      - image: nginx:1.27
+        name: web
 `
 
 func runCLI(t *testing.T, stdin string, args ...string) (int, string, string) {

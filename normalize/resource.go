@@ -1,6 +1,7 @@
 package normalize
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -13,7 +14,9 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"sigs.k8s.io/kustomize/kyaml/kio"
+	utiljson "k8s.io/apimachinery/pkg/util/json"
+	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
+	"sigs.k8s.io/yaml"
 )
 
 // StdinPath is the path argument that means "read from stdin".
@@ -63,22 +66,19 @@ func (r *Resource) RelPath() string {
 	return RelPath(r.Unstructured(), r.Namespaced())
 }
 
-// ParseYAML parses a (multi-document) YAML stream. Documents without
-// metadata (for example kustomization.yaml or empty documents) are skipped.
+// ParseYAML parses a (multi-document) YAML stream the way kubectl does
+// (sigs.k8s.io/yaml, YAML 1.1 semantics, duplicate keys are an error).
+// Documents without metadata (for example kustomization.yaml) and empty
+// documents are skipped.
 func ParseYAML(data []byte, source string) ([]Resource, error) {
-	nodes, err := kio.FromBytes(data)
+	docs, err := splitDocuments(data, source)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse YAML in %s: %w", source, err)
+		return nil, err
 	}
 
-	resources := make([]Resource, 0, len(nodes))
+	resources := make([]Resource, 0, len(docs))
 
-	for i, node := range nodes {
-		m, err := node.Map()
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert document %d in %s to map: %w", i+1, source, err)
-		}
-
+	for _, m := range docs {
 		if _, hasMetadata := m[fieldMetadata]; !hasMetadata {
 			continue
 		}
@@ -87,6 +87,52 @@ func ParseYAML(data []byte, source string) ([]Resource, error) {
 	}
 
 	return resources, nil
+}
+
+// CountDocuments returns the number of non-empty YAML documents in data.
+func CountDocuments(data []byte) (int, error) {
+	docs, err := splitDocuments(data, "input")
+	if err != nil {
+		return 0, err
+	}
+
+	return len(docs), nil
+}
+
+// splitDocuments decodes every non-empty document into a map.
+func splitDocuments(data []byte, source string) ([]map[string]any, error) {
+	reader := utilyaml.NewYAMLReader(bufio.NewReader(bytes.NewReader(data)))
+
+	var docs []map[string]any
+
+	for i := 1; ; i++ {
+		doc, err := reader.Read()
+		if errors.Is(err, io.EOF) {
+			return docs, nil
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read document %d in %s: %w", i, source, err)
+		}
+
+		jsonDoc, err := yaml.YAMLToJSONStrict(doc)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse document %d in %s: %w", i, source, err)
+		}
+
+		if bytes.Equal(bytes.TrimSpace(jsonDoc), []byte("null")) {
+			continue
+		}
+
+		var m map[string]any
+
+		err = utiljson.Unmarshal(jsonDoc, &m)
+		if err != nil {
+			return nil, fmt.Errorf("document %d in %s is not a YAML map: %w", i, source, err)
+		}
+
+		docs = append(docs, m)
+	}
 }
 
 // ReadPath reads all resources from a file, a directory (recursively, *.yaml

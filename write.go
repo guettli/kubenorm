@@ -11,7 +11,6 @@ import (
 
 	"github.com/guettli/kubenorm/normalize"
 	"github.com/spf13/cobra"
-	"sigs.k8s.io/kustomize/kyaml/kio"
 )
 
 // errScopeFlagsWithWrite is returned when --write is combined with flags that
@@ -130,13 +129,13 @@ func rewriteFile(file string, raw, norm []normalize.Resource) (bool, error) {
 
 	// Refuse to rewrite files with documents kubenorm does not handle
 	// (no metadata, SOPS-encrypted): they would be lost.
-	nodes, err := kio.FromBytes(original)
+	docCount, err := normalize.CountDocuments(original)
 	if err != nil {
 		return false, fmt.Errorf("failed to parse %s: %w", file, err)
 	}
 
-	if len(nodes) != len(raw) {
-		return false, fmt.Errorf("cannot rewrite %s: it contains %d document(s) that kubenorm does not normalize (no metadata or SOPS-encrypted)", file, len(nodes)-len(raw))
+	if docCount != len(raw) {
+		return false, fmt.Errorf("cannot rewrite %s: it contains %d document(s) that kubenorm does not normalize (no metadata or SOPS-encrypted)", file, docCount-len(raw))
 	}
 
 	info, err := os.Stat(file)

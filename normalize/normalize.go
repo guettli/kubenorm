@@ -17,7 +17,7 @@ import (
 	"regexp"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	yaml "sigs.k8s.io/yaml/goyaml.v3"
+	"sigs.k8s.io/yaml"
 )
 
 const (
@@ -204,8 +204,9 @@ func sanitizePath(path string) string {
 	return sanitizePathRegex.ReplaceAllString(path, "_")
 }
 
-// Encode writes obj as YAML (2-space indent, keys sorted). Each header line
-// is written first as a "# " comment.
+// Encode writes obj as YAML exactly like `kubectl get -o yaml`
+// (sigs.k8s.io/yaml: keys sorted, 2-space indent, list items not indented).
+// Each header line is written first as a "# " comment.
 func Encode(w io.Writer, obj map[string]any, headerLines ...string) error {
 	for _, line := range headerLines {
 		_, err := fmt.Fprintf(w, "# %s\n", line)
@@ -214,17 +215,14 @@ func Encode(w io.Writer, obj map[string]any, headerLines ...string) error {
 		}
 	}
 
-	encoder := yaml.NewEncoder(w)
-	encoder.SetIndent(2)
-
-	err := encoder.Encode(obj)
+	data, err := yaml.Marshal(obj)
 	if err != nil {
 		return fmt.Errorf("encoding YAML: %w", err)
 	}
 
-	err = encoder.Close()
+	_, err = w.Write(data)
 	if err != nil {
-		return fmt.Errorf("encoding YAML: %w", err)
+		return fmt.Errorf("writing YAML: %w", err)
 	}
 
 	return nil

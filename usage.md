@@ -19,18 +19,18 @@ kubenorm [command] [global flags] [command flags]
 ```
 
 ### Commands
+- [kubenorm completion](#kubenorm-completion)
+- [kubenorm completion bash](#kubenorm-completion-bash)
+- [kubenorm completion fish](#kubenorm-completion-fish)
+- [kubenorm completion help](#kubenorm-completion-help)
+- [kubenorm completion powershell](#kubenorm-completion-powershell)
+- [kubenorm completion zsh](#kubenorm-completion-zsh)
+- [kubenorm diff](#kubenorm-diff)
+- [kubenorm help](#kubenorm-help)
+- [kubenorm norm](#kubenorm-norm)
+- [kubenorm show-common-config](#kubenorm-show-common-config)
+- [kubenorm version](#kubenorm-version)
 
-* [kubenorm completion](#kubenorm-completion)
-* [kubenorm completion bash](#kubenorm-completion-bash)
-* [kubenorm completion fish](#kubenorm-completion-fish)
-* [kubenorm completion help](#kubenorm-completion-help)
-* [kubenorm completion powershell](#kubenorm-completion-powershell)
-* [kubenorm completion zsh](#kubenorm-completion-zsh)
-* [kubenorm diff](#kubenorm-diff)
-* [kubenorm help](#kubenorm-help)
-* [kubenorm norm](#kubenorm-norm)
-* [kubenorm show-common-config](#kubenorm-show-common-config)
-* [kubenorm version](#kubenorm-version)
 
 # Commands
 
@@ -113,7 +113,8 @@ kubenorm completion fish [flags]
 
 ## `kubenorm completion help`
 
-Help about any command
+Help provides help for any command in the application.
+Simply type completion help [path to command] for full details.
 
 ```text
 kubenorm completion help [command] [flags]
@@ -222,7 +223,8 @@ kubenorm diff <old> <new> [flags]
 
 ## `kubenorm help`
 
-Help about any command
+Help provides help for any command in the application.
+Simply type kubenorm help [path to command] for full details.
 
 ```text
 kubenorm help [command] [flags]
