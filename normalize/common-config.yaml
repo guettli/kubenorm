@@ -252,59 +252,41 @@ removeFields:
 
       # Containers. imagePullPolicy defaults to IfNotPresent for pinned tags;
       # Always (the default for :latest) is kept, it may be explicit.
-      - path: ...template.spec.containers.terminationMessagePath
+      - path: ...template.spec.*ontainers.terminationMessagePath
         value: /dev/termination-log
-      - path: ...template.spec.initContainers.terminationMessagePath
-        value: /dev/termination-log
-      - path: ...template.spec.containers.terminationMessagePolicy
+      - path: ...template.spec.*ontainers.terminationMessagePolicy
         value: File
-      - path: ...template.spec.initContainers.terminationMessagePolicy
-        value: File
-      - path: ...template.spec.containers.imagePullPolicy
+      - path: ...template.spec.*ontainers.imagePullPolicy
         value: IfNotPresent
-      - path: ...template.spec.initContainers.imagePullPolicy
-        value: IfNotPresent
-      - path: ...template.spec.containers.env.valueFrom.fieldRef.apiVersion
+      - path: ...template.spec.*ontainers.env.valueFrom.fieldRef.apiVersion
         value: v1
-      - path: ...template.spec.containers.ports.protocol
+      - path: ...template.spec.*ontainers.ports.protocol
         value: TCP
-      - path: ...template.spec.initContainers.ports.protocol
-        value: TCP
-      - path: ...template.spec.containers.volumeMounts.subPath
+      - path: ...template.spec.*ontainers.volumeMounts.subPath
         value: null
-      - path: ...template.spec.initContainers.volumeMounts.subPath
+      - path: ...template.spec.*ontainers.volumeMounts
         value: null
-      - path: ...template.spec.containers.volumeMounts
-        value: null
-      - path: ...template.spec.initContainers.volumeMounts
-        value: null
-      - path: ...template.spec.containers.resources.limits
+      - path: ...template.spec.*ontainers.resources.limits
         value: {}
-      - path: ...template.spec.initContainers.resources.limits
+      - path: ...template.spec.*ontainers.resources.requests
         value: {}
-      - path: ...template.spec.containers.resources.requests
-        value: {}
-      - path: ...template.spec.initContainers.resources.requests
-        value: {}
-      - path: ...template.spec.containers.resources
-        value: {}
-      - path: ...template.spec.initContainers.resources
+      - path: ...template.spec.*ontainers.resources
         value: {}
 
       # Probe defaults.
-      - path: ...template.spec.containers.*Probe.failureThreshold
+      - path: ...template.spec.*ontainers.*Probe.failureThreshold
         value: 3
-      - path: ...template.spec.containers.*Probe.successThreshold
+      - path: ...template.spec.*ontainers.*Probe.successThreshold
         value: 1
-      - path: ...template.spec.containers.*Probe.timeoutSeconds
+      - path: ...template.spec.*ontainers.*Probe.timeoutSeconds
         value: 1
-      - path: ...template.spec.containers.*Probe.periodSeconds
+      - path: ...template.spec.*ontainers.*Probe.periodSeconds
         value: 10
-      - path: ...template.spec.containers.*Probe.httpGet.scheme
+      - path: ...template.spec.*ontainers.*Probe.httpGet.scheme
         value: HTTP
-      - path: ...template.spec.containers.*Probe.tcpSocket.protocol
+      - path: ...template.spec.*ontainers.*Probe.tcpSocket.protocol
         value: TCP
-      - path: ...template.spec.containers.*Probe.grpc.service
+      - path: ...template.spec.*ontainers.*Probe.grpc.service
         value: ""
 
       # Volumes. File mode 0644 (decimal 420).
@@ -474,12 +456,9 @@ removeFields:
 quantityFields:
   - kind: Pod
     fields: &podSpecQuantities
-      - ...containers.resources.limits.*
-      - ...containers.resources.requests.*
-      - ...initContainers.resources.limits.*
-      - ...initContainers.resources.requests.*
-      - ...ephemeralContainers.resources.limits.*
-      - ...ephemeralContainers.resources.requests.*
+      # containers, initContainers and ephemeralContainers.
+      - ...*ontainers.resources.limits.*
+      - ...*ontainers.resources.requests.*
       # Pod-level resources (PodLevelResources).
       - ...spec.resources.limits.*
       - ...spec.resources.requests.*
