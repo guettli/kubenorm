@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"runtime/debug"
 	"strings"
 
@@ -418,8 +417,10 @@ func runCheck(cmd *cobra.Command, flags *normFlags, inputs []string) error {
 
 	// Compare file by file: separate trees (one per cluster, say) may
 	// legitimately contain the same resource.
-	sourceDiffs, err := normalize.DiffBySource(rawResources, normResources, func(source string) (string, string) {
-		return diffLabel(source), path.Join("normalized", diffLabel(source))
+	sourceDiffs, err := normalize.DiffBySource(rawResources, normResources, func(source string) normalize.Labels {
+		return func(rel string) (string, string) {
+			return diffLabel(source), "normalized: " + rel
+		}
 	})
 	if err != nil {
 		return err
@@ -499,7 +500,7 @@ Examples:
 				return err
 			}
 
-			diffs := normalize.ComputeDiff(oldSide, newSide, diffLabel(args[0]), diffLabel(args[1]))
+			diffs := normalize.ComputeDiff(oldSide, newSide, normalize.PrefixLabels(diffLabel(args[0]), diffLabel(args[1])))
 
 			for _, d := range diffs {
 				_, err = io.WriteString(cmd.OutOrStdout(), d.Unified)

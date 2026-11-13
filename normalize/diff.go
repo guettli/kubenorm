@@ -34,9 +34,19 @@ type FileDiff struct {
 	Unified string
 }
 
-// ComputeDiff compares old and new, sorted by path. oldPrefix and newPrefix
-// are prepended to the paths in the unified diff headers.
-func ComputeDiff(oldSide, newSide Rendered, oldPrefix, newPrefix string) []FileDiff {
+// Labels returns the "---" and "+++" labels of the diff of a resource.
+type Labels func(rel string) (oldLabel, newLabel string)
+
+// PrefixLabels labels a resource with its path below the given prefixes,
+// like git diff does.
+func PrefixLabels(oldPrefix, newPrefix string) Labels {
+	return func(rel string) (string, string) {
+		return path.Join(oldPrefix, rel), path.Join(newPrefix, rel)
+	}
+}
+
+// ComputeDiff compares old and new, sorted by path.
+func ComputeDiff(oldSide, newSide Rendered, labels Labels) []FileDiff {
 	all := make(map[string]struct{}, len(oldSide)+len(newSide))
 	for p := range oldSide {
 		all[p] = struct{}{}
@@ -59,8 +69,7 @@ func ComputeDiff(oldSide, newSide Rendered, oldPrefix, newPrefix string) []FileD
 		oldContent, inOld := oldSide[rel]
 		newContent, inNew := newSide[rel]
 
-		fromLabel := path.Join(oldPrefix, rel)
-		toLabel := path.Join(newPrefix, rel)
+		fromLabel, toLabel := labels(rel)
 		status := StatusModified
 
 		switch {
@@ -101,10 +110,10 @@ type SourceDiff struct {
 
 // DiffBySource compares two processed versions of the same input file by
 // file (for example raw and normalized). Comparing per file allows separate
-// trees with the same resources. prefixes returns the diff path prefixes for
-// a source file. Files are compared in parallel, the result keeps the order
+// trees with the same resources. labels returns the diff labels for a
+// source file. Files are compared in parallel, the result keeps the order
 // in which the files first appear in oldSide.
-func DiffBySource(oldSide, newSide []Resource, prefixes func(source string) (string, string)) ([]SourceDiff, error) {
+func DiffBySource(oldSide, newSide []Resource, labels func(source string) Labels) ([]SourceDiff, error) {
 	oldBySource, files := groupResourcesBySource(oldSide)
 	newBySource, newFiles := groupResourcesBySource(newSide)
 
@@ -128,8 +137,7 @@ func DiffBySource(oldSide, newSide []Resource, prefixes func(source string) (str
 			return err
 		}
 
-		oldPrefix, newPrefix := prefixes(files[i])
-		result[i] = SourceDiff{Source: files[i], Diffs: ComputeDiff(oldRendered, newRendered, oldPrefix, newPrefix)}
+		result[i] = SourceDiff{Source: files[i], Diffs: ComputeDiff(oldRendered, newRendered, labels(files[i]))}
 
 		return nil
 	})

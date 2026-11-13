@@ -74,7 +74,7 @@ func TestComputeDiff(t *testing.T) {
 	oldSide := renderYAML(t, cmA)
 	newSide := renderYAML(t, strings.Replace(cmA, "k: v1", "k: v2", 1)+"---\n"+strings.Replace(cmA, "name: a", "name: b", 1))
 
-	diffs := ComputeDiff(oldSide, newSide, "old", "new")
+	diffs := ComputeDiff(oldSide, newSide, PrefixLabels("old", "new"))
 	if len(diffs) != 2 || diffs[0].Status != StatusModified || diffs[1].Status != StatusAdded {
 		t.Fatalf("unexpected diffs %+v", diffs)
 	}
@@ -86,7 +86,7 @@ func TestComputeDiff(t *testing.T) {
 		}
 	}
 
-	if diffs := ComputeDiff(oldSide, oldSide, "a", "b"); len(diffs) != 0 {
+	if diffs := ComputeDiff(oldSide, oldSide, PrefixLabels("a", "b")); len(diffs) != 0 {
 		t.Fatalf("expected no diff, got %+v", diffs)
 	}
 }
