@@ -2267,8 +2267,6 @@ spec:
           httpGet:
             path: /readyz
             port: healthz
-        resources:
-          requests: {}
         securityContext:
           capabilities:
             add:
@@ -2369,8 +2367,6 @@ spec:
           httpGet:
             path: /readyz
             port: healthz
-        resources:
-          requests: {}
         securityContext:
           allowPrivilegeEscalation: false
       securityContext:
@@ -2424,8 +2420,6 @@ spec:
         ports:
         - containerPort: 8082
           name: metrics
-        resources:
-          requests: {}
         securityContext:
           allowPrivilegeEscalation: false
       securityContext:
@@ -2494,8 +2488,6 @@ spec:
         readinessProbe:
           grpc:
             port: 6000
-        resources:
-          requests: {}
         securityContext:
           allowPrivilegeEscalation: false
       securityContext:
@@ -2545,8 +2537,6 @@ spec:
         - /usr/bin/metric-agent
         image: ghcr.io/liqotech/metric-agent:v1.3.0
         name: metric-agent
-        resources:
-          requests: {}
         securityContext:
           allowPrivilegeEscalation: false
         volumeMounts:
@@ -2573,8 +2563,6 @@ spec:
         - /usr/bin/openssl
         image: ghcr.io/liqotech/cert-creator:v1.3.0
         name: cert-creator
-        resources:
-          requests: {}
         securityContext:
           allowPrivilegeEscalation: false
         volumeMounts:
@@ -2628,8 +2616,6 @@ spec:
         name: proxy
         ports:
         - containerPort: 8118
-        resources:
-          requests: {}
         securityContext:
           allowPrivilegeEscalation: false
       securityContext:
@@ -2704,8 +2690,6 @@ spec:
           httpGet:
             path: /readyz
             port: healthz
-        resources:
-          requests: {}
         securityContext:
           allowPrivilegeEscalation: false
         volumeMounts:
@@ -2753,8 +2737,6 @@ spec:
             - --namespace=liqo
             image: ghcr.io/liqotech/telemetry:v1.3.0
             name: telemetry
-            resources:
-              requests: {}
             securityContext:
               allowPrivilegeEscalation: false
           restartPolicy: Never
@@ -2803,8 +2785,6 @@ spec:
               fieldPath: metadata.namespace
         image: ghcr.io/liqotech/uninstaller:v1.3.0
         name: pre-delete-job
-        resources:
-          requests: {}
         securityContext:
           allowPrivilegeEscalation: false
       restartPolicy: Never
@@ -2866,8 +2846,7 @@ metadata:
     ipam.liqo.io/network-type: service-cidr
   name: service-cidr
   namespace: liqo
-spec:
-  cidr: null
+spec: {}
 ---
 apiVersion: networking.liqo.io/v1beta1
 kind: FirewallConfiguration

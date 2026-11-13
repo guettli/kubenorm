@@ -187,7 +187,6 @@ subjects:
   namespace: ingress
 ---
 apiVersion: v1
-data: null
 kind: ConfigMap
 metadata:
   labels:
@@ -289,7 +288,6 @@ metadata:
   name: ingress-nginx-controller
   namespace: ingress
 spec:
-  minReadySeconds: 0
   replicas: 1
   selector:
     matchLabels:

@@ -10,6 +10,12 @@ removeFields:
       - metadata.annotations.deployment\.kubernetes\.io/revision
       - metadata.annotations.clusterctl\.cluster\.x-k8s\.io
       - metadata.annotations.kubectl\.kubernetes\.io/last-applied-configuration
+      - metadata.annotations.deprecated\.daemonset\.template\.generation
+
+      # A null field is the same as an absent one. Helm renders empty values
+      # as null; the API server returns null for some fields (Role rules).
+      - path: ...*
+        value: null
 
       # kapp adds its app/association tracking labels and annotations to every
       # managed resource, including pod template labels and selectors. Use ...
@@ -158,6 +164,20 @@ removeFields:
       - path: type
         value: Opaque
 
+  - group: apiregistration.k8s.io
+    kind: APIService
+    fields:
+      - path: spec.service.port
+        value: 443
+
+  - group: storage.k8s.io
+    kind: StorageClass
+    fields:
+      - path: reclaimPolicy
+        value: Delete
+      - path: volumeBindingMode
+        value: Immediate
+
   # ── ConfigMap ─────────────────────────────────────────────────────────────────
   - kind: ConfigMap
     fields:
@@ -243,6 +263,10 @@ removeFields:
         value: {}
       - path: ...template.spec.initContainers.resources.limits
         value: {}
+      - path: ...template.spec.containers.resources.requests
+        value: {}
+      - path: ...template.spec.initContainers.resources.requests
+        value: {}
       - path: ...template.spec.containers.resources
         value: {}
       - path: ...template.spec.initContainers.resources
@@ -261,6 +285,8 @@ removeFields:
         value: HTTP
       - path: ...template.spec.containers.*Probe.tcpSocket.protocol
         value: TCP
+      - path: ...template.spec.containers.*Probe.grpc.service
+        value: ""
 
       # Volumes. File mode 0644 (decimal 420).
       - path: ...template.spec.volumes.configMap.defaultMode
@@ -275,6 +301,12 @@ removeFields:
         value: ""
       - path: ...template.spec.volumes.projected.sources.serviceAccountToken.expirationSeconds
         value: 3600
+
+  - group: apps
+    kind: "*"
+    fields:
+      - path: spec.minReadySeconds
+        value: 0
 
   - group: apps
     kind: Deployment
