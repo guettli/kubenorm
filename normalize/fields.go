@@ -40,6 +40,8 @@ func deleteField(obj map[string]any, f ignoreFieldPath) {
 		case f.omitIfEqualToSibling != "":
 			sibling, ok := m[f.omitIfEqualToSibling]
 			remove = ok && valueMatches(m[key], sibling)
+		case f.valueConstrained && f.value == nil:
+			remove = m[key] == nil // fast path for the frequent null rules
 		case f.valueConstrained:
 			remove = valueMatches(m[key], f.value)
 		case f.exceptConstrained:

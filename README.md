@@ -218,7 +218,7 @@ $ kubenorm explain deploy.yaml
 demo/apps_Deployment/web.yaml (from deploy.yaml)
   ~ spec.template.spec.containers[0].resources.limits.cpu: "1000m" -> "1"  [quantityFields[4] in common config: ...containers.resources.limits.*]
   - metadata.uid: "1234"  [removeFields[1] in common config: metadata.uid]
-  - spec.progressDeadlineSeconds: 600  [removeFields[10] in common config: spec.progressDeadlineSeconds]
+  - spec.progressDeadlineSeconds: 600  [removeFields[19] in common config: spec.progressDeadlineSeconds]
 demo/Pod/p.yaml (from deploy.yaml)
   dropped: skipResources[3] in common config
 ```

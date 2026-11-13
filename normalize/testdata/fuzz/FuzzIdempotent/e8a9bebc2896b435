@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{kind: Secret, metadata: {name: A}, data: {0}}0")

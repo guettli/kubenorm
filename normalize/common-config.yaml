@@ -12,11 +12,6 @@ removeFields:
       - metadata.annotations.kubectl\.kubernetes\.io/last-applied-configuration
       - metadata.annotations.deprecated\.daemonset\.template\.generation
 
-      # A null field is the same as an absent one. Helm renders empty values
-      # as null; the API server returns null for some fields (Role rules).
-      - path: ...*
-        value: null
-
       # kapp adds its app/association tracking labels and annotations to every
       # managed resource, including pod template labels and selectors. Use ...
       # with a glob to catch all kapp.k14s.io/* keys at any nesting depth.
@@ -47,6 +42,26 @@ removeFields:
         omitempty: true
       - path: metadata.annotations
         omitempty: true
+  # In the typed built-in APIs a null field is the same as an absent one.
+  # Helm renders empty values as null; the API server returns null for some
+  # fields (Role rules). Custom resources keep their nulls: in free-form fields
+  # (Helm values of a HelmRelease) null can mean "delete this default".
+  # Runs before the {} rules below, so they see the emptied parents.
+  - group: ""
+    fields: &nullFields
+      - path: ...*
+        value: null
+  - group: apps
+    fields: *nullFields
+  - group: batch
+    fields: *nullFields
+  - group: autoscaling
+    fields: *nullFields
+  - group: policy
+    fields: *nullFields
+  - group: "*.k8s.io"
+    fields: *nullFields
+
   # Namespace-specific noise added by the API server.
   - kind: Namespace
     fields:
@@ -163,6 +178,10 @@ removeFields:
       # Default Secret type.
       - path: type
         value: Opaque
+      - path: data
+        value: {}
+      - path: stringData
+        value: {}
 
   - group: apiregistration.k8s.io
     kind: APIService

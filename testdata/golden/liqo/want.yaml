@@ -2846,7 +2846,8 @@ metadata:
     ipam.liqo.io/network-type: service-cidr
   name: service-cidr
   namespace: liqo
-spec: {}
+spec:
+  cidr: null
 ---
 apiVersion: networking.liqo.io/v1beta1
 kind: FirewallConfiguration
