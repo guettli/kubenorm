@@ -299,6 +299,18 @@ rendered, _ := normalize.Render(resources)
 _ = rendered.WriteDir("out")
 ```
 
+## Development
+
+- `go test ./...` runs unit tests, golden tests (`testdata/golden`, rendered
+  helm charts) and the seeds of the fuzz test. Update golden files with
+  `go test -run TestGolden -update`, inputs with `scripts/render-golden-inputs.sh`.
+- `go test ./normalize -run '^$' -fuzz FuzzIdempotent` checks that
+  normalizing twice changes nothing.
+- `scripts/check-defaults.sh` sends the golden outputs to a real kube-apiserver
+  (envtest, no container runtime) with `kubectl apply --dry-run=server` and
+  fails if the api-server adds a default that the common config does not
+  remove. CI runs it for every change.
+
 ## Why not kyaml?
 
 kubenorm reads and writes YAML like kubectl (`sigs.k8s.io/yaml` and

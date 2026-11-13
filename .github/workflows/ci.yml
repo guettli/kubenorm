@@ -28,3 +28,17 @@ jobs:
       - name: Run pre-commit
         # Fails if a hook changed files (go mod tidy, usage.md, README).
         run: pre-commit run --all-files --show-diff-on-failure
+
+  defaults:
+    # Checks the default rules against a real kube-apiserver (envtest
+    # binaries, no container runtime needed).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Check defaults
+        run: scripts/check-defaults.sh
