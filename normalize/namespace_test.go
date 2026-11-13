@@ -495,6 +495,7 @@ subjects:
 			},
 		},
 		{name: "no option", opts: Options{}},
+		{name: "target is default", opts: Options{AddNamespaceIfMissing: "default"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

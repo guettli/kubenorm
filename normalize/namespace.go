@@ -241,7 +241,8 @@ type namespaceMove struct {
 	reason string
 	// moved holds the namespaces that move to target.
 	moved map[string]bool
-	// inInput holds the namespaces of the namespaced resources in the input.
+	// inInput holds the namespaces of the namespaced resources in the input,
+	// and target.
 	inInput map[string]bool
 }
 
@@ -270,6 +271,9 @@ func (o *Options) namespaceMove(resources []Resource, scope *scopeResolver) *nam
 	if o.OverwriteNamespace != "" {
 		maps.Copy(m.moved, m.inInput)
 	}
+
+	// After the move the target namespace is in use.
+	m.inInput[m.target] = true
 
 	return m
 }

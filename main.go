@@ -184,7 +184,14 @@ func (f *normFlags) options(stderr io.Writer) (*normalize.Options, error) {
 		return nil, err
 	}
 
-	opts.Warn = func(msg string) { fmt.Fprintln(stderr, "Warning: "+msg) }
+	// diff processes both sides with these options: print each warning once.
+	warned := map[string]bool{}
+	opts.Warn = func(msg string) {
+		if !warned[msg] {
+			warned[msg] = true
+			fmt.Fprintln(stderr, "Warning: "+msg)
+		}
+	}
 
 	return opts, nil
 }
