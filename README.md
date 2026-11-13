@@ -284,8 +284,9 @@ quantityFields:
 `--no-common-config` disables the embedded one.
 
 A `.kubenorm.yaml` in the current directory or a parent directory (up to the
-root of the git repository) is loaded automatically, before the `--config`
-files. Disable this with `--no-config-discovery`.
+root of the git repository, or your home directory outside of a repository) is
+loaded automatically, before the `--config` files. Disable this with
+`--no-config-discovery`.
 
 ## Usage
 

@@ -11,17 +11,20 @@ const discoveredConfigName = ".kubenorm.yaml"
 
 // discoverConfig looks for .kubenorm.yaml in the current directory and its
 // parents. The search stops at the root of the git repository (a directory
-// containing .git) or the file system root. It returns "" if none is found.
+// containing .git), the home directory or the file system root. It returns ""
+// if none is found.
 func discoverConfig() (string, error) {
 	dir, err := os.Getwd()
 	if err != nil {
 		return "", fmt.Errorf("getting working directory: %w", err)
 	}
 
-	return discoverConfigFrom(dir)
+	home, _ := os.UserHomeDir() // "" if unknown: search up to the root
+
+	return discoverConfigFrom(dir, home)
 }
 
-func discoverConfigFrom(dir string) (string, error) {
+func discoverConfigFrom(dir, home string) (string, error) {
 	for {
 		candidate := filepath.Join(dir, discoveredConfigName)
 
@@ -35,7 +38,7 @@ func discoverConfigFrom(dir string) (string, error) {
 		}
 
 		_, err = os.Stat(filepath.Join(dir, ".git"))
-		if err == nil {
+		if err == nil || dir == home {
 			return "", nil
 		}
 

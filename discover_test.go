@@ -27,15 +27,43 @@ func TestDiscoverConfigFrom(t *testing.T) {
 	// Outside of the repository: must not be found.
 	writeFile(t, filepath.Join(root, discoveredConfigName), "removeFields: []\n")
 
-	got, err := discoverConfigFrom(deep)
+	got, err := discoverConfigFrom(deep, "")
 	if err != nil || got != "" {
 		t.Fatalf("expected no config inside the repo, got %q %v", got, err)
 	}
 
 	writeFile(t, filepath.Join(repo, "a", discoveredConfigName), "removeFields: []\n")
 
-	got, err = discoverConfigFrom(deep)
+	got, err = discoverConfigFrom(deep, "")
 	if err != nil || got != filepath.Join(repo, "a", discoveredConfigName) {
+		t.Fatalf("got %q %v", got, err)
+	}
+}
+
+func TestDiscoverConfigFrom_StopsAtHome(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	deep := filepath.Join(home, "a")
+
+	err := os.MkdirAll(deep, 0o755)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Above the home directory, outside of a git repository.
+	writeFile(t, filepath.Join(root, discoveredConfigName), "removeFields: []\n")
+
+	got, err := discoverConfigFrom(deep, home)
+	if err != nil || got != "" {
+		t.Fatalf("expected no config above home, got %q %v", got, err)
+	}
+
+	writeFile(t, filepath.Join(home, discoveredConfigName), "removeFields: []\n")
+
+	got, err = discoverConfigFrom(deep, home)
+	if err != nil || got != filepath.Join(home, discoveredConfigName) {
 		t.Fatalf("got %q %v", got, err)
 	}
 }
