@@ -195,6 +195,7 @@ trees can be compared. Exits 1 if there are differences.
 
 Examples:
   kubenorm diff zz_generated-main/ zz_generated-pr/
+  kubenorm diff --stat zz_generated-main/ zz_generated-pr/
   helm template ./chart | kubenorm diff deployed-dump/ -
 
 ```text
@@ -205,12 +206,14 @@ kubenorm diff <old> <new> [flags]
 
 ```text
       --add-namespace-if-missing string   Set metadata.namespace on namespaced resources without namespace (cluster-scoped kinds are left alone)
+      --color string                      Color the output: auto (terminal, respects NO_COLOR), always or never (default "auto")
   -c, --config stringArray                YAML config with removeFields/skipResources/excludeNamespaces/clusterScopedResources rules (repeatable; merged with the common config)
       --exclude-namespaces string         Drop these namespaces (globs, comma-separated): the Namespace object and everything inside
   -h, --help                              help for diff
       --keep-managed-fields               Keep metadata.managedFields
       --kind string                       Only keep kinds matching these globs (comma-separated, e.g. 'ConfigMap,Cluster*')
   -x, --name-regex string                 Only keep resources whose metadata.name matches this regex
+      --name-status                       Only list the resources with A (added), M (modified) or D (deleted)
   -n, --namespaces string                 Only keep resources in these namespaces (comma-separated)
       --no-common-config                  Do not apply the embedded common config (see show-common-config)
       --overwrite-namespace string        Set metadata.namespace on all namespaced resources, replacing existing values
@@ -219,6 +222,7 @@ kubenorm diff <old> <new> [flags]
       --skip-name-glob string             Drop resources whose metadata.name matches this anchored glob
   -O, --skip-owned                        Drop resources with a controlling ownerReference and objects Kubernetes autogenerates
       --skip-sops                         Drop SOPS-encrypted documents instead of failing (normalizing them would break the SOPS MAC)
+      --stat                              Show a summary per resource instead of the diff (like git diff --stat)
 ```
 
 ## `kubenorm help`

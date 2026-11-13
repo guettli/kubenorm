@@ -383,3 +383,45 @@ func TestNorm_CheckSameResourceInTwoTrees(t *testing.T) {
 		t.Fatalf("expected exit 0, got %d:\n%s%s", code, out, errOut)
 	}
 }
+
+func TestDiff_OutputFormats(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	oldFile := filepath.Join(dir, "old.yaml")
+	newFile := filepath.Join(dir, "new.yaml")
+
+	cm := func(name, value string) string {
+		return "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: " + name + "\n  namespace: ns\ndata:\n  k: " + value + "\n"
+	}
+
+	writeFile(t, oldFile, cm("a", "v1")+"---\n"+cm("gone", "x"))
+	writeFile(t, newFile, cm("a", "v2")+"---\n"+cm("new", "y"))
+
+	code, out, _ := runCLI(t, "", "diff", "--name-status", oldFile, newFile)
+	if code != 1 || out != "M\tns/ConfigMap/a.yaml\nD\tns/ConfigMap/gone.yaml\nA\tns/ConfigMap/new.yaml\n" {
+		t.Fatalf("name-status: got %d:\n%q", code, out)
+	}
+
+	code, out, _ = runCLI(t, "", "diff", "--stat", oldFile, newFile)
+	for _, want := range []string{" ns/ConfigMap/a.yaml    | 2 +-\n", " ns/ConfigMap/new.yaml  | 7 +++++++\n", " 3 resources changed, 8 insertions(+), 8 deletions(-)\n"} {
+		if code != 1 || !strings.Contains(out, want) {
+			t.Errorf("stat: missing %q in:\n%s", want, out)
+		}
+	}
+
+	_, out, _ = runCLI(t, "", "diff", "--color", "always", oldFile, newFile)
+	if !strings.Contains(out, "\x1b[31m-  k: v1\x1b[0m") || !strings.Contains(out, "\x1b[32m+  k: v2\x1b[0m") {
+		t.Errorf("color: unexpected output:\n%q", out)
+	}
+
+	_, out, _ = runCLI(t, "", "diff", oldFile, newFile)
+	if strings.Contains(out, "\x1b[") {
+		t.Errorf("auto color must not color a non-terminal:\n%q", out)
+	}
+
+	code, _, errOut := runCLI(t, "", "diff", "--color", "rainbow", oldFile, newFile)
+	if code != 2 || !strings.Contains(errOut, "--color") {
+		t.Errorf("expected invalid --color error, got %d: %s", code, errOut)
+	}
+}

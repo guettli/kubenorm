@@ -14,6 +14,29 @@ import (
 
 const devNull = "/dev/null"
 
+// FileStatus tells how a resource differs.
+type FileStatus byte
+
+const (
+	// StatusAdded means the resource only exists on the new side.
+	StatusAdded FileStatus = 'A'
+	// StatusModified means the resource differs.
+	StatusModified FileStatus = 'M'
+	// StatusDeleted means the resource only exists on the old side.
+	StatusDeleted FileStatus = 'D'
+)
+
+// FileDiff is the difference of one resource.
+type FileDiff struct {
+	// Path is the relative path, see RelPath.
+	Path   string
+	Status FileStatus
+	// Unified is the unified diff (git apply compatible).
+	Unified    string
+	Insertions int
+	Deletions  int
+}
+
 // DiffResult summarizes a Diff run.
 type DiffResult struct {
 	Changed []string
@@ -26,9 +49,9 @@ func (d DiffResult) Equal() bool {
 	return len(d.Changed) == 0 && len(d.Added) == 0 && len(d.Removed) == 0
 }
 
-// Diff writes a unified diff (git style, with a/ and b/ prefixes) from old to
-// new. Resources only present on one side are shown as fully added/removed.
-func Diff(w io.Writer, oldSide, newSide Rendered, oldPrefix, newPrefix string) (DiffResult, error) {
+// ComputeDiff compares old and new, sorted by path. oldPrefix and newPrefix
+// are prepended to the paths in the unified diff headers.
+func ComputeDiff(oldSide, newSide Rendered, oldPrefix, newPrefix string) []FileDiff {
 	all := make(map[string]struct{}, len(oldSide)+len(newSide))
 	for p := range oldSide {
 		all[p] = struct{}{}
@@ -45,7 +68,7 @@ func Diff(w io.Writer, oldSide, newSide Rendered, oldPrefix, newPrefix string) (
 
 	sort.Strings(paths)
 
-	var result DiffResult
+	diffs := make([]FileDiff, 0, len(paths))
 
 	for _, rel := range paths {
 		oldContent, inOld := oldSide[rel]
@@ -53,39 +76,82 @@ func Diff(w io.Writer, oldSide, newSide Rendered, oldPrefix, newPrefix string) (
 
 		fromLabel := path.Join(oldPrefix, rel)
 		toLabel := path.Join(newPrefix, rel)
+		status := StatusModified
 
 		switch {
 		case !inOld:
 			fromLabel = devNull
-
-			result.Added = append(result.Added, rel)
+			status = StatusAdded
 		case !inNew:
 			toLabel = devNull
-
-			result.Removed = append(result.Removed, rel)
+			status = StatusDeleted
 		case string(oldContent) == string(newContent):
 			continue
-		default:
-			result.Changed = append(result.Changed, rel)
 		}
 
 		edits := myers.ComputeEdits(span.URIFromPath(rel), string(oldContent), string(newContent))
-		unified := fmt.Sprint(gotextdiff.ToUnified(fromLabel, toLabel, string(oldContent), edits))
+		unified := gotextdiff.ToUnified(fromLabel, toLabel, string(oldContent), edits)
+		text := fmt.Sprint(unified)
 
 		// gotextdiff writes "-1" / "+1" for an empty side; patch and git
 		// apply expect "-0,0" / "+0,0" for created and deleted files.
-		switch {
-		case !inOld:
-			unified = strings.Replace(unified, "\n@@ -1 +", "\n@@ -0,0 +", 1)
-		case !inNew:
-			unified = strings.Replace(unified, " +1 @@\n", " +0,0 @@\n", 1)
+		switch status {
+		case StatusAdded:
+			text = strings.Replace(text, "\n@@ -1 +", "\n@@ -0,0 +", 1)
+		case StatusDeleted:
+			text = strings.Replace(text, " +1 @@\n", " +0,0 @@\n", 1)
+		case StatusModified:
 		}
 
-		_, err := io.WriteString(w, unified)
-		if err != nil {
-			return result, fmt.Errorf("writing diff: %w", err)
+		d := FileDiff{Path: rel, Status: status, Unified: text}
+
+		for _, hunk := range unified.Hunks {
+			for _, line := range hunk.Lines {
+				switch line.Kind {
+				case gotextdiff.Insert:
+					d.Insertions++
+				case gotextdiff.Delete:
+					d.Deletions++
+				case gotextdiff.Equal:
+				}
+			}
+		}
+
+		diffs = append(diffs, d)
+	}
+
+	return diffs
+}
+
+// Summarize returns the paths per status.
+func Summarize(diffs []FileDiff) DiffResult {
+	var result DiffResult
+
+	for _, d := range diffs {
+		switch d.Status {
+		case StatusAdded:
+			result.Added = append(result.Added, d.Path)
+		case StatusDeleted:
+			result.Removed = append(result.Removed, d.Path)
+		case StatusModified:
+			result.Changed = append(result.Changed, d.Path)
 		}
 	}
 
-	return result, nil
+	return result
+}
+
+// Diff writes a unified diff (git style) from old to new. Resources only
+// present on one side are shown as fully added/removed.
+func Diff(w io.Writer, oldSide, newSide Rendered, oldPrefix, newPrefix string) (DiffResult, error) {
+	diffs := ComputeDiff(oldSide, newSide, oldPrefix, newPrefix)
+
+	for _, d := range diffs {
+		_, err := io.WriteString(w, d.Unified)
+		if err != nil {
+			return DiffResult{}, fmt.Errorf("writing diff: %w", err)
+		}
+	}
+
+	return Summarize(diffs), nil
 }
