@@ -233,8 +233,10 @@ quantityFields:
 - `quantityFields` lists fields holding quantities. They are canonicalized
   exactly like the api-server does (`resource.ParseQuantity(v).String()`).
   The common config covers Pod specs of all built-in workloads, PVCs, PVs,
-  ResourceQuotas and LimitRanges. CRDs are not touched unless you list them,
-  because their fields may only look like quantities.
+  ResourceQuotas and LimitRanges. Custom resources are only touched if their
+  CRD is part of the input (fields of type `resource.Quantity`, recognized by
+  `x-kubernetes-int-or-string` and the quantity pattern) or if you list the
+  fields here: other fields may only look like quantities.
 - The config is parsed strictly; unknown keys are an error.
 
 `--config FILE` (repeatable) adds your rules to the common config,

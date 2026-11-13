@@ -329,3 +329,72 @@ spec:
 		t.Errorf("emptied securityContext/resources must be removed:\n%s", sts)
 	}
 }
+
+const quantityCRDTestInput = `
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: widgets.example.com
+spec:
+  group: example.com
+  scope: Namespaced
+  names: {kind: Widget}
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              size: &quantity
+                anyOf: [{type: integer}, {type: string}]
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
+              limits:
+                type: object
+                additionalProperties: *quantity
+              disks:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    capacity: *quantity
+              port:
+                anyOf: [{type: integer}, {type: string}]
+                x-kubernetes-int-or-string: true
+---
+apiVersion: example.com/v1
+kind: Widget
+metadata: {name: w, namespace: ns1}
+spec:
+  size: 2048Mi
+  limits: {cpu: 1000m}
+  disks: [{capacity: 0.5Gi}]
+  port: "1000"
+`
+
+func TestQuantityFields_FromCRD(t *testing.T) {
+	t.Parallel()
+
+	resources, err := ParseYAML([]byte(quantityCRDTestInput), "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resources, err = (&Options{}).Process(resources)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered, err := Render(resources)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := string(rendered["ns1/example.com_Widget/w.yaml"])
+	for _, want := range []string{"size: 2Gi\n", `cpu: "1"` + "\n", "capacity: 512Mi\n", `port: "1000"` + "\n"} {
+		assertContains(t, got, want)
+	}
+}

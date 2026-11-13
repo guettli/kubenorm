@@ -153,8 +153,7 @@ func (o *Options) scopeResolver(resources []Resource) *scopeResolver {
 	for _, r := range resources {
 		u := r.Unstructured()
 
-		gvk := u.GroupVersionKind()
-		if gvk.Group != "apiextensions.k8s.io" || gvk.Kind != "CustomResourceDefinition" {
+		if !isCRD(u) {
 			continue
 		}
 
@@ -170,6 +169,12 @@ func (o *Options) scopeResolver(resources []Resource) *scopeResolver {
 	}
 
 	return s
+}
+
+func isCRD(u *unstructured.Unstructured) bool {
+	gvk := u.GroupVersionKind()
+
+	return gvk.Group == "apiextensions.k8s.io" && gvk.Kind == "CustomResourceDefinition"
 }
 
 // isBuiltinClusterScoped reports whether the built-in list knows gk as
