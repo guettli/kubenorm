@@ -15,6 +15,7 @@ import (
 	"io"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -136,7 +137,7 @@ func (o *Options) normalize(obj map[string]any, t *tracer) error {
 }
 
 func (o *Options) applyRemoveRules(obj map[string]any, t *tracer) {
-	if !o.Config.HasRemoveRules() {
+	if o.Config == nil || len(o.Config.removeRules) == 0 {
 		return
 	}
 
@@ -196,12 +197,19 @@ func RelPath(item *unstructured.Unstructured, isNamespaced bool) string {
 		kindDir = gvk.Group + "_" + gvk.Kind
 	}
 
-	return filepath.Join(ns, kindDir, sanitizePath(item.GetName())+".yaml")
+	return filepath.Join(sanitizePath(ns), sanitizePath(kindDir), sanitizePath(item.GetName())+".yaml")
 }
 
 var sanitizePathRegex = regexp.MustCompile(`[\\/:*?"'<>|!@#$%^&()+={}\[\];,]`)
 
+// sanitizePath makes one path element of untrusted input safe: no
+// separators, and never "." or ".." (a namespace ".." would leave the
+// output directory).
 func sanitizePath(path string) string {
+	if path == "." || path == ".." {
+		return strings.Repeat("_", len(path))
+	}
+
 	return sanitizePathRegex.ReplaceAllString(path, "_")
 }
 

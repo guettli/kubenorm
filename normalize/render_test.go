@@ -3,8 +3,11 @@ package normalize
 import (
 	"bytes"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 const cmA = `apiVersion: v1
@@ -160,7 +163,9 @@ func TestSecretsAsStringData_KeepsBinaryInData(t *testing.T) {
 			"text":   "aGVsbG8=", // hello
 			"binary": "/+4AAWJpbg==",
 			"broken": "not base64!",
+			"both":   "eA==", // x, stringData wins
 		},
+		"stringData": map[string]any{"both": "y"},
 	}
 
 	err := (&Options{SecretsAsStringData: true}).Normalize(obj)
@@ -169,13 +174,29 @@ func TestSecretsAsStringData_KeepsBinaryInData(t *testing.T) {
 	}
 
 	stringData, _ := obj["stringData"].(map[string]any)
-	if stringData["text"] != "hello" {
+	if stringData["text"] != "hello" || stringData["both"] != "y" {
 		t.Errorf("text not converted: %v", obj)
 	}
 
 	data, _ := obj["data"].(map[string]any)
 	if data["binary"] != "/+4AAWJpbg==" || data["broken"] != "not base64!" || len(data) != 2 {
 		t.Errorf("binary and broken values must stay in data: %v", data)
+	}
+}
+
+func TestRelPath_StaysInOutputDir(t *testing.T) {
+	t.Parallel()
+
+	for _, ns := range []string{"..", "../../escaped", "."} {
+		u := &unstructured.Unstructured{Object: map[string]any{
+			"apiVersion": "v1", "kind": "ConfigMap",
+			"metadata": map[string]any{"name": "..", "namespace": ns},
+		}}
+
+		rel := RelPath(u, true)
+		if !filepath.IsLocal(rel) || strings.Count(rel, "/") != 2 {
+			t.Errorf("namespace %q: RelPath = %q leaves the output directory", ns, rel)
+		}
 	}
 }
 
