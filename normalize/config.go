@@ -132,11 +132,6 @@ func (c *Config) ExcludeNamespaces() []string {
 	return slicesClone(c.excludeNamespaces)
 }
 
-// HasRemoveRules reports whether the config contains at least one removeFields rule.
-func (c *Config) HasRemoveRules() bool {
-	return c != nil && len(c.removeRules) > 0
-}
-
 // SkipsEveryResourceOf reports whether a skip rule drops every resource of the
 // given group and kind, regardless of namespace or name. Callers that list
 // resources from an api-server can use this to avoid the LIST call entirely.
