@@ -21,7 +21,7 @@ import (
 // Only add entries whose scope is certain: a wrong entry silently prevents a
 // namespace from being set.
 var builtinClusterScoped = map[schema.GroupKind]struct{}{
-	// Kubernetes built-ins (as of 1.34).
+	// Kubernetes built-ins (as of 1.37, all API groups enabled).
 	{Group: "", Kind: "Namespace"}:                                                    {},
 	{Group: "", Kind: "Node"}:                                                         {},
 	{Group: "", Kind: "PersistentVolume"}:                                             {},
@@ -50,6 +50,8 @@ var builtinClusterScoped = map[schema.GroupKind]struct{}{
 	{Group: "networking.k8s.io", Kind: "IngressClass"}:                                {},
 	{Group: "networking.k8s.io", Kind: "IPAddress"}:                                   {},
 	{Group: "networking.k8s.io", Kind: "ServiceCIDR"}:                                 {},
+	{Group: "resource.k8s.io", Kind: "DeviceTaintRule"}:                               {},
+	{Group: "resource.k8s.io", Kind: "ResourcePoolStatusRequest"}:                     {},
 	{Group: "resource.k8s.io", Kind: "DeviceClass"}:                                   {},
 	{Group: "resource.k8s.io", Kind: "ResourceSlice"}:                                 {},
 	{Group: "storagemigration.k8s.io", Kind: "StorageVersionMigration"}:               {},
@@ -62,37 +64,248 @@ var builtinClusterScoped = map[schema.GroupKind]struct{}{
 	{Group: "authorization.k8s.io", Kind: "SubjectAccessReview"}:                      {},
 	{Group: "metrics.k8s.io", Kind: "NodeMetrics"}:                                    {},
 
-	// Widely used ecosystem CRDs.
-	{Group: "cert-manager.io", Kind: "ClusterIssuer"}:                       {},
-	{Group: "trust.cert-manager.io", Kind: "Bundle"}:                        {},
-	{Group: "gateway.networking.k8s.io", Kind: "GatewayClass"}:              {},
+	// Ecosystem CRDs, scope taken from the upstream CRD manifests (2026-11).
+
+	// Antrea
+	{Group: "crd.antrea.io", Kind: "AntreaAgentInfo"}:         {},
+	{Group: "crd.antrea.io", Kind: "AntreaControllerInfo"}:    {},
+	{Group: "crd.antrea.io", Kind: "AntreaNodeConfig"}:        {},
+	{Group: "crd.antrea.io", Kind: "BGPPolicy"}:               {},
+	{Group: "crd.antrea.io", Kind: "ClusterGroup"}:            {},
+	{Group: "crd.antrea.io", Kind: "ClusterNetworkPolicy"}:    {},
+	{Group: "crd.antrea.io", Kind: "Egress"}:                  {},
+	{Group: "crd.antrea.io", Kind: "ExternalIPPool"}:          {},
+	{Group: "crd.antrea.io", Kind: "FlowExporterDestination"}: {},
+	{Group: "crd.antrea.io", Kind: "IPPool"}:                  {},
+	{Group: "crd.antrea.io", Kind: "NodeLatencyMonitor"}:      {},
+	{Group: "crd.antrea.io", Kind: "PacketCapture"}:           {},
+	{Group: "crd.antrea.io", Kind: "SupportBundleCollection"}: {},
+	{Group: "crd.antrea.io", Kind: "Tier"}:                    {},
+	{Group: "crd.antrea.io", Kind: "Traceflow"}:               {},
+	{Group: "crd.antrea.io", Kind: "TrafficControl"}:          {},
+
+	// Argo Rollouts
+	{Group: "argoproj.io", Kind: "ClusterAnalysisTemplate"}: {},
+
+	// Argo Workflows
+	{Group: "argoproj.io", Kind: "ClusterWorkflowTemplate"}: {},
+
+	// Calico
+	{Group: "crd.projectcalico.org", Kind: "BGPConfiguration"}:             {},
+	{Group: "crd.projectcalico.org", Kind: "BGPFilter"}:                    {},
+	{Group: "crd.projectcalico.org", Kind: "BGPPeer"}:                      {},
+	{Group: "crd.projectcalico.org", Kind: "BlockAffinity"}:                {},
+	{Group: "crd.projectcalico.org", Kind: "CalicoNodeStatus"}:             {},
+	{Group: "crd.projectcalico.org", Kind: "ClusterInformation"}:           {},
+	{Group: "crd.projectcalico.org", Kind: "FelixConfiguration"}:           {},
+	{Group: "crd.projectcalico.org", Kind: "GlobalNetworkPolicy"}:          {},
+	{Group: "crd.projectcalico.org", Kind: "GlobalNetworkSet"}:             {},
+	{Group: "crd.projectcalico.org", Kind: "HostEndpoint"}:                 {},
+	{Group: "crd.projectcalico.org", Kind: "IPAMBlock"}:                    {},
+	{Group: "crd.projectcalico.org", Kind: "IPAMConfig"}:                   {},
+	{Group: "crd.projectcalico.org", Kind: "IPAMHandle"}:                   {},
+	{Group: "crd.projectcalico.org", Kind: "IPPool"}:                       {},
+	{Group: "crd.projectcalico.org", Kind: "IPReservation"}:                {},
+	{Group: "crd.projectcalico.org", Kind: "KubeControllersConfiguration"}: {},
+	{Group: "crd.projectcalico.org", Kind: "StagedGlobalNetworkPolicy"}:    {},
+	{Group: "crd.projectcalico.org", Kind: "Tier"}:                         {},
+	{Group: "operator.tigera.io", Kind: "APIServer"}:                       {},
+	{Group: "operator.tigera.io", Kind: "GatewayAPI"}:                      {},
+	{Group: "operator.tigera.io", Kind: "Goldmane"}:                        {},
+	{Group: "operator.tigera.io", Kind: "ImageSet"}:                        {},
+	{Group: "operator.tigera.io", Kind: "Installation"}:                    {},
+	{Group: "operator.tigera.io", Kind: "Istio"}:                           {},
+	{Group: "operator.tigera.io", Kind: "ManagementClusterConnection"}:     {},
+	{Group: "operator.tigera.io", Kind: "TigeraStatus"}:                    {},
+	{Group: "operator.tigera.io", Kind: "Whisker"}:                         {},
+
+	// cert-manager
+	{Group: "cert-manager.io", Kind: "ClusterIssuer"}: {},
+
+	// Cilium
+	{Group: "cilium.io", Kind: "CiliumBGPAdvertisement"}:           {},
+	{Group: "cilium.io", Kind: "CiliumBGPClusterConfig"}:           {},
+	{Group: "cilium.io", Kind: "CiliumBGPNodeConfig"}:              {},
+	{Group: "cilium.io", Kind: "CiliumBGPNodeConfigOverride"}:      {},
+	{Group: "cilium.io", Kind: "CiliumBGPPeerConfig"}:              {},
+	{Group: "cilium.io", Kind: "CiliumCIDRGroup"}:                  {},
+	{Group: "cilium.io", Kind: "CiliumClusterwideEnvoyConfig"}:     {},
+	{Group: "cilium.io", Kind: "CiliumClusterwideNetworkPolicy"}:   {},
+	{Group: "cilium.io", Kind: "CiliumDatapathPlugin"}:             {},
+	{Group: "cilium.io", Kind: "CiliumEgressGatewayPolicy"}:        {},
+	{Group: "cilium.io", Kind: "CiliumEndpointSlice"}:              {},
+	{Group: "cilium.io", Kind: "CiliumIdentity"}:                   {},
+	{Group: "cilium.io", Kind: "CiliumL2AnnouncementPolicy"}:       {},
+	{Group: "cilium.io", Kind: "CiliumLoadBalancerIPPool"}:         {},
+	{Group: "cilium.io", Kind: "CiliumNetworkDriverClusterConfig"}: {},
+	{Group: "cilium.io", Kind: "CiliumNetworkDriverNodeConfig"}:    {},
+	{Group: "cilium.io", Kind: "CiliumNode"}:                       {},
+	{Group: "cilium.io", Kind: "CiliumPodIPPool"}:                  {},
+	{Group: "cilium.io", Kind: "CiliumResourceIPPool"}:             {},
+	{Group: "cilium.io", Kind: "CiliumResourceNetworkConfig"}:      {},
+
+	// CloudNativePG
+	{Group: "postgresql.cnpg.io", Kind: "ClusterImageCatalog"}: {},
+
+	// Cluster API
+	{Group: "infrastructure.cluster.x-k8s.io", Kind: "AWSClusterControllerIdentity"}: {},
+	{Group: "infrastructure.cluster.x-k8s.io", Kind: "AWSClusterRoleIdentity"}:       {},
+	{Group: "infrastructure.cluster.x-k8s.io", Kind: "AWSClusterStaticIdentity"}:     {},
+	{Group: "infrastructure.cluster.x-k8s.io", Kind: "ROSAOCMRoleConfig"}:            {},
+	{Group: "runtime.cluster.x-k8s.io", Kind: "ExtensionConfig"}:                     {},
+
+	// Crossplane
+	{Group: "apiextensions.crossplane.io", Kind: "CompositeResourceDefinition"}:     {},
+	{Group: "apiextensions.crossplane.io", Kind: "Composition"}:                     {},
+	{Group: "apiextensions.crossplane.io", Kind: "CompositionRevision"}:             {},
+	{Group: "apiextensions.crossplane.io", Kind: "EnvironmentConfig"}:               {},
+	{Group: "apiextensions.crossplane.io", Kind: "ManagedResourceActivationPolicy"}: {},
+	{Group: "apiextensions.crossplane.io", Kind: "ManagedResourceDefinition"}:       {},
+	{Group: "apiextensions.crossplane.io", Kind: "Usage"}:                           {},
+	{Group: "ops.crossplane.io", Kind: "CronOperation"}:                             {},
+	{Group: "ops.crossplane.io", Kind: "Operation"}:                                 {},
+	{Group: "ops.crossplane.io", Kind: "WatchOperation"}:                            {},
+	{Group: "pkg.crossplane.io", Kind: "Configuration"}:                             {},
+	{Group: "pkg.crossplane.io", Kind: "ConfigurationRevision"}:                     {},
+	{Group: "pkg.crossplane.io", Kind: "DeploymentRuntimeConfig"}:                   {},
+	{Group: "pkg.crossplane.io", Kind: "Function"}:                                  {},
+	{Group: "pkg.crossplane.io", Kind: "FunctionRevision"}:                          {},
+	{Group: "pkg.crossplane.io", Kind: "ImageConfig"}:                               {},
+	{Group: "pkg.crossplane.io", Kind: "Lock"}:                                      {},
+	{Group: "pkg.crossplane.io", Kind: "Provider"}:                                  {},
+	{Group: "pkg.crossplane.io", Kind: "ProviderRevision"}:                          {},
+	{Group: "protection.crossplane.io", Kind: "ClusterUsage"}:                       {},
+
+	// CSI snapshots
+	{Group: "groupsnapshot.storage.k8s.io", Kind: "VolumeGroupSnapshotClass"}:   {},
+	{Group: "groupsnapshot.storage.k8s.io", Kind: "VolumeGroupSnapshotContent"}: {},
+	{Group: "snapshot.storage.k8s.io", Kind: "VolumeSnapshotClass"}:             {},
+	{Group: "snapshot.storage.k8s.io", Kind: "VolumeSnapshotContent"}:           {},
+
+	// External Secrets
+	{Group: "external-secrets.io", Kind: "ClusterExternalSecret"}:       {},
+	{Group: "external-secrets.io", Kind: "ClusterPushSecret"}:           {},
+	{Group: "external-secrets.io", Kind: "ClusterSecretStore"}:          {},
+	{Group: "generators.external-secrets.io", Kind: "ClusterGenerator"}: {},
+
+	// Gatekeeper
+	{Group: "expansion.gatekeeper.sh", Kind: "ExpansionTemplate"}:  {},
+	{Group: "externaldata.gatekeeper.sh", Kind: "Provider"}:        {},
+	{Group: "mutations.gatekeeper.sh", Kind: "Assign"}:             {},
+	{Group: "mutations.gatekeeper.sh", Kind: "AssignImage"}:        {},
+	{Group: "mutations.gatekeeper.sh", Kind: "AssignMetadata"}:     {},
+	{Group: "mutations.gatekeeper.sh", Kind: "ModifySet"}:          {},
+	{Group: "syncset.gatekeeper.sh", Kind: "SyncSet"}:              {},
+	{Group: "templates.gatekeeper.sh", Kind: "ConstraintTemplate"}: {},
+
+	// Gateway API
+	{Group: "gateway.networking.k8s.io", Kind: "GatewayClass"}: {},
+	{Group: "gateway.networking.x-k8s.io", Kind: "XMesh"}:      {},
+
+	// k3s
+	{Group: "k3s.cattle.io", Kind: "ETCDSnapshotFile"}: {},
+
+	// Karpenter
+	{Group: "karpenter.k8s.aws", Kind: "EC2NodeClass"}: {},
+	{Group: "karpenter.sh", Kind: "NodeClaim"}:         {},
+	{Group: "karpenter.sh", Kind: "NodePool"}:          {},
+
+	// KEDA
+	{Group: "eventing.keda.sh", Kind: "ClusterCloudEventSource"}: {},
+	{Group: "keda.sh", Kind: "ClusterTriggerAuthentication"}:     {},
+
+	// Knative
+	{Group: "networking.internal.knative.dev", Kind: "ClusterDomainClaim"}: {},
+
+	// Kong
+	{Group: "configuration.konghq.com", Kind: "KongClusterPlugin"}: {},
+	{Group: "configuration.konghq.com", Kind: "KongLicense"}:       {},
+	{Group: "configuration.konghq.com", Kind: "KongVault"}:         {},
+
+	// kro
+	{Group: "internal.kro.run", Kind: "GraphRevision"}:  {},
+	{Group: "kro.run", Kind: "ResourceGraphDefinition"}: {},
+
+	// KubeVirt CDI
+	{Group: "cdi.kubevirt.io", Kind: "CDI"}: {},
+
+	// Kubewarden
+	{Group: "policies.kubewarden.io", Kind: "PolicyServer"}: {},
+
+	// Kueue
+	{Group: "kueue.x-k8s.io", Kind: "AdmissionCheck"}:            {},
+	{Group: "kueue.x-k8s.io", Kind: "ClusterQueue"}:              {},
+	{Group: "kueue.x-k8s.io", Kind: "Cohort"}:                    {},
+	{Group: "kueue.x-k8s.io", Kind: "MultiKueueCluster"}:         {},
+	{Group: "kueue.x-k8s.io", Kind: "MultiKueueConfig"}:          {},
+	{Group: "kueue.x-k8s.io", Kind: "ProvisioningRequestConfig"}: {},
+	{Group: "kueue.x-k8s.io", Kind: "ResourceFlavor"}:            {},
+	{Group: "kueue.x-k8s.io", Kind: "Topology"}:                  {},
+	{Group: "kueue.x-k8s.io", Kind: "WorkloadPriorityClass"}:     {},
+
+	// KWOK
+	{Group: "kwok.x-k8s.io", Kind: "ClusterAttach"}:        {},
+	{Group: "kwok.x-k8s.io", Kind: "ClusterExec"}:          {},
+	{Group: "kwok.x-k8s.io", Kind: "ClusterLogs"}:          {},
+	{Group: "kwok.x-k8s.io", Kind: "ClusterPortForward"}:   {},
+	{Group: "kwok.x-k8s.io", Kind: "ClusterResourceUsage"}: {},
+	{Group: "kwok.x-k8s.io", Kind: "Metric"}:               {},
+	{Group: "kwok.x-k8s.io", Kind: "Stage"}:                {},
+
+	// Kyverno
+	{Group: "kyverno.io", Kind: "ClusterCleanupPolicy"}:           {},
+	{Group: "kyverno.io", Kind: "ClusterPolicy"}:                  {},
+	{Group: "kyverno.io", Kind: "GlobalContextEntry"}:             {},
+	{Group: "policies.kyverno.io", Kind: "DeletingPolicy"}:        {},
+	{Group: "policies.kyverno.io", Kind: "GeneratingPolicy"}:      {},
+	{Group: "policies.kyverno.io", Kind: "ImageValidatingPolicy"}: {},
+	{Group: "policies.kyverno.io", Kind: "MutatingPolicy"}:        {},
+	{Group: "policies.kyverno.io", Kind: "ValidatingPolicy"}:      {},
+	{Group: "reports.kyverno.io", Kind: "ClusterEphemeralReport"}: {},
+	{Group: "wgpolicyk8s.io", Kind: "ClusterPolicyReport"}:        {},
+
+	// Liqo
+	{Group: "core.liqo.io", Kind: "ForeignCluster"}:     {},
+	{Group: "networking.liqo.io", Kind: "InternalNode"}: {},
+
+	// Network Policy API
 	{Group: "policy.networking.k8s.io", Kind: "AdminNetworkPolicy"}:         {},
 	{Group: "policy.networking.k8s.io", Kind: "BaselineAdminNetworkPolicy"}: {},
-	{Group: "snapshot.storage.k8s.io", Kind: "VolumeSnapshotClass"}:         {},
-	{Group: "snapshot.storage.k8s.io", Kind: "VolumeSnapshotContent"}:       {},
-	{Group: "kyverno.io", Kind: "ClusterPolicy"}:                            {},
-	{Group: "kyverno.io", Kind: "ClusterCleanupPolicy"}:                     {},
-	{Group: "templates.gatekeeper.sh", Kind: "ConstraintTemplate"}:          {},
-	{Group: "external-secrets.io", Kind: "ClusterSecretStore"}:              {},
-	{Group: "external-secrets.io", Kind: "ClusterExternalSecret"}:           {},
-	{Group: "cilium.io", Kind: "CiliumClusterwideNetworkPolicy"}:            {},
-	{Group: "cilium.io", Kind: "CiliumNode"}:                                {},
-	{Group: "cilium.io", Kind: "CiliumIdentity"}:                            {},
-	{Group: "cilium.io", Kind: "CiliumLoadBalancerIPPool"}:                  {},
-	{Group: "crd.projectcalico.org", Kind: "GlobalNetworkPolicy"}:           {},
-	{Group: "crd.projectcalico.org", Kind: "GlobalNetworkSet"}:              {},
-	{Group: "crd.projectcalico.org", Kind: "IPPool"}:                        {},
-	{Group: "crd.projectcalico.org", Kind: "FelixConfiguration"}:            {},
-	{Group: "crd.projectcalico.org", Kind: "BGPConfiguration"}:              {},
-	{Group: "crd.projectcalico.org", Kind: "BGPPeer"}:                       {},
-	{Group: "crd.projectcalico.org", Kind: "HostEndpoint"}:                  {},
-	{Group: "karpenter.sh", Kind: "NodePool"}:                               {},
-	{Group: "karpenter.sh", Kind: "NodeClaim"}:                              {},
-	{Group: "argoproj.io", Kind: "ClusterWorkflowTemplate"}:                 {},
-	{Group: "keda.sh", Kind: "ClusterTriggerAuthentication"}:                {},
-	{Group: "kueue.x-k8s.io", Kind: "ClusterQueue"}:                         {},
-	{Group: "kueue.x-k8s.io", Kind: "ResourceFlavor"}:                       {},
-	{Group: "security.openshift.io", Kind: "SecurityContextConstraints"}:    {},
+	{Group: "policy.networking.k8s.io", Kind: "ClusterNetworkPolicy"}:       {},
+
+	// Node Feature Discovery
+	{Group: "nfd.k8s-sigs.io", Kind: "NodeFeatureRule"}: {},
+
+	// NVIDIA GPU Operator
+	{Group: "nvidia.com", Kind: "ClusterPolicy"}: {},
+	{Group: "nvidia.com", Kind: "GPUCluster"}:    {},
+	{Group: "nvidia.com", Kind: "NVIDIADriver"}:  {},
+
+	// OpenShift
+	{Group: "security.openshift.io", Kind: "SecurityContextConstraints"}: {},
+
+	// Operator Lifecycle Manager
+	{Group: "operators.coreos.com", Kind: "OLMConfig"}: {},
+	{Group: "operators.coreos.com", Kind: "Operator"}:  {},
+
+	// Rook
+	{Group: "objectbucket.io", Kind: "ObjectBucket"}: {},
+
+	// Tekton
+	{Group: "triggers.tekton.dev", Kind: "ClusterInterceptor"}:    {},
+	{Group: "triggers.tekton.dev", Kind: "ClusterTriggerBinding"}: {},
+
+	// Traefik Hub
+	{Group: "hub.traefik.io", Kind: "AccessControlPolicy"}: {},
+
+	// trust-manager
+	{Group: "trust.cert-manager.io", Kind: "Bundle"}: {},
+
+	// Volcano
+	{Group: "nodeinfo.volcano.sh", Kind: "Numatopology"}: {},
+	{Group: "scheduling.volcano.sh", Kind: "Queue"}:      {},
+	{Group: "shard.volcano.sh", Kind: "NodeShard"}:       {},
+	{Group: "topology.volcano.sh", Kind: "HyperNode"}:    {},
 }
 
 // groupKindFile is a group/kind glob pair in the clusterScopedResources
@@ -181,7 +394,14 @@ func isCRD(u *unstructured.Unstructured) bool {
 // isBuiltinClusterScoped reports whether the built-in list knows gk as
 // cluster-scoped.
 func isBuiltinClusterScoped(gk schema.GroupKind) bool {
+	// Gatekeeper creates one cluster-scoped CRD per ConstraintTemplate, the
+	// kind is chosen by the user.
+	if gk.Group == "constraints.gatekeeper.sh" {
+		return true
+	}
+
 	_, ok := builtinClusterScoped[gk]
+
 	return ok
 }
 
