@@ -56,7 +56,8 @@ jobs:
             # HEAD is untagged — every merge to main bumps the minor version.
             # A patch or major release is tagged by hand (the tag on HEAD
             # makes this job create the release, see above).
-            LATEST=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo 'v0.0.0')
+            # Pre-release tags (v1.2.0-rc.1) do not count.
+            LATEST=$(git describe --tags --abbrev=0 --match 'v*' --exclude 'v*-*' 2>/dev/null || echo 'v0.0.0')
             MAJOR=$(echo "$LATEST" | cut -d. -f1 | tr -d 'v')
             MINOR=$(echo "$LATEST" | cut -d. -f2)
             NEW_TAG="v${MAJOR}.$((MINOR + 1)).0"
@@ -79,17 +80,19 @@ jobs:
       - name: Build binaries
         if: steps.check.outputs.new_release == 'true'
         run: |
-          mkdir -p dist
-          # HEAD is now at the release tag — Go 1.24 embeds the version automatically
-          GOOS=linux   GOARCH=amd64 go build -trimpath -o dist/kubenorm-linux-amd64   .
-          GOOS=linux   GOARCH=arm64 go build -trimpath -o dist/kubenorm-linux-arm64   .
-          GOOS=darwin  GOARCH=amd64 go build -trimpath -o dist/kubenorm-darwin-amd64  .
-          GOOS=darwin  GOARCH=arm64 go build -trimpath -o dist/kubenorm-darwin-arm64  .
-          GOOS=windows GOARCH=amd64 go build -trimpath -o dist/kubenorm-windows-amd64.exe .
+          # HEAD is now at the release tag, go build embeds the version. Build
+          # outside the checkout: files in it would mark the version +dirty.
+          dist=$RUNNER_TEMP/dist
+          mkdir -p "$dist"
+          GOOS=linux   GOARCH=amd64 go build -trimpath -o "$dist/kubenorm-linux-amd64"   .
+          GOOS=linux   GOARCH=arm64 go build -trimpath -o "$dist/kubenorm-linux-arm64"   .
+          GOOS=darwin  GOARCH=amd64 go build -trimpath -o "$dist/kubenorm-darwin-amd64"  .
+          GOOS=darwin  GOARCH=arm64 go build -trimpath -o "$dist/kubenorm-darwin-arm64"  .
+          GOOS=windows GOARCH=amd64 go build -trimpath -o "$dist/kubenorm-windows-amd64.exe" .
 
       - name: Generate checksums
         if: steps.check.outputs.new_release == 'true'
-        run: sha256sum dist/* > dist/checksums.txt
+        run: cd "$RUNNER_TEMP/dist" && sha256sum kubenorm-* > checksums.txt
 
       - name: Create GitHub Release
         if: steps.check.outputs.new_release == 'true'
@@ -99,4 +102,4 @@ jobs:
           gh release create "${{ steps.check.outputs.new_tag }}" \
             --title "${{ steps.check.outputs.new_tag }}" \
             --generate-notes \
-            dist/*
+            "$RUNNER_TEMP"/dist/*

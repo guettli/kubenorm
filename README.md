@@ -172,7 +172,7 @@ jobs:
       - uses: azure/setup-helm@v4
       - name: Render
         run: |
-          kubenorm="go run github.com/guettli/kubenorm@v0.0.1" # use the latest release
+          kubenorm="go run github.com/guettli/kubenorm@v1.0.0" # use the latest release
           helm template cert-manager cert-manager --repo https://charts.jetstack.io \
             --version v1.21.3 --namespace cert-manager -f values/cert-manager.yaml |
             $kubenorm norm - -o rendered/cert-manager -r
@@ -361,7 +361,8 @@ _ = rendered.WriteDir("out")
   next minor release. Changes of the common config are minor releases too: they
   can change the normalized output, so a re-render in the same commit as the
   version update keeps `norm --check` green. Breaking changes of the CLI or the
-  `normalize` package need a new major version.
+  `normalize` package need a new major version (module path
+  `github.com/guettli/kubenorm/v2`, tagged by hand).
 
 ## Why not kyaml?
 
