@@ -29,6 +29,11 @@ NAMESPACE/[GROUP_]KIND/NAME.yaml        e.g. demo/apps_Deployment/web.yaml
 _cluster/[GROUP_]KIND/NAME.yaml         cluster-scoped, e.g. _cluster/Namespace/demo.yaml
 ```
 
+Characters that are not safe in file names (`:`, `/`, ...) become `_`. If two
+resources end up at the same path (the same resource twice, or `a:b` and
+`a_b`), kubenorm fails. It never overwrites a file, which also catches
+`A.yaml` and `a.yaml` on a case-insensitive file system.
+
 The rules live in an [embedded common config](normalize/common-config.yaml)
 (`kubenorm show-common-config`) and can be extended with your own config files.
 
@@ -93,7 +98,7 @@ helm template liqo liqo/liqo --namespace liqo | kubenorm norm - --add-namespace-
 kubenorm has no api-server to ask whether a kind is cluster-scoped. It uses,
 in this order:
 
-1. CRDs contained in the input (`spec.scope`),
+1. CRDs contained in the input or given with `--crds` (`spec.scope`),
 2. the `clusterScopedResources` section of your config,
 3. a built-in list of Kubernetes kinds and common ecosystem CRDs
    (`ClusterIssuer`, `GatewayClass`, ...).
@@ -278,11 +283,14 @@ quantityFields:
   exactly like the api-server does (`resource.ParseQuantity(v).String()`).
   The common config covers Pod specs of all built-in workloads, PVCs, PVs,
   ResourceQuotas and LimitRanges. Custom resources are only touched if their
-  CRD is part of the input (fields of type `resource.Quantity`, recognized by
-  `x-kubernetes-int-or-string` and the quantity pattern) or if you list the
-  fields here: other fields may only look like quantities. The CRD-based
-  detection also works with `--no-common-config`. With `kubenorm diff`, put the
-  CRDs on both sides (or on none), else the quantities differ.
+  CRD is part of the input or given with `--crds DIR` (fields of type
+  `resource.Quantity`, recognized by `x-kubernetes-int-or-string` and the
+  quantity pattern) or if you list the fields here: other fields may only look
+  like quantities. The CRD-based detection also works with `--no-common-config`.
+  With `kubenorm diff`, put the CRDs on both sides (or on none) or use
+  `--crds`, which applies to both sides, else the quantities differ.
+  `--crds` only reads CRDs and ignores everything else, so it can point at a
+  whole rendered tree: `kubenorm norm --check ./plain --crds ./rendered`.
 - The config is parsed strictly; unknown keys are an error.
 
 `--config FILE` (repeatable) adds your rules to the common config,

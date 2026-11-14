@@ -96,6 +96,7 @@ type normFlags struct {
 	addNamespaceIfMissing string
 	overwriteNamespace    string
 	noConfigDiscovery     bool
+	crdPaths              []string
 }
 
 func (f *normFlags) register(cmd *cobra.Command) {
@@ -113,6 +114,7 @@ func (f *normFlags) register(cmd *cobra.Command) {
 	fl.BoolVar(&f.secretsAsStringData, "secrets-as-stringdata", false, "Convert base64 Secret data to stringData")
 	fl.StringVar(&f.addNamespaceIfMissing, "add-namespace-if-missing", "", "Set metadata.namespace on namespaced resources without namespace, and fill empty namespace references (cluster-scoped kinds are left alone)")
 	fl.StringVar(&f.overwriteNamespace, "overwrite-namespace", "", "Set metadata.namespace on all namespaced resources, replacing existing values, and move references to the replaced namespaces")
+	fl.StringArrayVar(&f.crdPaths, "crds", nil, "Also read CustomResourceDefinitions from this file or directory (repeatable; other resources there are ignored): their quantity fields and scope are used like CRDs in the input")
 	fl.BoolVar(&f.noConfigDiscovery, "no-config-discovery", false, "Do not load "+discoveredConfigName+" from the current directory or its parents")
 }
 
@@ -177,6 +179,19 @@ func (f *normFlags) options(stderr io.Writer) (*normalize.Options, error) {
 			warned[msg] = true
 			fmt.Fprintln(stderr, "Warning: "+msg)
 		}
+	}
+
+	if slices.Contains(f.crdPaths, normalize.StdinPath) {
+		return nil, errors.New("--crds: stdin is not supported")
+	}
+
+	if len(f.crdPaths) > 0 {
+		crds, err := normalize.ReadPaths(f.crdPaths, nil)
+		if err != nil {
+			return nil, fmt.Errorf("--crds: %w", err)
+		}
+
+		opts = opts.WithCRDs(crds)
 	}
 
 	return opts, nil

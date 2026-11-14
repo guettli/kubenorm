@@ -264,7 +264,7 @@ func (o *Options) process(resources []Resource, explain bool) ([]Resource, []Exp
 	}
 
 	o = o.withCRDQuantities(resources)
-	scope := o.scopeResolver(resources)
+	scope := o.scopeResolver(append(slices.Clone(o.crds), resources...))
 	move := o.namespaceMove(resources, scope)
 
 	type candidate struct {
@@ -353,13 +353,15 @@ func describe(r Resource) string {
 }
 
 // errDuplicate is returned by Render when two resources map to the same path.
-var errDuplicate = errors.New("duplicate resource")
+var errDuplicate = errors.New("two resources map to the same file")
 
 // Rendered maps the relative output path (see RelPath) to the encoded YAML.
 type Rendered map[string][]byte
 
-// Render encodes each resource. Two resources with the same identity are an
-// error, because one would silently overwrite the other.
+// Render encodes each resource. Two resources with the same path are an
+// error (the same resource twice, or names like "a:b" and "a_b" that only
+// differ in characters RelPath replaces), because one would silently
+// overwrite the other.
 func Render(resources []Resource, headerLines ...string) (Rendered, error) {
 	return render(resources, true, headerLines...)
 }
@@ -375,7 +377,7 @@ func render(resources []Resource, parallel bool, headerLines ...string) (Rendere
 
 		rel := r.RelPath()
 		if prev, ok := sources[rel]; ok {
-			return nil, fmt.Errorf("%w %s: found in %s and %s", errDuplicate, rel, prev, r.Source)
+			return nil, fmt.Errorf("%w %s (%s and %s)", errDuplicate, rel, prev, r.Source)
 		}
 
 		sources[rel] = r.Source
@@ -413,7 +415,9 @@ func render(resources []Resource, parallel bool, headerLines ...string) (Rendere
 	return out, nil
 }
 
-// WriteDir writes every file below dir, creating directories as needed.
+// WriteDir writes every file below dir, creating directories as needed. An
+// existing file is an error, never overwritten: on a case-insensitive file
+// system "A.yaml" and "a.yaml" are the same file.
 func (r Rendered) WriteDir(dir string) error {
 	for _, rel := range r.sortedPaths() {
 		target := filepath.Join(dir, rel)
@@ -423,9 +427,9 @@ func (r Rendered) WriteDir(dir string) error {
 			return fmt.Errorf("failed to create directory: %w", err)
 		}
 
-		err = os.WriteFile(target, r[rel], 0o644) //nolint:gosec // manifests are not secret by default
+		err = writeNewFile(target, r[rel])
 		if err != nil {
-			return fmt.Errorf("failed to write %s: %w", target, err)
+			return err
 		}
 	}
 
@@ -462,4 +466,27 @@ func (r Rendered) sortedPaths() []string {
 	sort.Strings(paths)
 
 	return paths
+}
+
+// writeNewFile writes data to a file that must not exist yet.
+func writeNewFile(path string, data []byte) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if errors.Is(err, fs.ErrExist) {
+		return fmt.Errorf("%w: %s already exists", errDuplicate, path)
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to write %s: %w", path, err)
+	}
+
+	_, err = f.Write(data)
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to write %s: %w", path, err)
+	}
+
+	return nil
 }

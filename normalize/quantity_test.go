@@ -3,6 +3,8 @@ package normalize
 import (
 	"strings"
 	"testing"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 func TestCanonicalQuantity(t *testing.T) {
@@ -396,5 +398,83 @@ func TestQuantityFields_FromCRD(t *testing.T) {
 	got := string(rendered["ns1/example.com_Widget/w.yaml"])
 	for _, want := range []string{"size: 2Gi\n", `cpu: "1"` + "\n", "capacity: 512Mi\n", `port: "1000"` + "\n"} {
 		assertContains(t, got, want)
+	}
+}
+
+func TestWithCRDs(t *testing.T) {
+	t.Parallel()
+
+	docs := strings.SplitN(quantityCRDTestInput, "---\n", 2)
+
+	crds, err := ParseYAML([]byte(docs[0]), "crds.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cr := func() map[string]any {
+		resources, err := ParseYAML([]byte(docs[1]), "cr.yaml")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		return resources[0].Object
+	}
+
+	opts := (&Options{}).WithCRDs(crds)
+
+	obj := cr()
+
+	err = opts.Normalize(obj)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	size, _, _ := unstructured.NestedString(obj, "spec", "size")
+	if size != "2Gi" {
+		t.Fatalf("Normalize: size = %q, want 2Gi", size)
+	}
+
+	// The receiver is not modified.
+	obj = cr()
+
+	err = (&Options{}).Normalize(obj)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	size, _, _ = unstructured.NestedString(obj, "spec", "size")
+	if size != "2048Mi" {
+		t.Fatalf("Options without CRDs: size = %q, want 2048Mi", size)
+	}
+}
+
+func TestWithCRDs_Scope(t *testing.T) {
+	t.Parallel()
+
+	crds, err := ParseYAML([]byte(`
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata: {name: gadgets.example.com}
+spec:
+  group: example.com
+  scope: Cluster
+  names: {kind: Gadget}
+`), "crds.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resources, err := ParseYAML([]byte("apiVersion: example.com/v1\nkind: Gadget\nmetadata: {name: g}\n"), "in.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resources, err = (&Options{AddNamespaceIfMissing: "ns1"}).WithCRDs(crds).Process(resources)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if ns := resources[0].Unstructured().GetNamespace(); ns != "" {
+		t.Fatalf("cluster-scoped Gadget got namespace %q", ns)
 	}
 }

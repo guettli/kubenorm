@@ -61,6 +61,8 @@ func FuzzIdempotent(f *testing.F) {
 		f.Add([]byte(s))
 	}
 
+	f.Add([]byte(quantityCRDTestInput))
+
 	cfg, err := LoadConfig(true, "")
 	if err != nil {
 		f.Fatal(err)
