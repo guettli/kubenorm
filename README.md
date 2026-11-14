@@ -100,8 +100,10 @@ in this order:
 
 1. CRDs contained in the input or given with `--crds` (`spec.scope`),
 2. the `clusterScopedResources` section of your config,
-3. a built-in list of Kubernetes kinds and common ecosystem CRDs
-   (`ClusterIssuer`, `GatewayClass`, ...).
+3. a built-in list of Kubernetes kinds and the cluster-scoped CRDs of common
+   projects (cert-manager, Gateway API, Cilium, Calico, Antrea, Kyverno,
+   Gatekeeper incl. its constraints, Crossplane, Karpenter, Kueue, Argo, ...),
+   taken from their CRD manifests.
 
 Everything else is treated as namespaced. The namespace is set before
 filtering, so `--namespaces` and skip rules see the new value.
