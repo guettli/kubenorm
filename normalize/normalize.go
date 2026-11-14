@@ -35,8 +35,9 @@ const (
 
 // Options controls filtering and normalization.
 type Options struct {
-	// Config holds removeFields, skipResources and excludeNamespaces rules.
-	// nil applies no rules.
+	// Config holds the rules (removeFields, skipResources, excludeNamespaces,
+	// quantityFields, ...), see LoadConfig. nil applies no rules. Quantity
+	// fields declared by CRDs in the input are canonicalized in any case.
 	Config *Config
 
 	// Namespaces restricts output to these namespaces (empty = all).
@@ -66,8 +67,9 @@ type Options struct {
 	SecretsAsStringData bool
 
 	// AddNamespaceIfMissing sets metadata.namespace on namespaced resources
-	// that have none. Cluster-scoped resources are left alone (see
-	// isBuiltinClusterScoped). Applied before filtering.
+	// that have none. Cluster-scoped resources (built-in kinds, CRDs in the
+	// input with scope Cluster, clusterScopedResources of the config) are
+	// left alone. Applied before filtering.
 	AddNamespaceIfMissing string
 
 	// OverwriteNamespace sets metadata.namespace on all namespaced resources,
@@ -105,6 +107,11 @@ func identityOf(item *unstructured.Unstructured, isNamespaced bool) objectIdenti
 // Normalize modifies obj in place: removes managed fields, handles Secrets,
 // applies the removeFields rules and prunes empty labels/annotations.
 func (o *Options) Normalize(obj map[string]any) error {
+	err := o.validate()
+	if err != nil {
+		return err
+	}
+
 	return o.normalize(obj, nil)
 }
 
