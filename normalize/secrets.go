@@ -34,7 +34,11 @@ func convertSecretDataToStringData(obj map[string]any) {
 			continue
 		}
 
-		stringData[key] = string(decoded)
+		// The api-server lets stringData win over data.
+		if _, ok := stringData[key]; !ok {
+			stringData[key] = string(decoded)
+		}
+
 		delete(data, key)
 	}
 
