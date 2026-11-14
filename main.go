@@ -186,17 +186,17 @@ func (f *normFlags) options(stderr io.Writer) (*normalize.Options, error) {
 func (f *normFlags) scopeOptions(cfg *normalize.Config) (*normalize.Options, error) {
 	namespaces, err := normalize.ParseNamespacesCSV(f.namespacesCSV)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("--namespaces: %w", err)
 	}
 
 	kinds, err := normalize.ParseKindsCSV(f.kindsCSV)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("--kind: %w", err)
 	}
 
 	nameRegex, err := normalize.ParseNameRegex(f.nameRegex)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("--name-regex: %w", err)
 	}
 
 	return &normalize.Options{
@@ -385,24 +385,25 @@ func runCheck(cmd *cobra.Command, flags *normFlags, inputs []string) error {
 		return err
 	}
 
-	// The raw side only applies the scope filters, so every change made by
-	// normalization shows up in the diff.
+	// The raw side is the input as it is, only the scope filters apply, so
+	// every change made by normalization shows up in the diff.
 	rawOpts, err := flags.scopeOptions(cli)
 	if err != nil {
 		return err
 	}
-
-	rawOpts.KeepManagedFields = true
 
 	resources, err := readInputs(cmd, inputs...)
 	if err != nil {
 		return err
 	}
 
-	// Parse once; Process modifies objects in place, so work on a copy.
-	rawResources, err := rawOpts.Process(normalize.CloneResources(resources))
-	if err != nil {
-		return err
+	// Parse once; Process modifies objects in place, so keep a copy.
+	var rawResources []normalize.Resource
+
+	for _, r := range normalize.CloneResources(resources) {
+		if !r.SOPSEncrypted && rawOpts.Include(r.Unstructured(), r.Namespaced()) {
+			rawResources = append(rawResources, r)
+		}
 	}
 
 	normResources, err := normOpts.Process(resources)

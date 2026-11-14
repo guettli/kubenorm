@@ -3,8 +3,6 @@ package normalize
 import (
 	"strings"
 	"testing"
-
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 func TestCanonicalQuantity(t *testing.T) {
@@ -385,22 +383,7 @@ func TestQuantityFields_FromCRD(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Without quantityFields (the raw side of norm --check) nothing changes.
-	raw, err := (&Options{}).Process(CloneResources(resources))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if size, _, _ := unstructured.NestedString(raw[len(raw)-1].Object, "spec", "size"); size != "2048Mi" {
-		t.Fatalf("without quantityFields: size = %q, want 2048Mi", size)
-	}
-
-	cfg, err := LoadConfig(true, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	resources, err = (&Options{Config: cfg}).Process(resources)
+	resources, err = (&Options{}).Process(resources)
 	if err != nil {
 		t.Fatal(err)
 	}

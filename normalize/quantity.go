@@ -61,14 +61,8 @@ func (o *Options) applyQuantityRules(obj map[string]any, t *tracer) {
 }
 
 // withCRDQuantities returns o with quantity rules for the fields that CRDs in
-// resources declare as quantities, or o itself if there are none. They extend
-// quantityFields: a config without quantityFields (like the raw side of
-// norm --check) gets none.
+// resources declare as quantities, or o itself if there are none.
 func (o *Options) withCRDQuantities(resources []Resource) *Options {
-	if o.Config == nil || len(o.Config.quantityRules) == 0 {
-		return o
-	}
-
 	var rules []ignoreRule
 
 	for _, r := range resources {
