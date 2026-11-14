@@ -55,6 +55,18 @@ func TestGolden(t *testing.T) {
 			if got != string(want) {
 				t.Errorf("output differs from %s, run: go test -run TestGolden -update", wantFile)
 			}
+
+			// Idempotent: normalizing the output again changes nothing.
+			cliArgs[1] = wantFile
+
+			code, stdout, stderr = runCLI(t, "", cliArgs...)
+			if code != 0 {
+				t.Fatalf("second pass: exit code %d: %s", code, stderr)
+			}
+
+			if again := stripHeader(stdout); again != got {
+				t.Errorf("not idempotent: normalizing %s changes it", wantFile)
+			}
 		})
 	}
 }

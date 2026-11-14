@@ -15,6 +15,7 @@ import (
 	"io"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -37,7 +38,8 @@ const (
 type Options struct {
 	// Config holds the rules (removeFields, skipResources, excludeNamespaces,
 	// quantityFields, ...), see LoadConfig. nil applies no rules. Quantity
-	// fields declared by CRDs in the input are canonicalized in any case.
+	// fields declared by CRDs in the input (and WithCRDs) are canonicalized in
+	// any case.
 	Config *Config
 
 	// Namespaces restricts output to these namespaces (empty = all).
@@ -78,6 +80,27 @@ type Options struct {
 	// Warn receives warnings about the input, for example a reference to a
 	// namespace that the namespace options cannot move. Nil discards them.
 	Warn func(msg string)
+
+	// crds are known in addition to the CRDs in the input, see WithCRDs.
+	crds []Resource
+}
+
+// WithCRDs returns a copy of o that also knows these
+// CustomResourceDefinitions, for example the CRDs of a cluster. Other
+// resources are ignored. Like CRDs in the input of Process, their quantity
+// fields are canonicalized (also by Normalize) and their scope is used by the
+// namespace options.
+func (o *Options) WithCRDs(resources []Resource) *Options {
+	with := *o.withCRDQuantities(resources)
+	with.crds = slices.Clone(o.crds)
+
+	for _, r := range resources {
+		if isCRD(r.Unstructured()) {
+			with.crds = append(with.crds, r)
+		}
+	}
+
+	return &with
 }
 
 // objectIdentity identifies a resource for rule matching. Cluster-scoped resources

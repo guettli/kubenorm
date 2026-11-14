@@ -3,6 +3,7 @@ package normalize
 import (
 	"bytes"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -223,5 +224,54 @@ func TestValueMatches(t *testing.T) {
 		if got := valueMatches(tc.actual, tc.expected); got != tc.want {
 			t.Errorf("valueMatches(%#v, %#v) = %v, want %v", tc.actual, tc.expected, got, tc.want)
 		}
+	}
+}
+
+func TestRender_SanitizedNamesCollide(t *testing.T) {
+	t.Parallel()
+
+	resources, err := ParseYAML([]byte(`
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: "a:b"}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: a_b}
+`), "in.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = Render(resources)
+	if !errors.Is(err, errDuplicate) {
+		t.Fatalf("expected errDuplicate, got %v", err)
+	}
+}
+
+func TestWriteDir_NeverOverwrites(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	rendered := Rendered{"ns/ConfigMap/a.yaml": []byte("new\n")}
+
+	err := os.MkdirAll(filepath.Join(dir, "ns", "ConfigMap"), 0o755)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = os.WriteFile(filepath.Join(dir, "ns", "ConfigMap", "a.yaml"), []byte("old\n"), 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = rendered.WriteDir(dir)
+	if !errors.Is(err, errDuplicate) {
+		t.Fatalf("expected errDuplicate, got %v", err)
+	}
+
+	data, _ := os.ReadFile(filepath.Join(dir, "ns", "ConfigMap", "a.yaml"))
+	if string(data) != "old\n" {
+		t.Fatalf("file was overwritten: %q", data)
 	}
 }

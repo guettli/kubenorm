@@ -337,3 +337,39 @@ func TestFormatValue_KeepsRunes(t *testing.T) {
 		t.Fatalf("formatValue = %q", got)
 	}
 }
+
+func TestNorm_CRDs(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "crds", "widget.yaml"), `apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata: {name: widgets.example.com}
+spec:
+  group: example.com
+  scope: Namespaced
+  names: {kind: Widget}
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              size: {anyOf: [{type: integer}, {type: string}], x-kubernetes-int-or-string: true, pattern: "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$"}
+`)
+
+	in := "apiVersion: example.com/v1\nkind: Widget\nmetadata: {name: w, namespace: n}\nspec: {size: 2048Mi}\n"
+
+	code, out, errOut := runCLI(t, in, "norm", "-", "--no-config-discovery", "--crds", filepath.Join(dir, "crds"))
+	if code != 0 || !strings.Contains(out, "size: 2Gi") || strings.Contains(out, "CustomResourceDefinition") {
+		t.Fatalf("exit %d: %s\n%s", code, errOut, out)
+	}
+
+	code, _, errOut = runCLI(t, in, "norm", "-", "--crds", "-")
+	if code != 2 || !strings.Contains(errOut, "--crds") {
+		t.Fatalf("got %d: %s", code, errOut)
+	}
+}
