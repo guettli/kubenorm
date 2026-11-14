@@ -2,7 +2,9 @@
 
 `kubenorm` normalizes Kubernetes manifests on disk so that two YAML
 representations of the same desired state become byte-identical. It never
-connects to a cluster.
+connects to a cluster. To dump the live resources of a cluster into the same
+layout, use [dumpall](https://github.com/guettli/dumpall), which uses kubenorm
+as a library.
 
 It is made for the [Rendered Manifests Pattern](https://akuity.io/blog/the-rendered-manifests-pattern)
 (RMP): render helm charts, kustomize overlays and plain manifests, normalize
