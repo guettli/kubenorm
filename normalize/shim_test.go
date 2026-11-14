@@ -23,7 +23,7 @@ type options struct {
 	ignoreRules         []ignoreRule
 	skipRules           []skipRule
 	excludeNamespaces   []string
-	namespaceFilter     map[string]struct{}
+	namespaceFilter     []string
 	kindFilter          []string
 	nameFilterRegex     *regexp.Regexp
 }

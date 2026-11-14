@@ -1,7 +1,6 @@
 package normalize
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"sort"
@@ -142,19 +141,4 @@ func joinPath(path, key string) string {
 	}
 
 	return path + "." + key
-}
-
-// FormatValue renders a value compactly on one line, shortened to maxLen.
-func FormatValue(v any, maxLen int) string {
-	data, err := json.Marshal(v)
-	if err != nil {
-		return fmt.Sprint(v)
-	}
-
-	s := string(data)
-	if len(s) > maxLen {
-		s = s[:maxLen] + "..."
-	}
-
-	return s
 }

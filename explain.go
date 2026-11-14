@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -74,10 +75,25 @@ Example:
 func formatChange(c normalize.Change) string {
 	switch {
 	case c.New == nil:
-		return fmt.Sprintf("- %s: %s  [%s]", c.Path, normalize.FormatValue(c.Old, explainValueLen), c.Reason)
+		return fmt.Sprintf("- %s: %s  [%s]", c.Path, formatValue(c.Old, explainValueLen), c.Reason)
 	case c.Old == nil:
-		return fmt.Sprintf("+ %s: %s  [%s]", c.Path, normalize.FormatValue(c.New, explainValueLen), c.Reason)
+		return fmt.Sprintf("+ %s: %s  [%s]", c.Path, formatValue(c.New, explainValueLen), c.Reason)
 	default:
-		return fmt.Sprintf("~ %s: %s -> %s  [%s]", c.Path, normalize.FormatValue(c.Old, explainValueLen), normalize.FormatValue(c.New, explainValueLen), c.Reason)
+		return fmt.Sprintf("~ %s: %s -> %s  [%s]", c.Path, formatValue(c.Old, explainValueLen), formatValue(c.New, explainValueLen), c.Reason)
 	}
+}
+
+// formatValue renders a value compactly on one line, shortened to maxLen
+// runes.
+func formatValue(v any, maxLen int) string {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Sprint(v)
+	}
+
+	if r := []rune(string(data)); len(r) > maxLen {
+		return string(r[:maxLen]) + "..."
+	}
+
+	return string(data)
 }

@@ -1,4 +1,4 @@
-package normalize
+package main
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/guettli/kubenorm/normalize"
 	"github.com/hexops/gotextdiff"
 	"github.com/hexops/gotextdiff/myers"
 	"github.com/hexops/gotextdiff/span"
@@ -13,23 +14,20 @@ import (
 
 const devNull = "/dev/null"
 
-// FileStatus tells how a resource differs.
-type FileStatus byte
+// fileStatus tells how a resource differs.
+type fileStatus byte
 
 const (
-	// StatusAdded means the resource only exists on the new side.
-	StatusAdded FileStatus = 'A'
-	// StatusModified means the resource differs.
-	StatusModified FileStatus = 'M'
-	// StatusDeleted means the resource only exists on the old side.
-	StatusDeleted FileStatus = 'D'
+	statusAdded    fileStatus = 'A'
+	statusModified fileStatus = 'M'
+	statusDeleted  fileStatus = 'D'
 )
 
 // FileDiff is the difference of one resource.
 type FileDiff struct {
 	// Path is the relative path, see RelPath.
 	Path   string
-	Status FileStatus
+	Status fileStatus
 	// Unified is the unified diff (git apply compatible).
 	Unified string
 }
@@ -46,7 +44,7 @@ func PrefixLabels(oldPrefix, newPrefix string) Labels {
 }
 
 // ComputeDiff compares old and new, sorted by path.
-func ComputeDiff(oldSide, newSide Rendered, labels Labels) []FileDiff {
+func ComputeDiff(oldSide, newSide normalize.Rendered, labels Labels) []FileDiff {
 	all := make(map[string]struct{}, len(oldSide)+len(newSide))
 	for p := range oldSide {
 		all[p] = struct{}{}
@@ -70,15 +68,15 @@ func ComputeDiff(oldSide, newSide Rendered, labels Labels) []FileDiff {
 		newContent, inNew := newSide[rel]
 
 		fromLabel, toLabel := labels(rel)
-		status := StatusModified
+		status := statusModified
 
 		switch {
 		case !inOld:
 			fromLabel = devNull
-			status = StatusAdded
+			status = statusAdded
 		case !inNew:
 			toLabel = devNull
-			status = StatusDeleted
+			status = statusDeleted
 		case string(oldContent) == string(newContent):
 			continue
 		}
@@ -89,11 +87,11 @@ func ComputeDiff(oldSide, newSide Rendered, labels Labels) []FileDiff {
 		// gotextdiff writes "-1" / "+1" for an empty side; patch and git
 		// apply expect "-0,0" / "+0,0" for created and deleted files.
 		switch status {
-		case StatusAdded:
+		case statusAdded:
 			text = strings.Replace(text, "\n@@ -1 +", "\n@@ -0,0 +", 1)
-		case StatusDeleted:
+		case statusDeleted:
 			text = strings.Replace(text, " +1 @@\n", " +0,0 @@\n", 1)
-		case StatusModified:
+		case statusModified:
 		}
 
 		diffs = append(diffs, FileDiff{Path: rel, Status: status, Unified: text})
@@ -111,9 +109,9 @@ type SourceDiff struct {
 // DiffBySource compares two processed versions of the same input file by
 // file (for example raw and normalized). Comparing per file allows separate
 // trees with the same resources. labels returns the diff labels for a
-// source file. Files are compared in parallel, the result keeps the order
-// in which the files first appear in oldSide.
-func DiffBySource(oldSide, newSide []Resource, labels func(source string) Labels) ([]SourceDiff, error) {
+// source file. The result keeps the order in which the files first appear
+// in oldSide.
+func DiffBySource(oldSide, newSide []normalize.Resource, labels func(source string) Labels) ([]SourceDiff, error) {
 	oldBySource, files := groupResourcesBySource(oldSide)
 	newBySource, newFiles := groupResourcesBySource(newSide)
 
@@ -125,32 +123,26 @@ func DiffBySource(oldSide, newSide []Resource, labels func(source string) Labels
 
 	result := make([]SourceDiff, len(files))
 
-	err := parallelFor(len(files), func(i int) error {
-		// Files are already compared in parallel: render sequentially.
-		oldRendered, err := render(oldBySource[files[i]], false)
+	for i, f := range files {
+		oldRendered, err := normalize.Render(oldBySource[f])
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		newRendered, err := render(newBySource[files[i]], false)
+		newRendered, err := normalize.Render(newBySource[f])
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		result[i] = SourceDiff{Source: files[i], Diffs: ComputeDiff(oldRendered, newRendered, labels(files[i]))}
-
-		return nil
-	})
-	if err != nil {
-		return nil, err
+		result[i] = SourceDiff{Source: f, Diffs: ComputeDiff(oldRendered, newRendered, labels(f))}
 	}
 
 	return result, nil
 }
 
 // groupResourcesBySource groups resources by file, keeping the order.
-func groupResourcesBySource(resources []Resource) (map[string][]Resource, []string) {
-	bySource := map[string][]Resource{}
+func groupResourcesBySource(resources []normalize.Resource) (map[string][]normalize.Resource, []string) {
+	bySource := map[string][]normalize.Resource{}
 
 	var files []string
 

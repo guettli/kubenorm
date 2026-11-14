@@ -175,7 +175,7 @@ func TestOverwriteNamespaceThenFilter(t *testing.T) {
 
 	// The namespace is injected before filtering, so --namespaces sees the
 	// new value.
-	got := processNS(t, &Options{OverwriteNamespace: "bar", Namespaces: map[string]struct{}{"bar": {}}})
+	got := processNS(t, &Options{OverwriteNamespace: "bar", Namespaces: []string{"bar"}})
 
 	want := map[string]string{
 		"no-ns":  "bar",
@@ -205,7 +205,7 @@ func TestNamespaceInjectionChangesRelPath(t *testing.T) {
 
 	for _, p := range []string{"bar/apps_Deployment/no-ns.yaml", "_cluster/example.com_ClusterWidget/cw.yaml", "_cluster/rbac.authorization.k8s.io_ClusterRole/role.yaml"} {
 		if _, ok := rendered[p]; !ok {
-			t.Errorf("expected %s in %v", p, rendered.SortedPaths())
+			t.Errorf("expected %s in %v", p, rendered.sortedPaths())
 		}
 	}
 }
@@ -224,7 +224,7 @@ func TestValidate(t *testing.T) {
 		{Options{AddNamespaceIfMissing: strings.Repeat("a", 64)}, "invalid namespace"},
 		{Options{RedactSecrets: true, SecretsAsStringData: true}, "mutually exclusive"},
 	} {
-		err := tc.opts.Validate()
+		err := tc.opts.validate()
 
 		switch {
 		case tc.wantErr == "" && err != nil:

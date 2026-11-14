@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -347,16 +348,8 @@ func TestParseNamespaceFilter(t *testing.T) {
 		t.Fatalf("parseNamespaceFilter returned error: %v", err)
 	}
 
-	if len(filter) != 2 {
-		t.Fatalf("expected 2 namespaces, got %d", len(filter))
-	}
-
-	if _, ok := filter["alpha"]; !ok {
-		t.Fatalf("expected alpha in filter")
-	}
-
-	if _, ok := filter["beta"]; !ok {
-		t.Fatalf("expected beta in filter")
+	if !slices.Equal(filter, []string{"alpha", "beta"}) {
+		t.Fatalf("got %v, want [alpha beta]", filter)
 	}
 }
 
@@ -539,9 +532,7 @@ func TestShouldProcessItem(t *testing.T) {
 	t.Parallel()
 
 	opts := &options{
-		namespaceFilter: map[string]struct{}{
-			"alpha": {},
-		},
+		namespaceFilter: []string{"alpha"},
 	}
 
 	tests := []struct {
@@ -594,9 +585,7 @@ func TestShouldProcessItem_NameRegexAndNamespaceFilter(t *testing.T) {
 	t.Parallel()
 
 	opts := &options{
-		namespaceFilter: map[string]struct{}{
-			"alpha": {},
-		},
+		namespaceFilter: []string{"alpha"},
 		nameFilterRegex: regexp.MustCompile(`^my-secret$`),
 	}
 

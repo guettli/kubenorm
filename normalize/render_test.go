@@ -71,29 +71,6 @@ func TestWriteStream_SortedAndSeparated(t *testing.T) {
 	}
 }
 
-func TestComputeDiff(t *testing.T) {
-	t.Parallel()
-
-	oldSide := renderYAML(t, cmA)
-	newSide := renderYAML(t, strings.Replace(cmA, "k: v1", "k: v2", 1)+"---\n"+strings.Replace(cmA, "name: a", "name: b", 1))
-
-	diffs := ComputeDiff(oldSide, newSide, PrefixLabels("old", "new"))
-	if len(diffs) != 2 || diffs[0].Status != StatusModified || diffs[1].Status != StatusAdded {
-		t.Fatalf("unexpected diffs %+v", diffs)
-	}
-
-	out := diffs[0].Unified + diffs[1].Unified
-	for _, want := range []string{"--- old/ns/ConfigMap/a.yaml", "+++ new/ns/ConfigMap/a.yaml", "-  k: v1", "+  k: v2", "--- /dev/null", "+++ new/ns/ConfigMap/b.yaml", "@@ -0,0 +1,"} {
-		if !strings.Contains(out, want) {
-			t.Errorf("diff output misses %q:\n%s", want, out)
-		}
-	}
-
-	if diffs := ComputeDiff(oldSide, oldSide, PrefixLabels("a", "b")); len(diffs) != 0 {
-		t.Fatalf("expected no diff, got %+v", diffs)
-	}
-}
-
 func TestParseYAML_SkipsDocumentsWithoutMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -208,7 +185,7 @@ func TestParseYAML_ExpandsLists(t *testing.T) {
 
 	rendered := renderYAML(t, list)
 	if len(rendered) != 2 || rendered["ns/ConfigMap/a.yaml"] == nil || rendered["ns/ConfigMap/b.yaml"] == nil {
-		t.Fatalf("expected both items, got %v from:\n%s", rendered.SortedPaths(), list)
+		t.Fatalf("expected both items, got %v from:\n%s", rendered.sortedPaths(), list)
 	}
 }
 

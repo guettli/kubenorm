@@ -258,6 +258,11 @@ func (o *Options) Process(resources []Resource) ([]Resource, error) {
 // process is Process. With explain set it also returns what happened to
 // every resource.
 func (o *Options) process(resources []Resource, explain bool) ([]Resource, []Explanation, error) {
+	err := o.validate()
+	if err != nil {
+		return nil, nil, err
+	}
+
 	o = o.withCRDQuantities(resources)
 	scope := o.scopeResolver(resources)
 	move := o.namespaceMove(resources, scope)
@@ -297,7 +302,7 @@ func (o *Options) process(resources []Resource, explain bool) ([]Resource, []Exp
 
 	// Each resource is normalized independently, so this runs in parallel.
 	// Every goroutine only writes its own index.
-	err := parallelFor(len(candidates), func(i int) error {
+	err = parallelFor(len(candidates), func(i int) error {
 		c := candidates[i]
 		r := c.resource
 
@@ -305,7 +310,7 @@ func (o *Options) process(resources []Resource, explain bool) ([]Resource, []Exp
 			explanations[c.index].Path = r.RelPath()
 		}
 
-		if reason := o.SkipReason(r.Unstructured(), r.Namespaced()); reason != "" {
+		if reason := o.skipReason(r.Unstructured(), r.Namespaced()); reason != "" {
 			if explain {
 				explanations[c.index].Dropped = reason
 			}
@@ -408,21 +413,9 @@ func render(resources []Resource, parallel bool, headerLines ...string) (Rendere
 	return out, nil
 }
 
-// SortedPaths returns the keys sorted.
-func (r Rendered) SortedPaths() []string {
-	paths := make([]string, 0, len(r))
-	for p := range r {
-		paths = append(paths, p)
-	}
-
-	sort.Strings(paths)
-
-	return paths
-}
-
 // WriteDir writes every file below dir, creating directories as needed.
 func (r Rendered) WriteDir(dir string) error {
-	for _, rel := range r.SortedPaths() {
+	for _, rel := range r.sortedPaths() {
 		target := filepath.Join(dir, rel)
 
 		err := os.MkdirAll(filepath.Dir(target), 0o755)
@@ -442,7 +435,7 @@ func (r Rendered) WriteDir(dir string) error {
 // WriteStream writes all documents as one multi-document YAML stream, sorted
 // by path, separated by "---".
 func (r Rendered) WriteStream(w io.Writer) error {
-	for i, rel := range r.SortedPaths() {
+	for i, rel := range r.sortedPaths() {
 		if i > 0 {
 			_, err := io.WriteString(w, "---\n")
 			if err != nil {
@@ -457,4 +450,16 @@ func (r Rendered) WriteStream(w io.Writer) error {
 	}
 
 	return nil
+}
+
+// sortedPaths returns the keys sorted.
+func (r Rendered) sortedPaths() []string {
+	paths := make([]string, 0, len(r))
+	for p := range r {
+		paths = append(paths, p)
+	}
+
+	sort.Strings(paths)
+
+	return paths
 }

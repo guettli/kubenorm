@@ -8,8 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"runtime/debug"
+	"slices"
 	"strings"
 
 	"github.com/gavv/cobradoc"
@@ -120,25 +122,20 @@ func (f *normFlags) register(cmd *cobra.Command) {
 func (f *normFlags) cliConfig() (*normalize.Config, error) {
 	cfg := &normalize.Config{}
 
+	return cfg, f.addCLIRules(cfg)
+}
+
+// addCLIRules adds the rules of cliConfig to cfg.
+func (f *normFlags) addCLIRules(cfg *normalize.Config) error {
 	err := cfg.AddSkipNameGlob(f.skipNameGlob)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	err = cfg.AddExcludeNamespacesCSV(f.excludeNamespacesCSV)
-	if err != nil {
-		return nil, err
-	}
-
-	return cfg, nil
+	return cfg.AddExcludeNamespacesCSV(f.excludeNamespacesCSV)
 }
 
 func (f *normFlags) options(stderr io.Writer) (*normalize.Options, error) {
-	cfg, err := normalize.LoadConfig(!f.noCommonConfig, "")
-	if err != nil {
-		return nil, err
-	}
-
 	configFiles := f.configFiles
 
 	if !f.noConfigDiscovery {
@@ -152,21 +149,15 @@ func (f *normFlags) options(stderr io.Writer) (*normalize.Options, error) {
 		}
 	}
 
-	for _, file := range configFiles {
-		user, err := normalize.LoadConfig(false, file)
-		if err != nil {
-			return nil, err
-		}
-
-		cfg.Merge(user)
-	}
-
-	cli, err := f.cliConfig()
+	cfg, err := normalize.LoadConfig(!f.noCommonConfig, configFiles...)
 	if err != nil {
 		return nil, err
 	}
 
-	cfg.Merge(cli)
+	err = f.addCLIRules(cfg)
+	if err != nil {
+		return nil, err
+	}
 
 	opts, err := f.scopeOptions(cfg)
 	if err != nil {
@@ -178,11 +169,6 @@ func (f *normFlags) options(stderr io.Writer) (*normalize.Options, error) {
 	opts.SecretsAsStringData = f.secretsAsStringData
 	opts.AddNamespaceIfMissing = strings.TrimSpace(f.addNamespaceIfMissing)
 	opts.OverwriteNamespace = strings.TrimSpace(f.overwriteNamespace)
-
-	err = opts.Validate()
-	if err != nil {
-		return nil, err
-	}
 
 	// diff processes both sides with these options: print each warning once.
 	warned := map[string]bool{}
@@ -360,7 +346,7 @@ func runNorm(cmd *cobra.Command, flags *normFlags, inputs []string, outDir strin
 	}
 
 	if verbose {
-		for _, rel := range rendered.SortedPaths() {
+		for _, rel := range slices.Sorted(maps.Keys(rendered)) {
 			fmt.Fprintf(cmd.ErrOrStderr(), "Written: %s/%s\n", outDir, rel)
 		}
 	}
@@ -426,7 +412,7 @@ func runCheck(cmd *cobra.Command, flags *normFlags, inputs []string) error {
 
 	// Compare file by file: separate trees (one per cluster, say) may
 	// legitimately contain the same resource.
-	sourceDiffs, err := normalize.DiffBySource(rawResources, normResources, func(source string) normalize.Labels {
+	sourceDiffs, err := DiffBySource(rawResources, normResources, func(source string) Labels {
 		return func(rel string) (string, string) {
 			return diffLabel(source), "normalized: " + rel
 		}
@@ -510,7 +496,7 @@ Examples:
 				return err
 			}
 
-			diffs := normalize.ComputeDiff(oldSide, newSide, normalize.PrefixLabels(diffLabel(args[0]), diffLabel(args[1])))
+			diffs := ComputeDiff(oldSide, newSide, PrefixLabels(diffLabel(args[0]), diffLabel(args[1])))
 
 			for _, d := range diffs {
 				_, err = io.WriteString(cmd.OutOrStdout(), d.Unified)

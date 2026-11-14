@@ -3,6 +3,7 @@ package normalize
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -26,11 +27,11 @@ const (
 // isNamespaced tells whether the resource is namespace-scoped. For resources
 // read from files, a resource is namespaced if metadata.namespace is set.
 func (o *Options) Include(item *unstructured.Unstructured, isNamespaced bool) bool {
-	return o.SkipReason(item, isNamespaced) == ""
+	return o.skipReason(item, isNamespaced) == ""
 }
 
-// SkipReason returns why the item is dropped, or "" if it is kept.
-func (o *Options) SkipReason(item *unstructured.Unstructured, isNamespaced bool) string {
+// skipReason returns why the item is dropped, or "" if it is kept.
+func (o *Options) skipReason(item *unstructured.Unstructured, isNamespaced bool) string {
 	if o.SkipOwned {
 		if hasControllingOwner(item) {
 			return "--skip-owned: has a controlling ownerReference"
@@ -86,7 +87,7 @@ func (o *Options) SkipReason(item *unstructured.Unstructured, isNamespaced bool)
 		return "--namespaces: cluster-scoped resource"
 	}
 
-	if _, ok := o.Namespaces[namespace]; !ok {
+	if !slices.Contains(o.Namespaces, namespace) {
 		return "--namespaces: namespace not selected"
 	}
 
@@ -94,14 +95,13 @@ func (o *Options) SkipReason(item *unstructured.Unstructured, isNamespaced bool)
 }
 
 // ParseNamespacesCSV parses a comma-separated list of namespace names.
-// An empty string returns an empty (match-all) filter.
-func ParseNamespacesCSV(namespacesCSV string) (map[string]struct{}, error) {
-	filter := make(map[string]struct{})
-
-	trimmed := strings.TrimSpace(namespacesCSV)
-	if trimmed == "" {
-		return filter, nil
+// An empty string returns nil (match all).
+func ParseNamespacesCSV(namespacesCSV string) ([]string, error) {
+	if strings.TrimSpace(namespacesCSV) == "" {
+		return nil, nil
 	}
+
+	var filter []string
 
 	for namespace := range strings.SplitSeq(namespacesCSV, ",") {
 		namespace = strings.TrimSpace(namespace)
@@ -109,11 +109,13 @@ func ParseNamespacesCSV(namespacesCSV string) (map[string]struct{}, error) {
 			continue
 		}
 
-		filter[namespace] = struct{}{}
+		if !slices.Contains(filter, namespace) {
+			filter = append(filter, namespace)
+		}
 	}
 
 	if len(filter) == 0 {
-		return nil, fmt.Errorf("invalid --namespaces %q: no namespace names found", namespacesCSV)
+		return nil, fmt.Errorf("invalid namespace list %q: no namespace names found", namespacesCSV)
 	}
 
 	return filter, nil
@@ -137,14 +139,14 @@ func ParseKindsCSV(kindFilterCSV string) ([]string, error) {
 
 		err := validateGlobPattern(entry)
 		if err != nil {
-			return nil, fmt.Errorf("invalid --kind glob %q: %w", entry, err)
+			return nil, fmt.Errorf("invalid kind glob %q: %w", entry, err)
 		}
 
 		patterns = append(patterns, entry)
 	}
 
 	if len(patterns) == 0 {
-		return nil, fmt.Errorf("invalid --kind %q: no patterns found", kindFilterCSV)
+		return nil, fmt.Errorf("invalid kind list %q: no patterns found", kindFilterCSV)
 	}
 
 	return patterns, nil
@@ -159,7 +161,7 @@ func ParseNameRegex(nameRegex string) (*regexp.Regexp, error) {
 
 	re, err := regexp.Compile(trimmed)
 	if err != nil {
-		return nil, fmt.Errorf("invalid --name-regex %q: %w", nameRegex, err)
+		return nil, fmt.Errorf("invalid name regex %q: %w", nameRegex, err)
 	}
 
 	return re, nil

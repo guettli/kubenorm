@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 const deploymentYAML = `apiVersion: apps/v1
@@ -325,5 +326,14 @@ func TestNorm_OverlappingInputs(t *testing.T) {
 	code, out, errOut := runCLI(t, "", "norm", dir, file)
 	if code != 0 || strings.Count(out, "kind: Deployment") != 1 {
 		t.Fatalf("expected the file once, got %d:\n%s%s", code, out, errOut)
+	}
+}
+
+func TestFormatValue_KeepsRunes(t *testing.T) {
+	t.Parallel()
+
+	got := formatValue(strings.Repeat("ä", 40), 10)
+	if !utf8.ValidString(got) || got != `"`+strings.Repeat("ä", 9)+"..." {
+		t.Fatalf("formatValue = %q", got)
 	}
 }

@@ -42,7 +42,7 @@ type Options struct {
 	// Namespaces restricts output to these namespaces (empty = all).
 	// Cluster-scoped resources are dropped, except Namespace objects whose
 	// name is in the set.
-	Namespaces map[string]struct{}
+	Namespaces []string
 
 	// Kinds restricts output to kinds matching one of these globs (empty = all).
 	Kinds []string

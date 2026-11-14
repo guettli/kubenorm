@@ -210,8 +210,8 @@ func validateNamespaceName(ns string) error {
 	return nil
 }
 
-// Validate checks option combinations.
-func (o *Options) Validate() error {
+// validate checks option combinations.
+func (o *Options) validate() error {
 	if o.AddNamespaceIfMissing != "" && o.OverwriteNamespace != "" {
 		return errors.New("add-namespace-if-missing and overwrite-namespace are mutually exclusive")
 	}

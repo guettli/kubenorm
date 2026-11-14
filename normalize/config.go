@@ -40,8 +40,9 @@ type Config struct {
 }
 
 // LoadConfig builds a Config from the embedded common config (if useCommon is
-// true) and the optional user config file. Both are merged.
-func LoadConfig(useCommon bool, userConfigFile string) (*Config, error) {
+// true) and the given config files, in this order. Empty file names are
+// ignored.
+func LoadConfig(useCommon bool, files ...string) (*Config, error) {
 	cfg := &Config{}
 
 	if useCommon {
@@ -50,25 +51,27 @@ func LoadConfig(useCommon bool, userConfigFile string) (*Config, error) {
 			return nil, err
 		}
 
-		cfg.Merge(common)
+		cfg.merge(common)
 	}
 
-	trimmedFileName := strings.TrimSpace(userConfigFile)
-	if trimmedFileName == "" {
-		return cfg, nil
-	}
+	for _, file := range files {
+		file = strings.TrimSpace(file)
+		if file == "" {
+			continue
+		}
 
-	data, err := os.ReadFile(trimmedFileName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config %s: %w", trimmedFileName, err)
-	}
+		data, err := os.ReadFile(file)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read config %s: %w", file, err)
+		}
 
-	user, err := parseConfig(trimmedFileName, data)
-	if err != nil {
-		return nil, err
-	}
+		user, err := parseConfig(file, data)
+		if err != nil {
+			return nil, err
+		}
 
-	cfg.Merge(user)
+		cfg.merge(user)
+	}
 
 	return cfg, nil
 }
@@ -77,19 +80,6 @@ func LoadConfig(useCommon bool, userConfigFile string) (*Config, error) {
 // rejected (strict mode). name is only used in error messages.
 func parseConfig(name string, data []byte) (*Config, error) {
 	return parseIgnoreConfigBytes(name, data)
-}
-
-// Merge appends all rules of other to c.
-func (c *Config) Merge(other *Config) {
-	if other == nil {
-		return
-	}
-
-	c.removeRules = append(c.removeRules, other.removeRules...)
-	c.skipRules = append(c.skipRules, other.skipRules...)
-	c.excludeNamespaces = append(c.excludeNamespaces, other.excludeNamespaces...)
-	c.clusterScopedPattern = append(c.clusterScopedPattern, other.clusterScopedPattern...)
-	c.quantityRules = append(c.quantityRules, other.quantityRules...)
 }
 
 // AddSkipNameGlob adds a skip rule matching resources whose metadata.name
@@ -644,4 +634,17 @@ func parseIgnoreFieldPath(fieldPath string) ([]string, error) {
 	segments = append(segments, current.String())
 
 	return segments, nil
+}
+
+// merge appends all rules of other to c.
+func (c *Config) merge(other *Config) {
+	if other == nil {
+		return
+	}
+
+	c.removeRules = append(c.removeRules, other.removeRules...)
+	c.skipRules = append(c.skipRules, other.skipRules...)
+	c.excludeNamespaces = append(c.excludeNamespaces, other.excludeNamespaces...)
+	c.clusterScopedPattern = append(c.clusterScopedPattern, other.clusterScopedPattern...)
+	c.quantityRules = append(c.quantityRules, other.quantityRules...)
 }

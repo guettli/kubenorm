@@ -338,9 +338,9 @@ as well:
 ```go
 import "github.com/guettli/kubenorm/normalize"
 
-cfg, _ := normalize.LoadConfig(true, "")
+cfg, _ := normalize.LoadConfig(true, "my-rules.yaml") // common config + own rules
 opts := &normalize.Options{Config: cfg, SkipOwned: true}
-resources, _ := normalize.ReadPath("./manifests", os.Stdin)
+resources, _ := normalize.ReadPaths([]string{"./manifests"}, os.Stdin)
 resources, _ = opts.Process(resources)
 rendered, _ := normalize.Render(resources)
 _ = rendered.WriteDir("out")
