@@ -53,12 +53,13 @@ jobs:
               echo "new_tag=$CURRENT_TAG" >> "$GITHUB_OUTPUT"
             fi
           else
-            # HEAD is untagged — bump patch version
+            # HEAD is untagged — every merge to main bumps the minor version.
+            # A patch or major release is tagged by hand (the tag on HEAD
+            # makes this job create the release, see above).
             LATEST=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo 'v0.0.0')
             MAJOR=$(echo "$LATEST" | cut -d. -f1 | tr -d 'v')
             MINOR=$(echo "$LATEST" | cut -d. -f2)
-            PATCH=$(echo "$LATEST" | cut -d. -f3)
-            NEW_TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+            NEW_TAG="v${MAJOR}.$((MINOR + 1)).0"
             echo "new_release=true" >> "$GITHUB_OUTPUT"
             echo "new_tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
           fi

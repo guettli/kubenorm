@@ -11,7 +11,7 @@ set -euo pipefail
 k8s_version=${K8S_VERSION:-1.37.0}
 repo=$(realpath "$(dirname "$0")/..")
 work=$(mktemp -d)
-etcd_pid= apiserver_pid=
+etcd_pid='' apiserver_pid=''
 cleanup() {
 	# Stop the api-server before etcd, it waits for etcd while shutting down.
 	[ -z "$apiserver_pid" ] || { kill "$apiserver_pid"; wait "$apiserver_pid"; } 2>/dev/null || true

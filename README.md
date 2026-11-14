@@ -140,7 +140,7 @@ with a note on stderr: re-encoding would reorder keys and break the SOPS MAC.
 ```yaml
 repos:
   - repo: https://github.com/guettli/kubenorm
-    rev: v0.0.1 # use the latest release
+    rev: v1.0.0 # use the latest release
     hooks:
       - id: kubenorm-check
         files: ^k8s/plain/
@@ -357,6 +357,11 @@ _ = rendered.WriteDir("out")
   (envtest, no container runtime) with `kubectl apply --dry-run=server` and
   fails if the api-server adds a default that the common config does not
   remove. CI runs it for every change.
+- Releases follow [semver](https://semver.org). Every merge to main creates the
+  next minor release. Changes of the common config are minor releases too: they
+  can change the normalized output, so a re-render in the same commit as the
+  version update keeps `norm --check` green. Breaking changes of the CLI or the
+  `normalize` package need a new major version.
 
 ## Why not kyaml?
 
