@@ -300,6 +300,7 @@ kubenorm norm <file|dir|->... [flags]
 ```text
       --add-namespace-if-missing string   Set metadata.namespace on namespaced resources without namespace, and fill empty namespace references (cluster-scoped kinds are left alone)
       --check                             Do not write; exit 1 and show a diff if the input is not normalized
+      --clean-out-dir                     Remove --out-dir before writing (only if it contains nothing but *.yaml files)
       --comment string                    Additional comment line at the top of each output file
   -c, --config stringArray                YAML config with removeFields/skipResources/excludeNamespaces/quantityFields/clusterScopedResources rules (repeatable; merged with the common config)
       --crds stringArray                  Also read CustomResourceDefinitions from this file or directory (repeatable; other resources there are ignored): their quantity fields and scope are used like CRDs in the input
@@ -311,10 +312,9 @@ kubenorm norm <file|dir|->... [flags]
   -n, --namespaces string                 Only keep resources in these namespaces (comma-separated)
       --no-common-config                  Do not apply the embedded common config (see show-common-config)
       --no-config-discovery               Do not load .kubenorm.yaml from the current directory or its parents
-  -o, --out-dir string                    Write one file per resource into this directory (must not exist, see --remove-out-dir)
+  -o, --out-dir string                    Write one file per resource into this directory (must not exist, see --clean-out-dir)
       --overwrite-namespace string        Set metadata.namespace on all namespaced resources, replacing existing values, and move references to the replaced namespaces
       --redact-secrets                    Replace values of Secrets with REDACTED
-  -r, --remove-out-dir                    Remove --out-dir before writing (only if it contains nothing but *.yaml files)
       --secrets-as-stringdata             Convert base64 Secret data to stringData
       --skip-name-glob string             Drop resources whose metadata.name matches this anchored glob
   -O, --skip-owned                        Drop resources with a controlling ownerReference and objects Kubernetes autogenerates

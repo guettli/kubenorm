@@ -227,12 +227,12 @@ func (f *normFlags) scopeOptions(cfg *normalize.Config) (*normalize.Options, err
 
 func buildNormCmd() *cobra.Command {
 	var (
-		flags        normFlags
-		outDir       string
-		removeOutDir bool
-		check        bool
-		comment      string
-		verbose      bool
+		flags       normFlags
+		outDir      string
+		cleanOutDir bool
+		check       bool
+		comment     string
+		verbose     bool
 	)
 
 	cmd := &cobra.Command{
@@ -262,13 +262,19 @@ Examples:
 				return runCheck(cmd, &flags, args)
 			}
 
-			return runNorm(cmd, &flags, args, outDir, removeOutDir, comment, verbose)
+			if cmd.Flags().Changed("remove-out-dir") {
+				fmt.Fprintln(cmd.ErrOrStderr(), "Warning: --remove-out-dir (-r) is deprecated and will be removed, use --clean-out-dir")
+			}
+
+			return runNorm(cmd, &flags, args, outDir, cleanOutDir, comment, verbose)
 		},
 	}
 
 	flags.register(cmd)
-	cmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Write one file per resource into this directory (must not exist, see --remove-out-dir)")
-	cmd.Flags().BoolVarP(&removeOutDir, "remove-out-dir", "r", false, "Remove --out-dir before writing (only if it contains nothing but *.yaml files)")
+	cmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Write one file per resource into this directory (must not exist, see --clean-out-dir)")
+	cmd.Flags().BoolVar(&cleanOutDir, "clean-out-dir", false, "Remove --out-dir before writing (only if it contains nothing but *.yaml files)")
+	cmd.Flags().BoolVarP(&cleanOutDir, "remove-out-dir", "r", false, "")
+	_ = cmd.Flags().MarkHidden("remove-out-dir")
 	cmd.Flags().BoolVar(&check, "check", false, "Do not write; exit 1 and show a diff if the input is not normalized")
 	cmd.Flags().StringVar(&comment, "comment", "", "Additional comment line at the top of each output file")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Print every written file to stderr")
@@ -317,7 +323,7 @@ func readRendered(cmd *cobra.Command, opts *normalize.Options, inputs ...string)
 	return normalize.Render(resources)
 }
 
-func runNorm(cmd *cobra.Command, flags *normFlags, inputs []string, outDir string, removeOutDir bool, comment string, verbose bool) error {
+func runNorm(cmd *cobra.Command, flags *normFlags, inputs []string, outDir string, cleanOutDir bool, comment string, verbose bool) error {
 	opts, err := flags.options(cmd.ErrOrStderr())
 	if err != nil {
 		return err
@@ -352,7 +358,7 @@ func runNorm(cmd *cobra.Command, flags *normFlags, inputs []string, outDir strin
 		return err
 	}
 
-	err = prepareOutDir(outDir, removeOutDir)
+	err = prepareOutDir(outDir, cleanOutDir)
 	if err != nil {
 		return err
 	}
@@ -386,7 +392,7 @@ func prepareOutDir(outDir string, remove bool) error {
 
 	_, err := os.Stat(outDir)
 	if err == nil {
-		return fmt.Errorf("output directory %q already exists, use --remove-out-dir to replace it", outDir)
+		return fmt.Errorf("output directory %q already exists, use --clean-out-dir to replace it", outDir)
 	}
 
 	if !errors.Is(err, os.ErrNotExist) {
@@ -459,7 +465,7 @@ func writeSourceDiffs(w io.Writer, sourceDiffs []sourceDiff) ([]string, error) {
 }
 
 // checkRemovable makes sure that dir looks like output of kubenorm: only
-// directories and *.yaml files. A typo like "-o ~ -r" must not delete a home
+// directories and *.yaml files. A typo like "--clean-out-dir -o ~" must not delete a home
 // directory.
 func checkRemovable(dir string) error {
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
@@ -477,7 +483,7 @@ func checkRemovable(dir string) error {
 		return nil
 	}
 
-	return fmt.Errorf("--remove-out-dir %s: %w", dir, err)
+	return fmt.Errorf("--clean-out-dir %s: %w", dir, err)
 }
 
 func runCheck(cmd *cobra.Command, flags *normFlags, inputs []string) error {

@@ -115,15 +115,21 @@ func TestNorm_OutDir(t *testing.T) {
 		t.Fatalf("unexpected content:\n%s", data)
 	}
 
-	// Out dir exists now: fails without -r, works with -r.
+	// Out dir exists now: fails without --clean-out-dir, works with it.
 	code, _, errOut = runCLI(t, "", "norm", filepath.Dir(in), "-o", out)
 	if code != 2 || !strings.Contains(errOut, "already exists") {
 		t.Fatalf("expected exit 2 'already exists', got %d: %s", code, errOut)
 	}
 
-	code, _, errOut = runCLI(t, "", "norm", filepath.Dir(in), "-o", out, "-r")
+	code, _, errOut = runCLI(t, "", "norm", filepath.Dir(in), "--clean-out-dir", "-o", out)
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errOut)
+	}
+
+	// Deprecated name: still works, warns on stderr.
+	code, _, errOut = runCLI(t, "", "norm", filepath.Dir(in), "-r", "-o", out)
+	if code != 0 || !strings.Contains(errOut, "use --clean-out-dir") {
+		t.Fatalf("expected exit 0 with deprecation warning, got %d: %s", code, errOut)
 	}
 }
 
@@ -139,7 +145,7 @@ func TestNorm_RemoveOutDir(t *testing.T) {
 	stale := filepath.Join(out, "demo", "ConfigMap", "old.yaml")
 	writeFile(t, stale, "kind: ConfigMap\n")
 
-	code, _, errOut := runCLI(t, "", "norm", filepath.Dir(in), "-o", out, "-r")
+	code, _, errOut := runCLI(t, "", "norm", filepath.Dir(in), "--clean-out-dir", "-o", out)
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errOut)
 	}
@@ -153,7 +159,7 @@ func TestNorm_RemoveOutDir(t *testing.T) {
 	other := filepath.Join(out, "notes.txt")
 	writeFile(t, other, "keep me\n")
 
-	code, _, errOut = runCLI(t, "", "norm", filepath.Dir(in), "-o", out, "-r")
+	code, _, errOut = runCLI(t, "", "norm", filepath.Dir(in), "--clean-out-dir", "-o", out)
 	if code != 2 || !strings.Contains(errOut, "refusing to remove") {
 		t.Fatalf("expected exit 2 'refusing to remove', got %d: %s", code, errOut)
 	}
