@@ -2,16 +2,13 @@ version: "2"
 linters:
   default: all
   disable:
-    - cyclop
     - depguard
     - err113
     - exhaustruct
     - exhaustruct_v5
     - forbidigo
-    - funlen
     - gochecknoglobals
     - gochecknoinits
-    - gocognit
     - lll
     - mnd
     - nlreturn
@@ -43,8 +40,10 @@ linters:
       - builtin$
       - examples$
     rules:
+      # Table tests are long by nature.
       - linters:
           - goconst
+          - funlen
         path: _test\.go
       # The cluster-scoped list repeats API group names on purpose.
       - linters:

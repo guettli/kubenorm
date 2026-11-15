@@ -389,6 +389,49 @@ func prepareOutDir(outDir string, remove bool) error {
 	return nil
 }
 
+// rawScope returns a copy of the resources that pass the scope filters of
+// rawOpts. Parse once; Process modifies objects in place, so it gets the
+// originals and the raw side gets copies.
+func rawScope(rawOpts *normalize.Options, resources []normalize.Resource) []normalize.Resource {
+	var raw []normalize.Resource
+
+	for _, r := range normalize.CloneResources(resources) {
+		if !r.SOPSEncrypted && rawOpts.Include(r.Unstructured(), r.Namespaced()) {
+			raw = append(raw, r)
+		}
+	}
+
+	return raw
+}
+
+// writeSourceDiffs writes the diffs and returns the labels of the sources
+// that differ.
+func writeSourceDiffs(w io.Writer, sourceDiffs []SourceDiff) ([]string, error) {
+	var (
+		differ []string
+		out    strings.Builder
+	)
+
+	for _, sd := range sourceDiffs {
+		if len(sd.Diffs) == 0 {
+			continue
+		}
+
+		differ = append(differ, diffLabel(sd.Source))
+
+		for _, d := range sd.Diffs {
+			out.WriteString(d.Unified)
+		}
+	}
+
+	_, err := io.WriteString(w, out.String())
+	if err != nil {
+		return nil, fmt.Errorf("writing diff: %w", err)
+	}
+
+	return differ, nil
+}
+
 func runCheck(cmd *cobra.Command, flags *normFlags, inputs []string) error {
 	normOpts, err := flags.options(cmd.ErrOrStderr())
 	if err != nil {
@@ -412,14 +455,7 @@ func runCheck(cmd *cobra.Command, flags *normFlags, inputs []string) error {
 		return err
 	}
 
-	// Parse once; Process modifies objects in place, so keep a copy.
-	var rawResources []normalize.Resource
-
-	for _, r := range normalize.CloneResources(resources) {
-		if !r.SOPSEncrypted && rawOpts.Include(r.Unstructured(), r.Namespaced()) {
-			rawResources = append(rawResources, r)
-		}
-	}
+	rawResources := rawScope(rawOpts, resources)
 
 	normResources, err := normOpts.Process(resources)
 	if err != nil {
@@ -437,26 +473,9 @@ func runCheck(cmd *cobra.Command, flags *normFlags, inputs []string) error {
 		return err
 	}
 
-	var (
-		notNormalized []string
-		out           strings.Builder
-	)
-
-	for _, sd := range sourceDiffs {
-		if len(sd.Diffs) == 0 {
-			continue
-		}
-
-		notNormalized = append(notNormalized, diffLabel(sd.Source))
-
-		for _, d := range sd.Diffs {
-			out.WriteString(d.Unified)
-		}
-	}
-
-	_, err = io.WriteString(cmd.OutOrStdout(), out.String())
+	notNormalized, err := writeSourceDiffs(cmd.OutOrStdout(), sourceDiffs)
 	if err != nil {
-		return fmt.Errorf("writing diff: %w", err)
+		return err
 	}
 
 	if len(notNormalized) == 0 {

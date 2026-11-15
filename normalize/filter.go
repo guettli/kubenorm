@@ -65,6 +65,12 @@ func (o *Options) skipReason(item *unstructured.Unstructured, isNamespaced bool)
 		}
 	}
 
+	return o.flagFilterReason(item, isNamespaced)
+}
+
+// flagFilterReason returns why the --kind, --name-regex or --namespaces
+// filter drops the item, or "".
+func (o *Options) flagFilterReason(item *unstructured.Unstructured, isNamespaced bool) string {
 	if len(o.Kinds) > 0 && !matchesAnyGlob(o.Kinds, item.GetKind()) {
 		return "--kind: kind does not match"
 	}

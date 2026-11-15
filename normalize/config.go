@@ -244,28 +244,9 @@ func (e *ignoreFieldEntryFile) UnmarshalYAML(value *yaml.Node) error {
 		return nil
 	}
 
-	if value.Kind != yaml.MappingNode {
-		return errors.New("field entry must be a string or a map with 'path' and one optional modifier")
-	}
-
-	seen := map[string]bool{}
-	modifiers := 0
-
-	for i := 0; i+1 < len(value.Content); i += 2 {
-		key := value.Content[i].Value
-		switch key {
-		case "path":
-		case "value", "exceptValue", "omitempty", "omitIfEqualToSibling":
-			modifiers++
-		default:
-			return fmt.Errorf("unknown field %q in field entry (allowed: path, value, exceptValue, omitempty, omitIfEqualToSibling)", key)
-		}
-
-		seen[key] = true
-	}
-
-	if modifiers > 1 {
-		return errors.New("field entry can only set one of 'value', 'exceptValue', 'omitempty', or 'omitIfEqualToSibling'")
+	seen, err := fieldEntryKeys(value)
+	if err != nil {
+		return err
 	}
 
 	var m struct {
@@ -276,7 +257,7 @@ func (e *ignoreFieldEntryFile) UnmarshalYAML(value *yaml.Node) error {
 		OmitIfEqualToSibling string `yaml:"omitIfEqualToSibling"`
 	}
 
-	err := value.Decode(&m)
+	err = value.Decode(&m)
 	if err != nil {
 		return fmt.Errorf("failed to decode field entry: %w", err)
 	}
@@ -300,6 +281,36 @@ func (e *ignoreFieldEntryFile) UnmarshalYAML(value *yaml.Node) error {
 	}
 
 	return nil
+}
+
+// fieldEntryKeys returns the keys of a field entry map and checks that it
+// has no unknown keys and at most one modifier.
+func fieldEntryKeys(value *yaml.Node) (map[string]bool, error) {
+	if value.Kind != yaml.MappingNode {
+		return nil, errors.New("field entry must be a string or a map with 'path' and one optional modifier")
+	}
+
+	seen := map[string]bool{}
+	modifiers := 0
+
+	for i := 0; i+1 < len(value.Content); i += 2 {
+		key := value.Content[i].Value
+		switch key {
+		case "path":
+		case "value", "exceptValue", "omitempty", "omitIfEqualToSibling":
+			modifiers++
+		default:
+			return nil, fmt.Errorf("unknown field %q in field entry (allowed: path, value, exceptValue, omitempty, omitIfEqualToSibling)", key)
+		}
+
+		seen[key] = true
+	}
+
+	if modifiers > 1 {
+		return nil, errors.New("field entry can only set one of 'value', 'exceptValue', 'omitempty', or 'omitIfEqualToSibling'")
+	}
+
+	return seen, nil
 }
 
 type ignoreRule struct {
@@ -328,25 +339,9 @@ func parseIgnoreConfigBytes(name string, data []byte) (*Config, error) {
 		return nil, err
 	}
 
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-
-	var cfg ignoreConfig
-
-	err = decoder.Decode(&cfg)
+	cfg, err := decodeIgnoreConfig(name, data)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse ignore config %s: %w", name, err)
-	}
-
-	var extra any
-
-	err = decoder.Decode(&extra)
-	if !errors.Is(err, io.EOF) {
-		if err == nil {
-			return nil, fmt.Errorf("failed to parse ignore config %s: expected a single YAML document", name)
-		}
-
-		return nil, fmt.Errorf("failed to parse ignore config %s: %w", name, err)
+		return nil, err
 	}
 
 	rules := make([]ignoreRule, 0, len(cfg.Rules))
@@ -381,9 +376,51 @@ func parseIgnoreConfigBytes(name string, data []byte) (*Config, error) {
 		return nil, err
 	}
 
-	quantityRules := make([]ignoreRule, 0, len(cfg.Quantities))
+	quantityRules, err := compileQuantityRules(name, cfg.Quantities)
+	if err != nil {
+		return nil, err
+	}
 
-	for idx, q := range cfg.Quantities {
+	return &Config{
+		quantityRules:        quantityRules,
+		removeRules:          rules,
+		skipRules:            skips,
+		excludeNamespaces:    excludes,
+		clusterScopedPattern: clusterScoped,
+	}, nil
+}
+
+// decodeIgnoreConfig decodes data, which must be a single YAML document
+// without unknown keys.
+func decodeIgnoreConfig(name string, data []byte) (ignoreConfig, error) {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+
+	var cfg ignoreConfig
+
+	err := decoder.Decode(&cfg)
+	if err != nil {
+		return cfg, fmt.Errorf("failed to parse ignore config %s: %w", name, err)
+	}
+
+	var extra any
+
+	err = decoder.Decode(&extra)
+	if errors.Is(err, io.EOF) {
+		return cfg, nil
+	}
+
+	if err == nil {
+		return cfg, fmt.Errorf("failed to parse ignore config %s: expected a single YAML document", name)
+	}
+
+	return cfg, fmt.Errorf("failed to parse ignore config %s: %w", name, err)
+}
+
+func compileQuantityRules(name string, quantities []quantityRuleFile) ([]ignoreRule, error) {
+	quantityRules := make([]ignoreRule, 0, len(quantities))
+
+	for idx, q := range quantities {
 		fields := make([]ignoreFieldEntryFile, 0, len(q.Fields))
 		for _, f := range q.Fields {
 			fields = append(fields, ignoreFieldEntryFile{Path: f})
@@ -398,13 +435,7 @@ func parseIgnoreConfigBytes(name string, data []byte) (*Config, error) {
 		quantityRules = append(quantityRules, rule)
 	}
 
-	return &Config{
-		quantityRules:        quantityRules,
-		removeRules:          rules,
-		skipRules:            skips,
-		excludeNamespaces:    excludes,
-		clusterScopedPattern: clusterScoped,
-	}, nil
+	return quantityRules, nil
 }
 
 func parseExcludeNamespacesCSV(csv string) ([]string, error) {

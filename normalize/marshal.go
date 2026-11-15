@@ -64,6 +64,8 @@ func sortMapSlices(v any) {
 // yamlKeyLess is the string comparison of yaml.v2 (keyList.Less in
 // sorter.go, Apache License 2.0): runs of digits compare as numbers,
 // letters sort before other characters.
+//
+//nolint:gocognit,cyclop // Kept like the upstream code, so it can be compared with it.
 func yamlKeyLess(ar, br []rune) bool {
 	for i := 0; i < len(ar) && i < len(br); i++ {
 		if ar[i] == br[i] {
