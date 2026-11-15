@@ -70,17 +70,25 @@ Rancher Fleet, ...) applies exactly these files:
 # render.sh: render all charts and manifests into zz_rendered/
 set -euo pipefail
 
-# Always render from scratch. Otherwise the files of deleted resources stay in
-# zz_rendered/, the pull request does not show the deletion, and the GitOps
-# tool keeps the resources.
-rm -rf zz_rendered
+{
+  helm template cert-manager cert-manager --repo https://charts.jetstack.io \
+    --version v1.21.3 --namespace cert-manager -f values/cert-manager.yaml |
+    kubenorm norm - --add-namespace-if-missing cert-manager
 
-helm template cert-manager cert-manager --repo https://charts.jetstack.io \
-  --version v1.21.3 --namespace cert-manager -f values/cert-manager.yaml |
-  kubenorm norm - --add-namespace-if-missing cert-manager -o zz_rendered/cert-manager
-
-kubenorm norm k8s/plain -o zz_rendered/plain
+  kubenorm norm k8s/plain
+} | kubenorm norm - -o zz_rendered --remove-out-dir
 ```
+
+The last call writes the whole tree. `--remove-out-dir` deletes the old
+`zz_rendered/` first, so every file is created from scratch. This is
+important: otherwise the files of deleted resources stay in `zz_rendered/`,
+the pull request does not show the deletion, and the GitOps tool keeps the
+resources. To protect you from a typo, kubenorm removes only a directory that
+contains nothing but `*.yaml` files.
+
+Every document on stdout starts with `---`, so the output of several
+`kubenorm norm` calls can be piped into one. Two charts that render the same
+resource fail the last call.
 
 ```yaml
 # For example an Argo CD Application
