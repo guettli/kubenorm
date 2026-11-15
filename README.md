@@ -29,11 +29,6 @@ NAMESPACE/[GROUP_]KIND/NAME.yaml        e.g. demo/apps_Deployment/web.yaml
 _cluster/[GROUP_]KIND/NAME.yaml         cluster-scoped, e.g. _cluster/Namespace/demo.yaml
 ```
 
-Characters that are not safe in file names (`:`, `/`, ...) become `_`. If two
-resources end up at the same path (the same resource twice, or `a:b` and
-`a_b`), kubenorm fails. It never overwrites a file, which also catches
-`A.yaml` and `a.yaml` on a case-insensitive file system.
-
 The rules live in an [embedded common config](normalize/common-config.yaml)
 (`kubenorm show-common-config`) and can be extended with your own config files.
 
