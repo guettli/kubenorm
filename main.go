@@ -121,6 +121,13 @@ func (f *normFlags) register(cmd *cobra.Command) {
 	fl.BoolVar(&f.noConfigDiscovery, "no-config-discovery", false, "Do not load "+discoveredConfigName+" from the current directory or its parents")
 }
 
+// cliConfig returns a config with only the rules given as flags.
+func (f *normFlags) cliConfig() (*normalize.Config, error) {
+	cfg := &normalize.Config{}
+
+	return cfg, f.addCLIRules(cfg)
+}
+
 // addCLIRules adds the rules of --skip-name-glob and --exclude-namespaces to
 // cfg.
 func (f *normFlags) addCLIRules(cfg *normalize.Config) error {
@@ -389,23 +396,38 @@ func prepareOutDir(outDir string, remove bool) error {
 	return nil
 }
 
-// keptClones returns the clones of the originals that Process kept. Process
-// returns the kept resources with the same Object maps as the originals.
-func keptClones(originals, clones, kept []normalize.Resource) []normalize.Resource {
+// checkPairs pairs every resource with its normalized version. Process
+// changed the originals in place and returned the kept ones; clones are the
+// copies taken before. A resource that normalization drops (for example by a
+// skipResources rule) stays as raw side only, so the check fails, unless the
+// scope filters of rawOpts exclude it too.
+func checkPairs(originals, clones, kept []normalize.Resource, rawOpts *normalize.Options) []checkPair {
 	keptObjects := make(map[uintptr]bool, len(kept))
 	for _, r := range kept {
 		keptObjects[reflect.ValueOf(r.Object).Pointer()] = true
 	}
 
-	raw := make([]normalize.Resource, 0, len(kept))
+	pairs := make([]checkPair, 0, len(originals))
 
-	for i, r := range originals {
-		if keptObjects[reflect.ValueOf(r.Object).Pointer()] {
-			raw = append(raw, clones[i])
+	for i := range originals {
+		r := &originals[i]
+		if r.SOPSEncrypted {
+			continue
 		}
+
+		p := checkPair{raw: clones[i], path: r.RelPath()}
+
+		switch {
+		case keptObjects[reflect.ValueOf(r.Object).Pointer()]:
+			p.normalized = r
+		case !rawOpts.Include(r.Unstructured(), r.Namespaced()):
+			continue
+		}
+
+		pairs = append(pairs, p)
 	}
 
-	return raw
+	return pairs
 }
 
 // writeSourceDiffs writes the diffs and returns the labels of the sources
@@ -469,20 +491,29 @@ func runCheck(cmd *cobra.Command, flags *normFlags, inputs []string) error {
 		return err
 	}
 
-	// The raw side is the input as it is, limited to the resources that
-	// normalization keeps, so every change it makes shows up in the diff.
-	clones := normalize.CloneResources(resources)
-
-	normResources, err := normOpts.Process(resources)
+	// Only the scope filters (CLI flags) limit the raw side, so every change
+	// and every resource dropped by the config shows up in the diff.
+	cli, err := flags.cliConfig()
 	if err != nil {
 		return err
 	}
 
-	rawResources := keptClones(resources, clones, normResources)
+	rawOpts, err := flags.scopeOptions(cli)
+	if err != nil {
+		return err
+	}
+
+	// Process modifies the objects in place, so keep a copy of the input.
+	clones := normalize.CloneResources(resources)
+
+	kept, err := normOpts.Process(resources)
+	if err != nil {
+		return err
+	}
 
 	// Compare file by file: separate trees (one per cluster, say) may
 	// legitimately contain the same resource.
-	sourceDiffs, err := diffBySource(rawResources, normResources, func(source string) labels {
+	sourceDiffs, err := diffBySource(checkPairs(resources, clones, kept, rawOpts), func(source string) labels {
 		return func(rel string) (string, string) {
 			return diffLabel(source), "normalized: " + rel
 		}

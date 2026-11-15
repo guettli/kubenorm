@@ -99,56 +99,61 @@ type sourceDiff struct {
 	Diffs  []string
 }
 
-// diffBySource compares the raw and the normalized version of the same
-// resources (raw[i] is the input of normalized[i]) file by file, which
-// allows separate trees with the same resources. A raw resource is compared
-// under the path of its normalized version, so a changed namespace shows up
-// as a change, not as a deleted and an added file. labels returns the diff
-// labels for a source file. The result keeps the order of the files.
-func diffBySource(raw, normalized []normalize.Resource, labels func(source string) labels) ([]sourceDiff, error) {
-	rawBySource, files := groupResourcesBySource(raw)
-	normBySource, _ := groupResourcesBySource(normalized)
+// checkPair is a resource of norm --check: the input as it is and, unless
+// normalization drops it, its normalized version. Path is where the
+// normalized version goes, so a changed namespace shows up as a change, not
+// as a deleted and an added file.
+type checkPair struct {
+	raw        normalize.Resource
+	normalized *normalize.Resource
+	path       string
+}
+
+// diffBySource compares the pairs file by file, which allows separate trees
+// with the same resources. labels returns the diff labels for a source file.
+// The result keeps the order of the files.
+func diffBySource(pairs []checkPair, labels func(source string) labels) ([]sourceDiff, error) {
+	bySource := map[string][]checkPair{}
+
+	var files []string
+
+	for _, p := range pairs {
+		if _, ok := bySource[p.raw.Source]; !ok {
+			files = append(files, p.raw.Source)
+		}
+
+		bySource[p.raw.Source] = append(bySource[p.raw.Source], p)
+	}
 
 	result := make([]sourceDiff, len(files))
 
 	for i, f := range files {
-		newRendered, err := normalize.Render(normBySource[f])
-		if err != nil {
-			return nil, err
-		}
+		var normalized []normalize.Resource
 
-		oldRendered := make(normalize.Rendered, len(rawBySource[f]))
+		oldRendered := normalize.Rendered{}
 
-		for j, r := range rawBySource[f] {
+		for _, p := range bySource[f] {
 			var buf bytes.Buffer
 
-			err = normalize.Encode(&buf, r.Object)
+			err := normalize.Encode(&buf, p.raw.Object)
 			if err != nil {
 				return nil, err
 			}
 
-			oldRendered[normBySource[f][j].RelPath()] = buf.Bytes()
+			oldRendered[p.path] = buf.Bytes()
+
+			if p.normalized != nil {
+				normalized = append(normalized, *p.normalized)
+			}
+		}
+
+		newRendered, err := normalize.Render(normalized)
+		if err != nil {
+			return nil, err
 		}
 
 		result[i] = sourceDiff{Source: f, Diffs: computeDiff(oldRendered, newRendered, labels(f))}
 	}
 
 	return result, nil
-}
-
-// groupResourcesBySource groups resources by file, keeping the order.
-func groupResourcesBySource(resources []normalize.Resource) (map[string][]normalize.Resource, []string) {
-	bySource := map[string][]normalize.Resource{}
-
-	var files []string
-
-	for _, r := range resources {
-		if _, ok := bySource[r.Source]; !ok {
-			files = append(files, r.Source)
-		}
-
-		bySource[r.Source] = append(bySource[r.Source], r)
-	}
-
-	return bySource, files
 }

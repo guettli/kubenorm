@@ -243,7 +243,8 @@ kubenorm norm ./k8s/plain --check
 
 `--check` ignores comments, key order, file layout and empty
 `labels`/`annotations` maps: it only fails if normalization would change the
-content. Resources that normalization drops (skip rules, filters) are not
+content or drop a resource (for example a Pod, which the common config
+skips). Resources outside `--namespaces`, `--kind` or `--name-regex` are not
 checked.
 
 ### Helm and kustomize
