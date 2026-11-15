@@ -6,7 +6,7 @@ connects to a cluster. To dump the live resources of a cluster into the same
 layout, use [dumpall](https://github.com/guettli/dumpall), which uses kubenorm
 as a library.
 
-It is made for the [Rendered Manifests Pattern](https://akuity.io/blog/the-rendered-manifests-pattern)
+It is made for the [Rendered Manifests Pattern](#rendered-manifests-pattern)
 (RMP): render helm charts, kustomize overlays and plain manifests, normalize
 the result, commit it, and review the real change in every pull request.
 
@@ -39,11 +39,96 @@ The rules live in an [embedded common config](normalize/common-config.yaml)
 
 ## Install
 
+With [mise](https://mise.jdx.dev), pinned to the latest release:
+
 ```terminal
-go run github.com/guettli/kubenorm@latest --help
+mise use --pin github:guettli/kubenorm@latest
 ```
 
-or download a binary from the [releases](https://github.com/guettli/kubenorm/releases).
+This writes the exact version to `mise.toml`, so your laptop and CI use the
+same kubenorm. `mise upgrade --bump github:guettli/kubenorm` moves to a newer
+release.
+
+Alternatives: download a binary from the
+[releases](https://github.com/guettli/kubenorm/releases), or
+`go run github.com/guettli/kubenorm@latest` (needs Go).
+
+## Rendered Manifests Pattern
+
+With the [Rendered Manifests Pattern](https://akuity.io/blog/the-rendered-manifests-pattern)
+nothing is templated at deploy time. A script renders everything into plain
+YAML, the result is committed, and Argo CD (or Flux) applies exactly these
+files:
+
+1. `render.sh` runs `helm template` (or `kustomize build`), which writes one
+   big multi-document YAML stream to stdout.
+2. kubenorm reads the stream, sets the namespace where the chart relies on
+   `helm --namespace`, normalizes every resource and writes it to its own file
+   below `zz_rendered/`.
+3. `zz_rendered/` is committed to git, together with the change of the chart
+   version or the values.
+4. Argo CD reads `zz_rendered/`, not the chart.
+
+```bash
+#!/usr/bin/env bash
+# render.sh: render all charts and manifests into zz_rendered/
+set -euo pipefail
+rm -rf zz_rendered
+
+helm template cert-manager cert-manager --repo https://charts.jetstack.io \
+  --version v1.21.3 --namespace cert-manager -f values/cert-manager.yaml |
+  kubenorm norm - --add-namespace-if-missing cert-manager -o zz_rendered/cert-manager
+
+kubenorm norm k8s/plain -o zz_rendered/plain
+```
+
+```yaml
+# Argo CD Application
+spec:
+  source:
+    repoURL: https://github.com/example/gitops
+    path: zz_rendered
+    directory:
+      recurse: true
+```
+
+No surprises anymore: every change is visible in the GitOps pull request. A
+chart update that adds a Deployment, a values change that removes a
+NetworkPolicy, a new default in the chart: the reviewer sees it in the diff of
+`zz_rendered/`, before it is deployed. Without normalization this diff would be
+full of noise (`helm.sh/chart` labels with the new version, defaults, changed
+key order); with kubenorm only real changes remain.
+
+Without a cluster, `helm template` does not know the api-server version and
+`lookup` returns nothing. Pass `--kube-version` and `--api-versions` if a chart
+depends on them.
+
+### Check in CI
+
+Render in CI and fail the pull request if the committed `zz_rendered/` is not
+up to date. `jdx/mise-action` installs the kubenorm version of your
+`mise.toml`:
+
+```yaml
+# .github/workflows/rendered.yml
+name: rendered
+on: pull_request
+jobs:
+  rendered:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v5 # installs the tools of mise.toml: kubenorm, helm
+      - run: ./render.sh
+      - name: zz_rendered/ is up to date
+        run: |
+          git add --intent-to-add zz_rendered
+          git diff --exit-code --stat zz_rendered || {
+            echo "Run ./render.sh and commit zz_rendered/"; exit 1; }
+```
+
+Every written file starts with a header naming the kubenorm version, so a
+render with another version shows up in the diff.
 
 ## `kubenorm norm`
 
@@ -63,7 +148,6 @@ kubenorm norm ./k8s/plain --check
 `--check` ignores comments, key order, file layout and empty
 `labels`/`annotations` maps: it only fails if normalization would change the
 content.
-
 
 ### Helm and kustomize
 
@@ -146,56 +230,29 @@ with a note on stderr: re-encoding would reorder keys and break the SOPS MAC.
 
 ### pre-commit / prek
 
+Use the kubenorm of your `mise.toml`, so the hook, `render.sh` and CI run the
+same version:
+
 ```yaml
 repos:
-  - repo: https://github.com/guettli/kubenorm
-    rev: v1.0.0 # use the latest release
+  - repo: local
     hooks:
       - id: kubenorm-check
+        name: kubenorm norm --check
+        entry: mise exec -- kubenorm norm --check
+        language: system
+        types: [yaml]
         files: ^k8s/plain/
 ```
 
-The hook builds kubenorm with Go (`language: golang`) and only sees the
-changed files. YAML files without `metadata` (kustomization.yaml, CI configs)
-are ignored, but restrict the hook with `files:` anyway: helm templates are
-not valid YAML.
+The hook only sees the changed files. YAML files without `metadata`
+(kustomization.yaml, CI configs) are ignored, but restrict the hook with
+`files:` anyway: helm templates are not valid YAML.
 
-### Rendered Manifests Pattern in CI
-
-Render and normalize in CI, and fail the pull request if the committed
-`rendered/` tree is not up to date. Reviewers then see the real change of every
-chart or value bump in the diff of `rendered/`.
-
-```yaml
-# .github/workflows/rendered.yml
-name: rendered
-on: pull_request
-jobs:
-  rendered:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
-        with:
-          go-version: stable
-      - uses: azure/setup-helm@v4
-      - name: Render
-        run: |
-          kubenorm="go run github.com/guettli/kubenorm@v1.0.0" # use the latest release
-          helm template cert-manager cert-manager --repo https://charts.jetstack.io \
-            --version v1.21.3 --namespace cert-manager -f values/cert-manager.yaml |
-            $kubenorm norm - -o rendered/cert-manager -r
-          $kubenorm norm k8s/plain -o rendered/plain -r
-      - name: rendered/ is up to date
-        run: |
-          git add --intent-to-add rendered
-          git diff --exit-code --stat rendered || {
-            echo "Run the render step locally and commit rendered/"; exit 1; }
-```
-
-`-r` removes the output directory first, so deleted resources disappear from
-`rendered/`. Use the same commands in a script or Taskfile to render locally,
-with the same kubenorm version: every file starts with a header naming it.
+Without mise, use the hook of this repository (`repo:
+https://github.com/guettli/kubenorm`, `id: kubenorm-check`). It builds
+kubenorm with Go; `prek update` (`pre-commit autoupdate`) sets `rev:` to the
+latest release.
 
 ## `kubenorm diff`
 
