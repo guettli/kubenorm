@@ -42,3 +42,22 @@ jobs:
 
       - name: Check defaults
         run: scripts/check-defaults.sh
+
+  api-compat:
+    # Every merge is a minor release, so the API of package normalize must
+    # stay compatible with the latest release (semver v1).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Check API compatibility
+        run: |
+          base=$(git describe --tags --abbrev=0 --match 'v*')
+          next=$(echo "$base" | awk -F. '{print $1"."$2+1".0"}')
+          go run golang.org/x/exp/cmd/gorelease@v0.0.0-20261113113407-e3970619a1a4 -base="$base" -version="$next"
