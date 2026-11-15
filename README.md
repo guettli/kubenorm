@@ -57,9 +57,8 @@ Rancher Fleet, ...) applies exactly these files:
 
 1. `render.sh` runs `helm template` (or `kustomize build`), which writes one
    big multi-document YAML stream to stdout.
-2. kubenorm reads the stream, sets the namespace where the chart relies on
-   `helm --namespace`, normalizes every resource and writes it to its own file
-   below `zz_rendered/`.
+2. kubenorm reads the stream, sets the namespace if it is missing, normalizes
+   every resource and writes it to its own file below `zz_rendered/`.
 3. `zz_rendered/` is committed to git, together with the change of the chart
    version or the values.
 4. The GitOps tool reads `zz_rendered/`, not the chart.
