@@ -152,6 +152,39 @@ func ReadPaths(inputPaths []string, stdin io.Reader) ([]Resource, error) {
 		return ParseYAML(data, StdinPath)
 	}
 
+	files, err := collectFiles(inputPaths)
+	if err != nil {
+		return nil, err
+	}
+
+	// Parsing dominates the runtime, so files are parsed in parallel.
+	perFile := make([][]Resource, len(files))
+
+	err = parallelFor(len(files), func(i int) error {
+		data, err := os.ReadFile(files[i])
+		if err != nil {
+			return fmt.Errorf("failed to read file %s: %w", files[i], err)
+		}
+
+		perFile[i], err = ParseYAML(data, files[i])
+
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var resources []Resource
+	for _, parsed := range perFile {
+		resources = append(resources, parsed...)
+	}
+
+	return resources, nil
+}
+
+// collectFiles expands directories to their YAML files and drops files
+// that are given twice.
+func collectFiles(inputPaths []string) ([]string, error) {
 	var files []string
 
 	seen := map[string]bool{}
@@ -179,29 +212,7 @@ func ReadPaths(inputPaths []string, stdin io.Reader) ([]Resource, error) {
 		}
 	}
 
-	// Parsing dominates the runtime, so files are parsed in parallel.
-	perFile := make([][]Resource, len(files))
-
-	err := parallelFor(len(files), func(i int) error {
-		data, err := os.ReadFile(files[i])
-		if err != nil {
-			return fmt.Errorf("failed to read file %s: %w", files[i], err)
-		}
-
-		perFile[i], err = ParseYAML(data, files[i])
-
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	var resources []Resource
-	for _, parsed := range perFile {
-		resources = append(resources, parsed...)
-	}
-
-	return resources, nil
+	return files, nil
 }
 
 // findYAMLFiles returns all *.yaml / *.yml files below dirPath, sorted.
@@ -255,6 +266,14 @@ func (o *Options) Process(resources []Resource) ([]Resource, error) {
 	return kept, err
 }
 
+// candidate is a resource that passed the SOPS check, with its explanation
+// (nil unless explaining).
+type candidate struct {
+	resource    Resource
+	tracer      *tracer
+	explanation *Explanation
+}
+
 // process is Process. With explain set it also returns what happened to
 // every resource.
 func (o *Options) process(resources []Resource, explain bool) ([]Resource, []Explanation, error) {
@@ -267,30 +286,25 @@ func (o *Options) process(resources []Resource, explain bool) ([]Resource, []Exp
 	scope := o.scopeResolver(append(slices.Clone(o.crds), resources...))
 	move := o.namespaceMove(resources, scope)
 
-	type candidate struct {
-		resource Resource
-		tracer   *tracer
-		index    int
-	}
-
-	var explanations []Explanation
+	var explanations []*Explanation
 
 	candidates := make([]candidate, 0, len(resources))
 
 	for _, r := range resources {
+		c := candidate{resource: r}
+		if explain {
+			c.tracer = &tracer{}
+			c.explanation = &Explanation{Source: r.Source}
+			explanations = append(explanations, c.explanation)
+		}
+
 		if r.SOPSEncrypted {
 			if explain {
-				explanations = append(explanations, Explanation{Source: r.Source, Path: r.RelPath(), Dropped: "SOPS-encrypted"})
+				c.explanation.Path = r.RelPath()
+				c.explanation.Dropped = "SOPS-encrypted"
 			}
 
 			continue
-		}
-
-		c := candidate{resource: r, index: -1}
-		if explain {
-			c.tracer = &tracer{}
-			c.index = len(explanations)
-			explanations = append(explanations, Explanation{Source: r.Source})
 		}
 
 		o.applyNamespace(r.Unstructured(), scope, move, c.tracer)
@@ -298,21 +312,36 @@ func (o *Options) process(resources []Resource, explain bool) ([]Resource, []Exp
 		candidates = append(candidates, c)
 	}
 
+	kept, err := o.filterAndNormalize(candidates)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	result := make([]Explanation, 0, len(explanations))
+	for _, e := range explanations {
+		result = append(result, *e)
+	}
+
+	return kept, result, nil
+}
+
+// filterAndNormalize drops the candidates that a filter skips and
+// normalizes the others. Each resource is independent, so this runs in
+// parallel; every goroutine only writes its own index.
+func (o *Options) filterAndNormalize(candidates []candidate) ([]Resource, error) {
 	include := make([]bool, len(candidates))
 
-	// Each resource is normalized independently, so this runs in parallel.
-	// Every goroutine only writes its own index.
-	err = parallelFor(len(candidates), func(i int) error {
+	err := parallelFor(len(candidates), func(i int) error {
 		c := candidates[i]
 		r := c.resource
 
-		if explain {
-			explanations[c.index].Path = r.RelPath()
+		if c.explanation != nil {
+			c.explanation.Path = r.RelPath()
 		}
 
 		if reason := o.skipReason(r.Unstructured(), r.Namespaced()); reason != "" {
-			if explain {
-				explanations[c.index].Dropped = reason
+			if c.explanation != nil {
+				c.explanation.Dropped = reason
 			}
 
 			return nil
@@ -323,8 +352,8 @@ func (o *Options) process(resources []Resource, explain bool) ([]Resource, []Exp
 			return fmt.Errorf("%s: %w", describe(r), err)
 		}
 
-		if explain {
-			explanations[c.index].Changes = c.tracer.changes
+		if c.explanation != nil {
+			c.explanation.Changes = c.tracer.changes
 		}
 
 		include[i] = true
@@ -332,7 +361,7 @@ func (o *Options) process(resources []Resource, explain bool) ([]Resource, []Exp
 		return nil
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	kept := make([]Resource, 0, len(candidates))
@@ -343,7 +372,7 @@ func (o *Options) process(resources []Resource, explain bool) ([]Resource, []Exp
 		}
 	}
 
-	return kept, explanations, nil
+	return kept, nil
 }
 
 func describe(r Resource) string {

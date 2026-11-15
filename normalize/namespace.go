@@ -545,6 +545,13 @@ func (o *Options) applyNamespace(u *unstructured.Unstructured, scope *scopeResol
 		}
 	}
 
+	o.moveReferences(u, gk, move, t)
+}
+
+// moveReferences moves the namespaces that other objects refer to (see
+// applyNamespace).
+func (o *Options) moveReferences(u *unstructured.Unstructured, gk schema.GroupKind, move *namespaceMove, t *tracer) {
+	reason := move.reason
 	warned := false
 
 	// moveRef moves a reference to namespace old with set.
