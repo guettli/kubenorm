@@ -464,5 +464,5 @@ reports, `norm -o` writes a new tree.
 ## Related
 
 - [dumpall](https://github.com/guettli/dumpall) Dump all resources of a cluster into the same layout.
-- [check-conditions](https://github.com/guettli/check-conditions) Check all conditions of all resources in your cluster.
+- [konmon](https://github.com/guettli/konmon) Kubernetes Condition Monitor: watch all resources, keep a history in SQLite, alert via Alertmanager.
 - [korphan](https://github.com/guettli/korphan) Find orphaned Kubernetes resources.
