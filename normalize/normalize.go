@@ -1,13 +1,3 @@
-// Package normalize normalizes Kubernetes resources so that two YAML
-// representations of the same desired state become byte-identical.
-//
-// It removes server-managed and defaulted fields according to a Config
-// (see CommonConfig for the embedded defaults), drops resources matching
-// skip rules and writes them in a stable layout:
-//
-//	NAMESPACE/[GROUP_]KIND/NAME.yaml
-//
-// Cluster-scoped resources use the namespace directory "_cluster".
 package normalize
 
 import (
