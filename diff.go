@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"path"
 	"sort"
@@ -23,28 +24,20 @@ const (
 	statusDeleted  fileStatus = 'D'
 )
 
-// FileDiff is the difference of one resource.
-type FileDiff struct {
-	// Path is the relative path, see RelPath.
-	Path   string
-	Status fileStatus
-	// Unified is the unified diff (git apply compatible).
-	Unified string
-}
+// labels returns the "---" and "+++" labels of the diff of a resource.
+type labels func(rel string) (oldLabel, newLabel string)
 
-// Labels returns the "---" and "+++" labels of the diff of a resource.
-type Labels func(rel string) (oldLabel, newLabel string)
-
-// PrefixLabels labels a resource with its path below the given prefixes,
+// prefixLabels labels a resource with its path below the given prefixes,
 // like git diff does.
-func PrefixLabels(oldPrefix, newPrefix string) Labels {
+func prefixLabels(oldPrefix, newPrefix string) labels {
 	return func(rel string) (string, string) {
 		return path.Join(oldPrefix, rel), path.Join(newPrefix, rel)
 	}
 }
 
-// ComputeDiff compares old and new, sorted by path.
-func ComputeDiff(oldSide, newSide normalize.Rendered, labels Labels) []FileDiff {
+// computeDiff compares old and new and returns one unified diff (git apply
+// compatible) per differing resource, sorted by path.
+func computeDiff(oldSide, newSide normalize.Rendered, labels labels) []string {
 	all := make(map[string]struct{}, len(oldSide)+len(newSide))
 	for p := range oldSide {
 		all[p] = struct{}{}
@@ -61,7 +54,7 @@ func ComputeDiff(oldSide, newSide normalize.Rendered, labels Labels) []FileDiff 
 
 	sort.Strings(paths)
 
-	diffs := make([]FileDiff, 0, len(paths))
+	diffs := make([]string, 0, len(paths))
 
 	for _, rel := range paths {
 		oldContent, inOld := oldSide[rel]
@@ -94,65 +87,73 @@ func ComputeDiff(oldSide, newSide normalize.Rendered, labels Labels) []FileDiff 
 		case statusModified:
 		}
 
-		diffs = append(diffs, FileDiff{Path: rel, Status: status, Unified: text})
+		diffs = append(diffs, text)
 	}
 
 	return diffs
 }
 
-// SourceDiff holds the differences of one input file.
-type SourceDiff struct {
+// sourceDiff holds the differences of one input file.
+type sourceDiff struct {
 	Source string
-	Diffs  []FileDiff
+	Diffs  []string
 }
 
-// DiffBySource compares two processed versions of the same input file by
-// file (for example raw and normalized). Comparing per file allows separate
-// trees with the same resources. labels returns the diff labels for a
-// source file. The result keeps the order in which the files first appear
-// in oldSide.
-func DiffBySource(oldSide, newSide []normalize.Resource, labels func(source string) Labels) ([]SourceDiff, error) {
-	oldBySource, files := groupResourcesBySource(oldSide)
-	newBySource, newFiles := groupResourcesBySource(newSide)
-
-	for _, f := range newFiles {
-		if _, ok := oldBySource[f]; !ok {
-			files = append(files, f)
-		}
-	}
-
-	result := make([]SourceDiff, len(files))
-
-	for i, f := range files {
-		oldRendered, err := normalize.Render(oldBySource[f])
-		if err != nil {
-			return nil, err
-		}
-
-		newRendered, err := normalize.Render(newBySource[f])
-		if err != nil {
-			return nil, err
-		}
-
-		result[i] = SourceDiff{Source: f, Diffs: ComputeDiff(oldRendered, newRendered, labels(f))}
-	}
-
-	return result, nil
+// checkPair is a resource of norm --check: the input as it is and, unless
+// normalization drops it, its normalized version. Path is where the
+// normalized version goes, so a changed namespace shows up as a change, not
+// as a deleted and an added file.
+type checkPair struct {
+	raw        normalize.Resource
+	normalized *normalize.Resource
+	path       string
 }
 
-// groupResourcesBySource groups resources by file, keeping the order.
-func groupResourcesBySource(resources []normalize.Resource) (map[string][]normalize.Resource, []string) {
-	bySource := map[string][]normalize.Resource{}
+// diffBySource compares the pairs file by file, which allows separate trees
+// with the same resources. labels returns the diff labels for a source file.
+// The result keeps the order of the files.
+func diffBySource(pairs []checkPair, labels func(source string) labels) ([]sourceDiff, error) {
+	bySource := map[string][]checkPair{}
 
 	var files []string
 
-	for _, r := range resources {
-		if _, ok := bySource[r.Source]; !ok {
-			files = append(files, r.Source)
+	for _, p := range pairs {
+		if _, ok := bySource[p.raw.Source]; !ok {
+			files = append(files, p.raw.Source)
 		}
 
-		bySource[r.Source] = append(bySource[r.Source], r)
+		bySource[p.raw.Source] = append(bySource[p.raw.Source], p)
 	}
 
-	return bySource, files
+	result := make([]sourceDiff, len(files))
+
+	for i, f := range files {
+		var normalized []normalize.Resource
+
+		oldRendered := normalize.Rendered{}
+
+		for _, p := range bySource[f] {
+			var buf bytes.Buffer
+
+			err := normalize.Encode(&buf, p.raw.Object)
+			if err != nil {
+				return nil, err
+			}
+
+			oldRendered[p.path] = buf.Bytes()
+
+			if p.normalized != nil {
+				normalized = append(normalized, *p.normalized)
+			}
+		}
+
+		newRendered, err := normalize.Render(normalized)
+		if err != nil {
+			return nil, err
+		}
+
+		result[i] = sourceDiff{Source: f, Diffs: computeDiff(oldRendered, newRendered, labels(f))}
+	}
+
+	return result, nil
 }

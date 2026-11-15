@@ -53,16 +53,3 @@ func sequentialFor(n int, fn func(i int) error) error {
 
 	return nil
 }
-
-// CloneResources returns a deep copy, so the resources can be processed
-// twice (Process modifies objects in place) without parsing again.
-func CloneResources(resources []Resource) []Resource {
-	out := make([]Resource, len(resources))
-
-	for i, r := range resources {
-		out[i] = r
-		out[i].Object, _ = deepCopy(r.Object).(map[string]any)
-	}
-
-	return out
-}

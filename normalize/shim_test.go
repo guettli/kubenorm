@@ -20,7 +20,7 @@ type options struct {
 	secretsAsStringData bool
 	dumpManagedFields   bool
 	skipOwned           bool
-	ignoreRules         []ignoreRule
+	ignoreRules         []removeRule
 	skipRules           []skipRule
 	excludeNamespaces   []string
 	namespaceFilter     []string
@@ -92,8 +92,8 @@ func readYamlFromDir(dir string, o *options) error {
 	return rendered.WriteDir(filepath.Clean(o.outputDir))
 }
 
-func parseLegacy(name string, data []byte) ([]ignoreRule, []skipRule, []string, error) {
-	cfg, err := parseIgnoreConfigBytes(name, data)
+func parseLegacy(name string, data []byte) ([]removeRule, []skipRule, []string, error) {
+	cfg, err := ParseConfig(name, data)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -101,7 +101,7 @@ func parseLegacy(name string, data []byte) ([]ignoreRule, []skipRule, []string, 
 	return cfg.removeRules, cfg.skipRules, cfg.excludeNamespaces, nil
 }
 
-func loadIgnoreRules(useCommon bool, file string) ([]ignoreRule, []skipRule, []string, error) {
+func loadIgnoreRules(useCommon bool, file string) ([]removeRule, []skipRule, []string, error) {
 	cfg, err := LoadConfig(useCommon, file)
 	if err != nil {
 		return nil, nil, nil, err

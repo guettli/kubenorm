@@ -26,8 +26,12 @@ What normalization does:
 
 ```text
 NAMESPACE/[GROUP_]KIND/NAME.yaml        e.g. demo/apps_Deployment/web.yaml
-_cluster/[GROUP_]KIND/NAME.yaml         cluster-scoped, e.g. _cluster/Namespace/demo.yaml
+_cluster/[GROUP_]KIND/NAME.yaml         without metadata.namespace, e.g. _cluster/Namespace/demo.yaml
 ```
+
+kubenorm never asks an api-server, so every resource without
+`metadata.namespace` goes to `_cluster/`, also one of a namespaced kind (see
+`--add-namespace-if-missing`).
 
 The rules live in an [embedded common config](normalize/common-config.yaml)
 (`kubenorm show-common-config`) and can be extended with your own config files.
@@ -239,7 +243,9 @@ kubenorm norm ./k8s/plain --check
 
 `--check` ignores comments, key order, file layout and empty
 `labels`/`annotations` maps: it only fails if normalization would change the
-content.
+content or drop a resource (for example a Pod, which the common config
+skips). Resources outside `--namespaces`, `--kind` or `--name-regex` are not
+checked.
 
 ### Helm and kustomize
 
@@ -370,7 +376,10 @@ Exit codes: `0` no differences, `1` differences, `2` error.
 ## `kubenorm explain`
 
 Shows, per resource, every change and the rule that made it, or why the
-resource is dropped. Useful when writing your own config:
+resource is dropped. Useful when writing your own config: to turn a path of
+the output into a field path, drop list indexes and write quoted keys with
+escaped dots (`containers[0].image` -> `containers.image`,
+`labels["helm.sh/chart"]` -> `labels.helm\.sh/chart`).
 
 ```text
 $ kubenorm explain deploy.yaml
@@ -425,8 +434,12 @@ quantityFields:
 ```
 
 - Matchers (`group`, `kind`, `namespace`, `name`) are globs; omitted means `*`.
-  Cluster-scoped resources match the namespace `_cluster`.
+  Resources without `metadata.namespace` (cluster-scoped kinds, but also
+  namespaced kinds that miss it) match the namespace `_cluster`.
+  `--namespaces` drops them (except selected Namespace objects).
 - Field paths use dots; escape literal dots as `\.`. Segments may use `*` / `?`.
+  A bare `*` matches every key, also keys containing `/`; other globs do not
+  match `/`, so `helm*` does not match `helm.sh/chart`.
   `...` matches any depth (`...labels.helm\.sh/chart`). Lists are walked
   automatically (`webhooks.clientConfig.caBundle`).
 - `excludeNamespaces` drops the Namespace object and everything inside.

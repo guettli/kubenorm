@@ -8,15 +8,13 @@ import (
 	"io"
 	"os"
 	"path"
+	"slices"
 	"strings"
 
 	yaml "sigs.k8s.io/yaml/goyaml.v3"
 )
 
-const (
-	deepWildcard = "..."
-	fieldRules   = "rules"
-)
+const deepWildcard = "..."
 
 //go:embed common-config.yaml
 var commonConfig []byte
@@ -27,14 +25,18 @@ func CommonConfig() []byte {
 	return bytes.Clone(commonConfig)
 }
 
-// Config holds compiled normalization rules: fields to remove, resources to
-// skip and namespaces to exclude. The zero value (or nil) applies no rules.
+// Config holds compiled normalization rules, read from the top-level config
+// keys removeFields (fields to remove), skipResources (resources to drop),
+// excludeNamespaces (namespaces to drop with everything inside),
+// quantityFields (fields to canonicalize as quantities) and
+// clusterScopedResources (kinds to treat as cluster-scoped). The zero value
+// (or nil) applies no rules.
 type Config struct {
-	removeRules       []ignoreRule
+	removeRules       []removeRule
 	skipRules         []skipRule
 	excludeNamespaces []string
 	// quantityRules select fields that hold quantities.
-	quantityRules []ignoreRule
+	quantityRules []removeRule
 	// clusterScopedPattern extends the built-in list of cluster-scoped kinds.
 	clusterScopedPattern []groupKindPattern
 }
@@ -46,7 +48,7 @@ func LoadConfig(useCommon bool, files ...string) (*Config, error) {
 	cfg := &Config{}
 
 	if useCommon {
-		common, err := parseConfig("common config", commonConfig)
+		common, err := ParseConfig("common config", commonConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -65,7 +67,7 @@ func LoadConfig(useCommon bool, files ...string) (*Config, error) {
 			return nil, fmt.Errorf("failed to read config %s: %w", file, err)
 		}
 
-		user, err := parseConfig(file, data)
+		user, err := ParseConfig(file, data)
 		if err != nil {
 			return nil, err
 		}
@@ -74,12 +76,6 @@ func LoadConfig(useCommon bool, files ...string) (*Config, error) {
 	}
 
 	return cfg, nil
-}
-
-// parseConfig parses a single YAML config document. Unknown fields are
-// rejected (strict mode). name is only used in error messages.
-func parseConfig(name string, data []byte) (*Config, error) {
-	return parseIgnoreConfigBytes(name, data)
 }
 
 // AddSkipNameGlob adds a skip rule matching resources whose metadata.name
@@ -114,17 +110,19 @@ func (c *Config) AddExcludeNamespacesCSV(csv string) error {
 }
 
 // ExcludeNamespaces returns the namespace globs that are fully excluded.
+// dumpall uses it to skip LIST calls in excluded namespaces.
 func (c *Config) ExcludeNamespaces() []string {
 	if c == nil {
 		return nil
 	}
 
-	return slicesClone(c.excludeNamespaces)
+	return slices.Clone(c.excludeNamespaces)
 }
 
 // SkipsEveryResourceOf reports whether a skip rule drops every resource of the
 // given group and kind, regardless of namespace or name. Callers that list
-// resources from an api-server can use this to avoid the LIST call entirely.
+// resources from an api-server can use this to avoid the LIST call entirely;
+// dumpall does so.
 func (c *Config) SkipsEveryResourceOf(group, kind string) bool {
 	if c == nil {
 		return false
@@ -133,16 +131,8 @@ func (c *Config) SkipsEveryResourceOf(group, kind string) bool {
 	return skipRuleCoversGVR(c.skipRules, group, kind)
 }
 
-func slicesClone(s []string) []string {
-	if s == nil {
-		return nil
-	}
-
-	return append([]string(nil), s...)
-}
-
-type ignoreConfig struct {
-	Rules             []ignoreRuleFile   `yaml:"removeFields"`
+type configFile struct {
+	RemoveFields      []removeRuleFile   `yaml:"removeFields"`
 	Skip              []skipRuleFile     `yaml:"skipResources"`
 	ExcludeNamespaces []string           `yaml:"excludeNamespaces"`
 	ClusterScoped     []groupKindFile    `yaml:"clusterScopedResources"`
@@ -208,18 +198,18 @@ type skipRule struct {
 	Origin string
 }
 
-type ignoreRuleFile struct {
-	Group     *string                `yaml:"group"`
-	Kind      *string                `yaml:"kind"`
-	Namespace *string                `yaml:"namespace"`
-	Name      *string                `yaml:"name"`
-	Fields    []ignoreFieldEntryFile `yaml:"fields"`
+type removeRuleFile struct {
+	Group     *string          `yaml:"group"`
+	Kind      *string          `yaml:"kind"`
+	Namespace *string          `yaml:"namespace"`
+	Name      *string          `yaml:"name"`
+	Fields    []fieldEntryFile `yaml:"fields"`
 }
 
-// ignoreFieldEntryFile is a single entry in the fields list of a removeFields rule.
+// fieldEntryFile is a single entry in the fields list of a removeFields rule.
 // It is either a plain field path string, or a map with "path" and optional "value",
-// "omitempty", or "omitIfEqualToSibling" keys. All three optional keys are mutually exclusive.
-type ignoreFieldEntryFile struct {
+// "exceptValue", "omitempty" or "omitIfEqualToSibling" key. These modifiers are mutually exclusive.
+type fieldEntryFile struct {
 	Path             string
 	Value            any
 	valueConstrained bool
@@ -238,7 +228,7 @@ type ignoreFieldEntryFile struct {
 	exceptConstrained bool
 }
 
-func (e *ignoreFieldEntryFile) UnmarshalYAML(value *yaml.Node) error {
+func (e *fieldEntryFile) UnmarshalYAML(value *yaml.Node) error {
 	if value.Kind == yaml.ScalarNode {
 		e.Path = value.Value
 		return nil
@@ -270,7 +260,7 @@ func (e *ignoreFieldEntryFile) UnmarshalYAML(value *yaml.Node) error {
 		return errors.New("field entry 'omitIfEqualToSibling' must not be empty")
 	}
 
-	*e = ignoreFieldEntryFile{
+	*e = fieldEntryFile{
 		Path:                 m.Path,
 		Value:                m.Value,
 		valueConstrained:     seen["value"],
@@ -313,15 +303,15 @@ func fieldEntryKeys(value *yaml.Node) (map[string]bool, error) {
 	return seen, nil
 }
 
-type ignoreRule struct {
+type removeRule struct {
 	matcher
 
-	Fields []ignoreFieldPath
+	Fields []removeFieldPath
 	// Origin describes where the rule comes from, for explain.
 	Origin string
 }
 
-type ignoreFieldPath struct {
+type removeFieldPath struct {
 	// raw is the path as written in the config.
 	raw                  string
 	segments             []string
@@ -333,22 +323,25 @@ type ignoreFieldPath struct {
 	exceptConstrained    bool
 }
 
-func parseIgnoreConfigBytes(name string, data []byte) (*Config, error) {
-	err := rejectLegacyIgnoreConfigKeys(name, data)
+// ParseConfig parses a single YAML config document, like a file given to
+// LoadConfig, but without the common config. Unknown keys are rejected. name
+// is only used in error messages and in the origin of rules (see explain).
+func ParseConfig(name string, data []byte) (*Config, error) {
+	err := rejectLegacyConfigKeys(name, data)
 	if err != nil {
 		return nil, err
 	}
 
-	cfg, err := decodeIgnoreConfig(name, data)
+	cfg, err := decodeConfigFile(name, data)
 	if err != nil {
 		return nil, err
 	}
 
-	rules := make([]ignoreRule, 0, len(cfg.Rules))
-	for idx := range cfg.Rules {
-		rule, err := compileIgnoreRule(cfg.Rules[idx])
+	rules := make([]removeRule, 0, len(cfg.RemoveFields))
+	for idx := range cfg.RemoveFields {
+		rule, err := compileRemoveRule(cfg.RemoveFields[idx])
 		if err != nil {
-			return nil, fmt.Errorf("invalid ignore rule %d in %s: %w", idx+1, name, err)
+			return nil, fmt.Errorf("invalid removeFields[%d] in %s: %w", idx+1, name, err)
 		}
 
 		rule.Origin = fmt.Sprintf("removeFields[%d] in %s", idx+1, name)
@@ -359,7 +352,7 @@ func parseIgnoreConfigBytes(name string, data []byte) (*Config, error) {
 	for idx := range cfg.Skip {
 		skip, err := compileSkipRule(cfg.Skip[idx])
 		if err != nil {
-			return nil, fmt.Errorf("invalid skip rule %d in %s: %w", idx+1, name, err)
+			return nil, fmt.Errorf("invalid skipResources[%d] in %s: %w", idx+1, name, err)
 		}
 
 		skip.Origin = fmt.Sprintf("skipResources[%d] in %s", idx+1, name)
@@ -392,15 +385,15 @@ func parseIgnoreConfigBytes(name string, data []byte) (*Config, error) {
 
 // decodeIgnoreConfig decodes data, which must be a single YAML document
 // without unknown keys.
-func decodeIgnoreConfig(name string, data []byte) (ignoreConfig, error) {
+func decodeConfigFile(name string, data []byte) (configFile, error) {
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
 
-	var cfg ignoreConfig
+	var cfg configFile
 
 	err := decoder.Decode(&cfg)
 	if err != nil {
-		return cfg, fmt.Errorf("failed to parse ignore config %s: %w", name, err)
+		return cfg, fmt.Errorf("failed to parse config %s: %w", name, err)
 	}
 
 	var extra any
@@ -411,24 +404,24 @@ func decodeIgnoreConfig(name string, data []byte) (ignoreConfig, error) {
 	}
 
 	if err == nil {
-		return cfg, fmt.Errorf("failed to parse ignore config %s: expected a single YAML document", name)
+		return cfg, fmt.Errorf("failed to parse config %s: expected a single YAML document", name)
 	}
 
-	return cfg, fmt.Errorf("failed to parse ignore config %s: %w", name, err)
+	return cfg, fmt.Errorf("failed to parse config %s: %w", name, err)
 }
 
-func compileQuantityRules(name string, quantities []quantityRuleFile) ([]ignoreRule, error) {
-	quantityRules := make([]ignoreRule, 0, len(quantities))
+func compileQuantityRules(name string, quantities []quantityRuleFile) ([]removeRule, error) {
+	quantityRules := make([]removeRule, 0, len(quantities))
 
 	for idx, q := range quantities {
-		fields := make([]ignoreFieldEntryFile, 0, len(q.Fields))
+		fields := make([]fieldEntryFile, 0, len(q.Fields))
 		for _, f := range q.Fields {
-			fields = append(fields, ignoreFieldEntryFile{Path: f})
+			fields = append(fields, fieldEntryFile{Path: f})
 		}
 
-		rule, err := compileIgnoreRule(ignoreRuleFile{Group: q.Group, Kind: q.Kind, Namespace: q.Namespace, Name: q.Name, Fields: fields})
+		rule, err := compileRemoveRule(removeRuleFile{Group: q.Group, Kind: q.Kind, Namespace: q.Namespace, Name: q.Name, Fields: fields})
 		if err != nil {
-			return nil, fmt.Errorf("invalid quantityFields rule %d in %s: %w", idx+1, name, err)
+			return nil, fmt.Errorf("invalid quantityFields[%d] in %s: %w", idx+1, name, err)
 		}
 
 		rule.Origin = fmt.Sprintf("quantityFields[%d] in %s", idx+1, name)
@@ -481,17 +474,17 @@ func validateExcludeNamespacePatterns(source string, patterns []string) ([]strin
 	return out, nil
 }
 
-func compileIgnoreRule(fileRule ignoreRuleFile) (ignoreRule, error) {
-	fields := make([]ignoreFieldPath, 0, len(fileRule.Fields))
+func compileRemoveRule(fileRule removeRuleFile) (removeRule, error) {
+	fields := make([]removeFieldPath, 0, len(fileRule.Fields))
 	for _, field := range fileRule.Fields {
 		trimmed := strings.TrimSpace(field.Path)
 		if trimmed == "" {
-			return ignoreRule{}, fmt.Errorf("fields must not contain empty entries")
+			return removeRule{}, fmt.Errorf("fields must not contain empty entries")
 		}
 
-		segments, err := parseIgnoreFieldPath(trimmed)
+		segments, err := parseFieldPath(trimmed)
 		if err != nil {
-			return ignoreRule{}, fmt.Errorf("invalid field path %q: %w", trimmed, err)
+			return removeRule{}, fmt.Errorf("invalid field path %q: %w", trimmed, err)
 		}
 
 		for _, segment := range segments {
@@ -501,11 +494,11 @@ func compileIgnoreRule(fileRule ignoreRuleFile) (ignoreRule, error) {
 
 			err := validateGlobPattern(segment)
 			if err != nil {
-				return ignoreRule{}, fmt.Errorf("invalid field path %q: invalid segment glob %q: %w", trimmed, segment, err)
+				return removeRule{}, fmt.Errorf("invalid field path %q: invalid segment glob %q: %w", trimmed, segment, err)
 			}
 		}
 
-		fields = append(fields, ignoreFieldPath{
+		fields = append(fields, removeFieldPath{
 			raw:                  trimmed,
 			segments:             segments,
 			value:                field.Value,
@@ -518,21 +511,21 @@ func compileIgnoreRule(fileRule ignoreRuleFile) (ignoreRule, error) {
 	}
 
 	if len(fields) == 0 {
-		return ignoreRule{}, fmt.Errorf("fields must not be empty")
+		return removeRule{}, fmt.Errorf("fields must not be empty")
 	}
 
 	m, err := compileMatcher(fileRule.Group, fileRule.Kind, fileRule.Namespace, fileRule.Name)
 	if err != nil {
-		return ignoreRule{}, err
+		return removeRule{}, err
 	}
 
-	return ignoreRule{matcher: m, Fields: fields}, nil
+	return removeRule{matcher: m, Fields: fields}, nil
 }
 
 // rejectLegacyIgnoreConfigKeys catches configs that still use the old
 // top-level keys (`rules:` / `skip:`) and reports a clear rename hint instead
 // of the generic "field not found in type" error from strict parsing.
-func rejectLegacyIgnoreConfigKeys(name string, data []byte) error {
+func rejectLegacyConfigKeys(name string, data []byte) error {
 	var preview map[string]any
 
 	if yaml.Unmarshal(data, &preview) == nil {
@@ -540,13 +533,13 @@ func rejectLegacyIgnoreConfigKeys(name string, data []byte) error {
 			oldKey string
 			newKey string
 		}{
-			{fieldRules, "removeFields"},
+			{"rules", "removeFields"},
 			{"skip", "skipResources"},
 		}
 
 		for _, entry := range legacy {
 			if _, ok := preview[entry.oldKey]; ok {
-				return fmt.Errorf("ignore config %s uses legacy key %q — rename it to %q", name, entry.oldKey, entry.newKey)
+				return fmt.Errorf("config %s uses legacy key %q — rename it to %q", name, entry.oldKey, entry.newKey)
 			}
 		}
 	}
@@ -613,7 +606,7 @@ func validateGlobPattern(pattern string) error {
 	return nil
 }
 
-func parseIgnoreFieldPath(fieldPath string) ([]string, error) {
+func parseFieldPath(fieldPath string) ([]string, error) {
 	var segments []string
 
 	var current strings.Builder
@@ -630,7 +623,7 @@ func parseIgnoreFieldPath(fieldPath string) ([]string, error) {
 			escaped = false
 		case r == '\\':
 			escaped = true
-		case fieldPath[i:] == deepWildcard || strings.HasPrefix(fieldPath[i:], deepWildcard):
+		case strings.HasPrefix(fieldPath[i:], deepWildcard):
 			if current.Len() > 0 {
 				segments = append(segments, current.String())
 				current.Reset()

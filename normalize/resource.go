@@ -50,9 +50,10 @@ func (r *Resource) Unstructured() *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: r.Object}
 }
 
-// Namespaced reports whether metadata.namespace is set. Without an api-server
-// this is the only reliable signal: resources without namespace are treated
-// as cluster-scoped for the output layout.
+// Namespaced reports whether the resource has metadata.namespace. Without an
+// api-server this is the only reliable signal: every resource without
+// namespace, also one of a namespaced kind, is treated like a cluster-scoped
+// one: it goes to ClusterNamespace and matches it in rules and filters.
 func (r *Resource) Namespaced() bool {
 	return r.Unstructured().GetNamespace() != ""
 }
@@ -60,6 +61,19 @@ func (r *Resource) Namespaced() bool {
 // RelPath returns the stable relative output path, see RelPath.
 func (r *Resource) RelPath() string {
 	return RelPath(r.Unstructured(), r.Namespaced())
+}
+
+// CloneResources returns a deep copy, so the resources can be processed
+// twice (Process modifies objects in place) without parsing again.
+func CloneResources(resources []Resource) []Resource {
+	out := make([]Resource, len(resources))
+
+	for i, r := range resources {
+		out[i] = r
+		out[i].Object, _ = deepCopy(r.Object).(map[string]any)
+	}
+
+	return out
 }
 
 // ParseYAML parses a (multi-document) YAML stream the way kubectl does
@@ -392,10 +406,6 @@ type Rendered map[string][]byte
 // differ in characters RelPath replaces), because one would silently
 // overwrite the other.
 func Render(resources []Resource, headerLines ...string) (Rendered, error) {
-	return render(resources, true, headerLines...)
-}
-
-func render(resources []Resource, parallel bool, headerLines ...string) (Rendered, error) {
 	sources := make(map[string]string, len(resources))
 	paths := make([]string, len(resources))
 
@@ -415,12 +425,7 @@ func render(resources []Resource, parallel bool, headerLines ...string) (Rendere
 
 	encoded := make([][]byte, len(resources))
 
-	forEach := parallelFor
-	if !parallel {
-		forEach = sequentialFor
-	}
-
-	err := forEach(len(resources), func(i int) error {
+	err := parallelFor(len(resources), func(i int) error {
 		var buf bytes.Buffer
 
 		err := Encode(&buf, resources[i].Object, headerLines...)

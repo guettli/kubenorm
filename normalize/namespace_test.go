@@ -142,7 +142,7 @@ func TestNoNamespaceFlagsKeepsNamespaces(t *testing.T) {
 func TestClusterScopedResourcesConfig(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := parseConfig("test", []byte(`
+	cfg, err := ParseConfig("test", []byte(`
 clusterScopedResources:
   - group: example.com
     kind: Wid*
@@ -164,7 +164,7 @@ clusterScopedResources:
 func TestClusterScopedResourcesConfig_KindRequired(t *testing.T) {
 	t.Parallel()
 
-	_, err := parseConfig("test", []byte(`
+	_, err := ParseConfig("test", []byte(`
 clusterScopedResources:
   - group: example.com
 `))

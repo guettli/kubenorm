@@ -87,7 +87,7 @@ func (o *Options) flagFilterReason(item *unstructured.Unstructured, isNamespaced
 
 	switch {
 	case isNamespaced:
-	case item.GetKind() == kindNamespace:
+	case isNamespaceObject(item):
 		namespace = item.GetName()
 	default:
 		return "--namespaces: cluster-scoped resource"
@@ -173,10 +173,9 @@ func ParseNameRegex(nameRegex string) (*regexp.Regexp, error) {
 	return re, nil
 }
 
-// matchesExcludedNamespace reports whether the item should be dropped because
-// it lives in (or is) one of the excluded namespaces. Cluster-scoped Namespace
-// objects are matched by their name; every other resource is matched by its
-// metadata.namespace.
+// excludedNamespacePattern returns the first pattern of an excluded namespace
+// the item lives in (or is), or "". Namespace objects are matched by their
+// name; every other resource is matched by its metadata.namespace.
 func excludedNamespacePattern(item *unstructured.Unstructured, isNamespaced bool, patterns []string) string {
 	if len(patterns) == 0 {
 		return ""
@@ -187,7 +186,7 @@ func excludedNamespacePattern(item *unstructured.Unstructured, isNamespaced bool
 	switch {
 	case isNamespaced:
 		target = item.GetNamespace()
-	case item.GetKind() == kindNamespace && getGroup(item.GetAPIVersion()) == "":
+	case isNamespaceObject(item):
 		target = item.GetName()
 	}
 
@@ -202,6 +201,11 @@ func excludedNamespacePattern(item *unstructured.Unstructured, isNamespaced bool
 	}
 
 	return ""
+}
+
+// isNamespaceObject reports whether the item is a core Namespace object.
+func isNamespaceObject(item *unstructured.Unstructured) bool {
+	return item.GetKind() == kindNamespace && getGroup(item.GetAPIVersion()) == ""
 }
 
 func hasControllingOwner(item *unstructured.Unstructured) bool {

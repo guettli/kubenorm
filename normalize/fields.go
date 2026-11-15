@@ -32,7 +32,7 @@ func isManagedFieldsPath(segments []string) bool {
 
 // deleteField removes the fields matching f from obj, honoring the value,
 // omitempty and omitIfEqualToSibling constraints.
-func deleteField(obj map[string]any, f ignoreFieldPath) {
+func deleteField(obj map[string]any, f removeFieldPath) {
 	visitFieldPath(obj, f.segments, func(m map[string]any, key string) {
 		var remove bool
 

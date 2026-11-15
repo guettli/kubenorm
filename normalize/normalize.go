@@ -118,7 +118,16 @@ func identityOf(item *unstructured.Unstructured, isNamespaced bool) objectIdenti
 }
 
 // Normalize modifies obj in place: removes managed fields, handles Secrets,
-// applies the removeFields rules and prunes empty labels/annotations.
+// canonicalizes quantityFields, applies the removeFields rules and prunes
+// empty labels/annotations.
+//
+// Unlike Process, it handles a single object and skips everything that needs
+// the other resources or decides about keeping one: no namespace options
+// (AddNamespaceIfMissing, OverwriteNamespace), no filters (skip rules,
+// excludeNamespaces, Namespaces, Kinds, NameRegex, SkipOwned; see Include)
+// and no detection of quantity fields from CRDs in the input (use WithCRDs).
+// Use Process for files and streams of resources; use Include and Normalize
+// for objects streamed one by one, for example from an api-server.
 func (o *Options) Normalize(obj map[string]any) error {
 	err := o.validate()
 	if err != nil {

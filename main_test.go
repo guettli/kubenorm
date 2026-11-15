@@ -182,6 +182,38 @@ func TestNorm_Check(t *testing.T) {
 	}
 }
 
+func TestNorm_CheckAddNamespaceIfMissing(t *testing.T) {
+	t.Parallel()
+
+	in := "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: c\ndata:\n  k: v\n"
+
+	code, out, errOut := runCLI(t, in, "norm", "-", "--check", "-n", "demo", "--add-namespace-if-missing", "demo")
+	if code != 1 {
+		t.Fatalf("expected exit 1, got %d: %s", code, errOut)
+	}
+
+	if strings.Contains(out, devNull) || !strings.Contains(out, "+  namespace: demo") || strings.Count(out, "\n+") != 2 {
+		t.Fatalf("expected a one-line diff:\n%s", out)
+	}
+}
+
+func TestNorm_CheckFailsOnDroppedResource(t *testing.T) {
+	t.Parallel()
+
+	pod := "apiVersion: v1\nkind: Pod\nmetadata:\n  name: p\n  namespace: demo\n"
+
+	code, out, errOut := runCLI(t, pod, "norm", "-", "--check")
+	if code != 1 || !strings.Contains(out, "-kind: Pod") {
+		t.Fatalf("expected exit 1 with the Pod as deleted, got %d: %s %s", code, out, errOut)
+	}
+
+	// Outside the scope filters: not checked.
+	code, _, errOut = runCLI(t, pod, "norm", "-", "--check", "--kind", "ConfigMap")
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d: %s", code, errOut)
+	}
+}
+
 func TestNorm_CheckAndOutDirExclusive(t *testing.T) {
 	t.Parallel()
 

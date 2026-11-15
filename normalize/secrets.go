@@ -2,7 +2,6 @@ package normalize
 
 import (
 	"encoding/base64"
-	"regexp"
 	"unicode/utf8"
 )
 
@@ -61,8 +60,6 @@ func redactSecretValues(obj map[string]any) {
 	redactSecretAnnotations(obj)
 }
 
-var secretAPIGroupRegex = regexp.MustCompile(`^v\d+`)
-
 func isCoreV1Secret(obj map[string]any) bool {
 	kind, _ := obj["kind"].(string)
 	if kind != kindSecret {
@@ -70,15 +67,8 @@ func isCoreV1Secret(obj map[string]any) bool {
 	}
 
 	apiVersion, _ := obj["apiVersion"].(string)
-	if apiVersion == "" {
-		return true
-	}
 
-	if secretAPIGroupRegex.MatchString(apiVersion) {
-		return true
-	}
-
-	return false
+	return apiVersion == "" || apiVersion == "v1"
 }
 
 func redactSecretField(obj map[string]any, field string) {

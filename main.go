@@ -12,6 +12,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -103,7 +104,7 @@ type normFlags struct {
 
 func (f *normFlags) register(cmd *cobra.Command) {
 	fl := cmd.Flags()
-	fl.StringArrayVarP(&f.configFiles, "config", "c", nil, "YAML config with removeFields/skipResources/excludeNamespaces/clusterScopedResources rules (repeatable; merged with the common config)")
+	fl.StringArrayVarP(&f.configFiles, "config", "c", nil, "YAML config with removeFields/skipResources/excludeNamespaces/quantityFields/clusterScopedResources rules (repeatable; merged with the common config)")
 	fl.BoolVar(&f.noCommonConfig, "no-common-config", false, "Do not apply the embedded common config (see show-common-config)")
 	fl.StringVarP(&f.namespacesCSV, "namespaces", "n", "", "Only keep resources in these namespaces (comma-separated)")
 	fl.StringVar(&f.kindsCSV, "kind", "", "Only keep kinds matching these globs (comma-separated, e.g. 'ConfigMap,Cluster*')")
@@ -120,16 +121,15 @@ func (f *normFlags) register(cmd *cobra.Command) {
 	fl.BoolVar(&f.noConfigDiscovery, "no-config-discovery", false, "Do not load "+discoveredConfigName+" from the current directory or its parents")
 }
 
-// cliConfig returns the rules that come from command-line flags only
-// (--skip-name-glob, --exclude-namespaces). They restrict the scope and are
-// applied to both sides of norm --check.
+// cliConfig returns a config with only the rules given as flags.
 func (f *normFlags) cliConfig() (*normalize.Config, error) {
 	cfg := &normalize.Config{}
 
 	return cfg, f.addCLIRules(cfg)
 }
 
-// addCLIRules adds the rules of cliConfig to cfg.
+// addCLIRules adds the rules of --skip-name-glob and --exclude-namespaces to
+// cfg.
 func (f *normFlags) addCLIRules(cfg *normalize.Config) error {
 	err := cfg.AddSkipNameGlob(f.skipNameGlob)
 	if err != nil {
@@ -396,24 +396,43 @@ func prepareOutDir(outDir string, remove bool) error {
 	return nil
 }
 
-// rawScope returns a copy of the resources that pass the scope filters of
-// rawOpts. Parse once; Process modifies objects in place, so it gets the
-// originals and the raw side gets copies.
-func rawScope(rawOpts *normalize.Options, resources []normalize.Resource) []normalize.Resource {
-	var raw []normalize.Resource
-
-	for _, r := range normalize.CloneResources(resources) {
-		if !r.SOPSEncrypted && rawOpts.Include(r.Unstructured(), r.Namespaced()) {
-			raw = append(raw, r)
-		}
+// checkPairs pairs every resource with its normalized version. Process
+// changed the originals in place and returned the kept ones; clones are the
+// copies taken before. A resource that normalization drops (for example by a
+// skipResources rule) stays as raw side only, so the check fails, unless the
+// scope filters of rawOpts exclude it too.
+func checkPairs(originals, clones, kept []normalize.Resource, rawOpts *normalize.Options) []checkPair {
+	keptObjects := make(map[uintptr]bool, len(kept))
+	for _, r := range kept {
+		keptObjects[reflect.ValueOf(r.Object).Pointer()] = true
 	}
 
-	return raw
+	pairs := make([]checkPair, 0, len(originals))
+
+	for i := range originals {
+		r := &originals[i]
+		if r.SOPSEncrypted {
+			continue
+		}
+
+		p := checkPair{raw: clones[i], path: r.RelPath()}
+
+		switch {
+		case keptObjects[reflect.ValueOf(r.Object).Pointer()]:
+			p.normalized = r
+		case !rawOpts.Include(r.Unstructured(), r.Namespaced()):
+			continue
+		}
+
+		pairs = append(pairs, p)
+	}
+
+	return pairs
 }
 
 // writeSourceDiffs writes the diffs and returns the labels of the sources
 // that differ.
-func writeSourceDiffs(w io.Writer, sourceDiffs []SourceDiff) ([]string, error) {
+func writeSourceDiffs(w io.Writer, sourceDiffs []sourceDiff) ([]string, error) {
 	var (
 		differ []string
 		out    strings.Builder
@@ -427,7 +446,7 @@ func writeSourceDiffs(w io.Writer, sourceDiffs []SourceDiff) ([]string, error) {
 		differ = append(differ, diffLabel(sd.Source))
 
 		for _, d := range sd.Diffs {
-			out.WriteString(d.Unified)
+			out.WriteString(d)
 		}
 	}
 
@@ -467,33 +486,34 @@ func runCheck(cmd *cobra.Command, flags *normFlags, inputs []string) error {
 		return err
 	}
 
-	cli, err := flags.cliConfig()
-	if err != nil {
-		return err
-	}
-
-	// The raw side is the input as it is, only the scope filters apply, so
-	// every change made by normalization shows up in the diff.
-	rawOpts, err := flags.scopeOptions(cli)
-	if err != nil {
-		return err
-	}
-
 	resources, err := readInputs(cmd, inputs...)
 	if err != nil {
 		return err
 	}
 
-	rawResources := rawScope(rawOpts, resources)
+	// Only the scope filters (CLI flags) limit the raw side, so every change
+	// and every resource dropped by the config shows up in the diff.
+	cli, err := flags.cliConfig()
+	if err != nil {
+		return err
+	}
 
-	normResources, err := normOpts.Process(resources)
+	rawOpts, err := flags.scopeOptions(cli)
+	if err != nil {
+		return err
+	}
+
+	// Process modifies the objects in place, so keep a copy of the input.
+	clones := normalize.CloneResources(resources)
+
+	kept, err := normOpts.Process(resources)
 	if err != nil {
 		return err
 	}
 
 	// Compare file by file: separate trees (one per cluster, say) may
 	// legitimately contain the same resource.
-	sourceDiffs, err := DiffBySource(rawResources, normResources, func(source string) Labels {
+	sourceDiffs, err := diffBySource(checkPairs(resources, clones, kept, rawOpts), func(source string) labels {
 		return func(rel string) (string, string) {
 			return diffLabel(source), "normalized: " + rel
 		}
@@ -560,10 +580,10 @@ Examples:
 				return err
 			}
 
-			diffs := ComputeDiff(oldSide, newSide, PrefixLabels(diffLabel(args[0]), diffLabel(args[1])))
+			diffs := computeDiff(oldSide, newSide, prefixLabels(diffLabel(args[0]), diffLabel(args[1])))
 
 			for _, d := range diffs {
-				_, err = io.WriteString(cmd.OutOrStdout(), d.Unified)
+				_, err = io.WriteString(cmd.OutOrStdout(), d)
 				if err != nil {
 					return fmt.Errorf("writing diff: %w", err)
 				}
