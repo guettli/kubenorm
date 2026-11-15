@@ -47,7 +47,7 @@ mise use --pin github:guettli/kubenorm@latest
 
 This writes the exact version to `mise.toml`, so your laptop and CI use the
 same kubenorm. `mise upgrade --bump github:guettli/kubenorm` moves to a newer
-release.
+release. For `render.sh` and CI pin helm the same way: `mise use --pin helm@latest`.
 
 Alternatives: download a binary from the
 [releases](https://github.com/guettli/kubenorm/releases), or
@@ -92,12 +92,11 @@ spec:
       recurse: true
 ```
 
-No surprises anymore: every change is visible in the GitOps pull request. A
-chart update that adds a Deployment, a values change that removes a
-NetworkPolicy, a new default in the chart: the reviewer sees it in the diff of
-`zz_rendered/`, before it is deployed. Without normalization this diff would be
-full of noise (`helm.sh/chart` labels with the new version, defaults, changed
-key order); with kubenorm only real changes remain.
+No surprises anymore: every change is visible in the GitOps pull request, for
+example a chart update that adds a Deployment, a values change that drops a
+NetworkPolicy, or a new chart default. kubenorm removes the noise
+(`helm.sh/chart` labels, defaults, key order), so the diff of `zz_rendered/`
+shows only real changes.
 
 Without a cluster, `helm template` does not know the api-server version and
 `lookup` returns nothing. Pass `--kube-version` and `--api-versions` if a chart
@@ -117,7 +116,7 @@ jobs:
   rendered:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: jdx/mise-action@v5 # installs the tools of mise.toml: kubenorm, helm
       - run: ./render.sh
       - name: zz_rendered/ is up to date
@@ -266,8 +265,8 @@ Each side may contain a resource only once: compare one cluster at a time.
 kubenorm diff <(git show main:rendered.yaml) rendered.yaml
 
 # Compare a cluster dump (from dumpall) with the desired state
-dumpall --read-resource-names-from ./rendered -o current
-kubenorm diff current ./rendered
+dumpall --read-resource-names-from ./zz_rendered -o current
+kubenorm diff current ./zz_rendered
 ```
 
 For a summary or colors, write both sides with `norm -o` and use git:
