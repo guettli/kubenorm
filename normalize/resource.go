@@ -466,17 +466,16 @@ func (r Rendered) WriteDir(dir string) error {
 }
 
 // WriteStream writes all documents as one multi-document YAML stream, sorted
-// by path, separated by "---".
+// by path. Every document starts with "---", so the output of several calls
+// can be concatenated into one stream.
 func (r Rendered) WriteStream(w io.Writer) error {
-	for i, rel := range r.sortedPaths() {
-		if i > 0 {
-			_, err := io.WriteString(w, "---\n")
-			if err != nil {
-				return fmt.Errorf("writing separator: %w", err)
-			}
+	for _, rel := range r.sortedPaths() {
+		_, err := io.WriteString(w, "---\n")
+		if err != nil {
+			return fmt.Errorf("writing separator: %w", err)
 		}
 
-		_, err := w.Write(r[rel])
+		_, err = w.Write(r[rel])
 		if err != nil {
 			return fmt.Errorf("writing %s: %w", rel, err)
 		}

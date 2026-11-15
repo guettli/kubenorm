@@ -63,8 +63,8 @@ func TestWriteStream_SortedAndSeparated(t *testing.T) {
 	}
 
 	out := buf.String()
-	if strings.Count(out, "---\n") != 1 {
-		t.Fatalf("expected one separator:\n%s", out)
+	if !strings.HasPrefix(out, "---\n") || strings.Count(out, "---\n") != 2 {
+		t.Fatalf("expected every document to start with ---:\n%s", out)
 	}
 
 	if strings.Index(out, "name: a") > strings.Index(out, "name: z") {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -85,8 +86,8 @@ func TestNorm_StdinToStdout(t *testing.T) {
 		t.Fatalf("missing header:\n%s", out)
 	}
 
-	if got := stripHeader(out); got != normalizedDeployment {
-		t.Fatalf("got:\n%s\nwant:\n%s", got, normalizedDeployment)
+	if got := stripHeader(out); got != "---\n"+normalizedDeployment {
+		t.Fatalf("got:\n%s\nwant:\n---\n%s", got, normalizedDeployment)
 	}
 }
 
@@ -123,6 +124,43 @@ func TestNorm_OutDir(t *testing.T) {
 	code, _, errOut = runCLI(t, "", "norm", filepath.Dir(in), "-o", out, "-r")
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errOut)
+	}
+}
+
+func TestNorm_RemoveOutDir(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	in := filepath.Join(dir, "in", "app.yaml")
+	out := filepath.Join(dir, "out")
+
+	writeFile(t, in, deploymentYAML)
+	// A resource that was deleted from the input since the last run.
+	stale := filepath.Join(out, "demo", "ConfigMap", "old.yaml")
+	writeFile(t, stale, "kind: ConfigMap\n")
+
+	code, _, errOut := runCLI(t, "", "norm", filepath.Dir(in), "-o", out, "-r")
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut)
+	}
+
+	_, err := os.Stat(stale)
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("stale file was not removed: %v", err)
+	}
+
+	// Anything but *.yaml files: refuse and keep everything.
+	other := filepath.Join(out, "notes.txt")
+	writeFile(t, other, "keep me\n")
+
+	code, _, errOut = runCLI(t, "", "norm", filepath.Dir(in), "-o", out, "-r")
+	if code != 2 || !strings.Contains(errOut, "refusing to remove") {
+		t.Fatalf("expected exit 2 'refusing to remove', got %d: %s", code, errOut)
+	}
+
+	_, err = os.Stat(other)
+	if err != nil {
+		t.Fatalf("file was removed: %v", err)
 	}
 }
 

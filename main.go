@@ -8,8 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"maps"
 	"os"
+	"path/filepath"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -266,7 +268,7 @@ Examples:
 
 	flags.register(cmd)
 	cmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Write one file per resource into this directory (must not exist, see --remove-out-dir)")
-	cmd.Flags().BoolVarP(&removeOutDir, "remove-out-dir", "r", false, "Remove --out-dir before writing")
+	cmd.Flags().BoolVarP(&removeOutDir, "remove-out-dir", "r", false, "Remove --out-dir before writing (only if it contains nothing but *.yaml files)")
 	cmd.Flags().BoolVar(&check, "check", false, "Do not write; exit 1 and show a diff if the input is not normalized")
 	cmd.Flags().StringVar(&comment, "comment", "", "Additional comment line at the top of each output file")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Print every written file to stderr")
@@ -371,7 +373,12 @@ func runNorm(cmd *cobra.Command, flags *normFlags, inputs []string, outDir strin
 
 func prepareOutDir(outDir string, remove bool) error {
 	if remove {
-		err := os.RemoveAll(outDir)
+		err := checkRemovable(outDir)
+		if err != nil {
+			return err
+		}
+
+		err = os.RemoveAll(outDir)
 		if err != nil {
 			return fmt.Errorf("failed to remove out-dir %s: %w", outDir, err)
 		}
@@ -430,6 +437,28 @@ func writeSourceDiffs(w io.Writer, sourceDiffs []SourceDiff) ([]string, error) {
 	}
 
 	return differ, nil
+}
+
+// checkRemovable makes sure that dir looks like output of kubenorm: only
+// directories and *.yaml files. A typo like "-o ~ -r" must not delete a home
+// directory.
+func checkRemovable(dir string) error {
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() || (d.Type().IsRegular() && filepath.Ext(path) == ".yaml") {
+			return nil
+		}
+
+		return fmt.Errorf("refusing to remove it, %s is not a YAML file written by kubenorm", path)
+	})
+	if err == nil || errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+
+	return fmt.Errorf("--remove-out-dir %s: %w", dir, err)
 }
 
 func runCheck(cmd *cobra.Command, flags *normFlags, inputs []string) error {
