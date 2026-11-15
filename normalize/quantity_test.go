@@ -478,3 +478,57 @@ spec:
 		t.Fatalf("cluster-scoped Gadget got namespace %q", ns)
 	}
 }
+
+func TestCommonConfig_GitOpsTrackingFields(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := LoadConfig(true, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resources, err := ParseYAML([]byte(`
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app
+  namespace: demo
+  labels:
+    app: web
+    argocd.argoproj.io/instance: demo
+    helm.toolkit.fluxcd.io/name: app
+    helm.toolkit.fluxcd.io/namespace: demo
+    kustomize.toolkit.fluxcd.io/name: apps
+    kustomize.toolkit.fluxcd.io/namespace: flux-system
+  annotations:
+    argocd.argoproj.io/tracking-id: demo:/ConfigMap:demo/app
+    kustomize.toolkit.fluxcd.io/prune: disabled
+`), "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resources, err = (&Options{Config: cfg}).Process(resources)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered, err := Render(resources)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := `apiVersion: v1
+kind: ConfigMap
+metadata:
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+  labels:
+    app: web
+  name: app
+  namespace: demo
+`
+	if got := string(rendered["demo/ConfigMap/app.yaml"]); got != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
+	}
+}

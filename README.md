@@ -134,6 +134,82 @@ jobs:
 Every written file starts with a header naming the kubenorm version, so a
 render with another version shows up in the diff.
 
+### Migrate to the Rendered Manifests Pattern
+
+You start with resources in the cluster that were applied by hand
+(`kubectl apply`, `helm install`) or rendered at deploy time (an Argo CD
+Application with a Helm chart as source, a Flux HelmRelease). At the end the
+same resources come from `zz_rendered/`, and nothing in the cluster was
+recreated.
+
+1. Install the tools:
+
+   ```terminal
+   mise use --pin github:guettli/kubenorm@latest github:guettli/dumpall@latest helm@latest
+   ```
+
+2. Collect what is deployed now. For each Helm release take the chart and
+   version from `helm list -A` and the values from
+   `helm get values RELEASE -n NS -o yaml > values/RELEASE.yaml` (this works
+   for `helm install` and Flux). For Argo CD take chart, version and values
+   from the Application. Resources applied by hand can be dumped with
+   [dumpall](https://github.com/guettli/dumpall):
+
+   ```terminal
+   dumpall -n legacy --skip-owned --ignore-config-use-common -o k8s/plain
+   ```
+
+3. Write `render.sh` (see above) with the same chart versions, values,
+   release names and namespaces, and run it.
+
+4. Compare the rendered state with the cluster, and adapt values or manifests
+   until the diff is empty:
+
+   ```terminal
+   dumpall --read-resource-names-from zz_rendered --ignore-config-use-common -o current -r
+   kubenorm diff current zz_rendered
+   ```
+
+5. Find resources that exist in the cluster but not in `zz_rendered/`, for
+   example a Namespace created by `helm install --create-namespace`. Dump the
+   whole namespaces; files that exist only on the left side are missing from
+   the render, add them to `k8s/plain`:
+
+   ```terminal
+   dumpall -n demo,legacy --skip-owned --ignore-config-use-common -o all -r
+   kubenorm diff all zz_rendered
+   ```
+
+6. Commit `render.sh`, the values, `k8s/plain` and `zz_rendered/`, and add the
+   CI check.
+
+7. Let the GitOps tool apply `zz_rendered/`. Do it in this order, otherwise
+   the old tool deletes the resources:
+   - Argo CD: change the source of the existing Application in place, from
+     the chart to `path: zz_rendered/...` with `directory.recurse: true`. The
+     resources keep their tracking, Argo CD updates them in place.
+   - Flux: set `spec.suspend: true` on the HelmRelease, then delete it (Flux
+     skips the Helm uninstall for a suspended HelmRelease), and its
+     HelmRepository or OCIRepository. Then create a Kustomization for
+     `zz_rendered/...`; it takes over the existing resources.
+   - `helm install` or `kubectl apply`: create the Application or Kustomization
+     for `zz_rendered/...`.
+
+   Then remove the Helm release history, so that nobody runs `helm upgrade`
+   on top. It only deletes Secrets, not the resources:
+
+   ```terminal
+   kubectl delete secret -n NS -l owner=helm,name=RELEASE
+   ```
+
+8. Run the diff of step 4 again: it stays empty.
+
+The resources keep their UID. Argo CD (client-side apply) removes the defaults
+that kubenorm dropped, and the api-server sets them again: the `generation` of
+a Deployment goes up once, but the Pod template is unchanged, so no Pods are
+restarted. Flux (server-side apply) leaves fields set by Helm, like the
+`app.kubernetes.io/managed-by: Helm` label, on the objects; they are harmless.
+
 ## `kubenorm norm`
 
 Reads a file, a directory (recursive, `*.yaml` / `*.yml`) or stdin (`-`).

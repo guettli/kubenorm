@@ -17,7 +17,16 @@ removeFields:
       # with a glob to catch all kapp.k14s.io/* keys at any nesting depth.
       - ...kapp\.k14s\.io/*
 
+      # Tracking labels and annotations of GitOps tools. They name the tool
+      # object that applied the resource, not the desired state. Other
+      # kustomize.toolkit.fluxcd.io/* annotations (prune, ssa, ...) are
+      # settings and stay.
       - metadata.labels.argocd\.argoproj\.io/instance
+      - metadata.annotations.argocd\.argoproj\.io/tracking-id
+      - metadata.labels.helm\.toolkit\.fluxcd\.io/name
+      - metadata.labels.helm\.toolkit\.fluxcd\.io/namespace
+      - metadata.labels.kustomize\.toolkit\.fluxcd\.io/name
+      - metadata.labels.kustomize\.toolkit\.fluxcd\.io/namespace
 
       # Helm sets these labels automatically on every managed resource,
       # including pod template labels. The chart version is redundant with
