@@ -52,8 +52,8 @@ Alternatives: download a binary from the
 
 With the [Rendered Manifests Pattern](https://akuity.io/blog/the-rendered-manifests-pattern)
 nothing is templated at deploy time. A script renders everything into plain
-YAML, the result is committed, and Argo CD (or Flux) applies exactly these
-files:
+YAML, the result is committed, and your favorite GitOps tool (Flux, Argo CD,
+Rancher Fleet, ...) applies exactly these files:
 
 1. `render.sh` runs `helm template` (or `kustomize build`), which writes one
    big multi-document YAML stream to stdout.
@@ -62,7 +62,7 @@ files:
    below `zz_rendered/`.
 3. `zz_rendered/` is committed to git, together with the change of the chart
    version or the values.
-4. Argo CD reads `zz_rendered/`, not the chart.
+4. The GitOps tool reads `zz_rendered/`, not the chart.
 
 ```bash
 #!/usr/bin/env bash
@@ -78,7 +78,7 @@ kubenorm norm k8s/plain -o zz_rendered/plain
 ```
 
 ```yaml
-# Argo CD Application
+# For example an Argo CD Application
 spec:
   source:
     repoURL: https://github.com/example/gitops
