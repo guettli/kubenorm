@@ -67,6 +67,10 @@ Rancher Fleet, ...) applies exactly these files:
 #!/usr/bin/env bash
 # render.sh: render all charts and manifests into zz_rendered/
 set -euo pipefail
+
+# Always render from scratch. Otherwise the files of deleted resources stay in
+# zz_rendered/, the pull request does not show the deletion, and the GitOps
+# tool keeps the resources.
 rm -rf zz_rendered
 
 helm template cert-manager cert-manager --repo https://charts.jetstack.io \
