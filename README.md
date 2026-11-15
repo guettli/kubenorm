@@ -80,10 +80,10 @@ set -euo pipefail
     kubenorm norm - --add-namespace-if-missing cert-manager
 
   kubenorm norm k8s/plain
-} | kubenorm norm - -o zz_rendered --remove-out-dir
+} | kubenorm norm --clean-out-dir -o zz_rendered -
 ```
 
-The last call writes the whole tree. `--remove-out-dir` deletes the old
+The last call writes the whole tree. `--clean-out-dir` deletes the old
 `zz_rendered/` first, so every file is created from scratch. This is
 important: otherwise the files of deleted resources stay in `zz_rendered/`,
 the pull request does not show the deletion, and the GitOps tool keeps the
@@ -181,7 +181,7 @@ recreated.
    until the diff is empty:
 
    ```terminal
-   dumpall --read-resource-names-from zz_rendered --ignore-config-use-common -o current -r
+   dumpall --read-resource-names-from zz_rendered --clean-out-dir --ignore-config-use-common -o current
    kubenorm diff current zz_rendered
    ```
 
@@ -192,7 +192,7 @@ recreated.
    which step 7 deletes:
 
    ```terminal
-   dumpall -n demo,legacy --skip-owned --ignore-config-use-common -o all -r
+   dumpall -n demo,legacy --skip-owned --clean-out-dir --ignore-config-use-common -o all
    kubenorm diff all zz_rendered
    ```
 
@@ -232,7 +232,7 @@ Reads a file, a directory (recursive, `*.yaml` / `*.yml`) or stdin (`-`).
 
 ```terminal
 # helm output -> normalized tree, one file per resource
-helm template my-release ./chart | kubenorm norm - -o zz_rendered/my-release -r
+helm template my-release ./chart | kubenorm norm --clean-out-dir -o zz_rendered/my-release -
 
 # normalize to stdout (one multi-document stream, sorted)
 kubenorm norm ./manifests
@@ -252,7 +252,7 @@ checked.
 kubenorm reads stdin, so it fits behind every renderer:
 
 ```terminal
-kustomize build overlays/prod | kubenorm norm - -o zz_rendered/prod -r
+kustomize build overlays/prod | kubenorm norm --clean-out-dir -o zz_rendered/prod -
 ```
 
 With Helm 3 it also works as a post-renderer (Helm 4 only accepts
@@ -364,7 +364,7 @@ git worktree add ../main main
 kubenorm diff ../main/zz_rendered zz_rendered
 
 # Compare a cluster dump (from dumpall) with the desired state
-dumpall --read-resource-names-from zz_rendered --ignore-config-use-common -o current -r
+dumpall --read-resource-names-from zz_rendered --clean-out-dir --ignore-config-use-common -o current
 kubenorm diff current zz_rendered
 ```
 
