@@ -96,9 +96,16 @@ NetworkPolicy, or a new chart default. kubenorm removes the noise
 (`helm.sh/chart` labels, defaults, key order), so the diff of `zz_rendered/`
 shows only real changes.
 
-Without a cluster, `helm template` does not know the api-server version and
-`lookup` returns nothing. Pass `--kube-version` and `--api-versions` if a chart
-depends on them.
+`helm template` does not talk to a cluster. It does not know the Kubernetes
+version or the APIs of your cluster, and `lookup` returns nothing:
+
+- Pass `--kube-version 1.34.0` to helm if a chart checks
+  `.Capabilities.KubeVersion` (for example to choose an API version).
+- Pass `--api-versions monitoring.coreos.com/v1` (repeatable) to helm if a
+  chart checks `.Capabilities.APIVersions`. Without it, such a chart silently
+  leaves out its `ServiceMonitor`, although your cluster has the CRD.
+- If a chart uses `lookup` (for example to reuse an existing Secret), set the
+  value in your values file instead.
 
 ### Check in CI
 
