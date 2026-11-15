@@ -247,7 +247,7 @@ change and exits 1 if anything would change. Comments, key order and the file
 layout are ignored by --check.
 
 Examples:
-  helm template my-chart | kubenorm norm - -o rendered/
+  helm template my-chart | kubenorm norm - -o zz_rendered/
   kubenorm norm ./k8s/plain --check
   kubenorm norm liqo.yaml --add-namespace-if-missing liqo -o out/`,
 		Args: cobra.MinimumNArgs(1),

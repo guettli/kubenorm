@@ -7,7 +7,7 @@ layout, use [dumpall](https://github.com/guettli/dumpall), which uses kubenorm
 as a library.
 
 It is made for the [Rendered Manifests Pattern](#rendered-manifests-pattern)
-(RMP): render helm charts, kustomize overlays and plain manifests, normalize
+(RMP): render Helm charts, kustomize overlays and plain manifests, normalize
 the result, commit it, and review the real change in every pull request.
 
 What normalization does:
@@ -153,7 +153,8 @@ recreated.
    `helm get values RELEASE -n NS -o yaml > values/RELEASE.yaml` (this works
    for `helm install` and Flux). For Argo CD take chart, version and values
    from the Application. Resources applied by hand can be dumped with
-   [dumpall](https://github.com/guettli/dumpall):
+   [dumpall](https://github.com/guettli/dumpall), per namespace that contains
+   only such resources:
 
    ```terminal
    dumpall -n legacy --skip-owned --ignore-config-use-common -o k8s/plain
@@ -172,8 +173,9 @@ recreated.
 
 5. Find resources that exist in the cluster but not in `zz_rendered/`, for
    example a Namespace created by `helm install --create-namespace`. Dump the
-   whole namespaces; files that exist only on the left side are missing from
-   the render, add them to `k8s/plain`:
+   whole namespaces. Resources only on the left side are missing from the
+   render: add them to `k8s/plain`, except the HelmRelease and its source,
+   which step 7 deletes:
 
    ```terminal
    dumpall -n demo,legacy --skip-owned --ignore-config-use-common -o all -r
@@ -183,14 +185,14 @@ recreated.
 6. Commit `render.sh`, the values, `k8s/plain` and `zz_rendered/`, and add the
    CI check.
 
-7. Let the GitOps tool apply `zz_rendered/`. Do it in this order, otherwise
-   the old tool deletes the resources:
+7. Let the GitOps tool apply `zz_rendered/`. Hand the resources over without
+   deleting them:
    - Argo CD: change the source of the existing Application in place, from
      the chart to `path: zz_rendered/...` with `directory.recurse: true`. The
      resources keep their tracking, Argo CD updates them in place.
-   - Flux: set `spec.suspend: true` on the HelmRelease, then delete it (Flux
-     skips the Helm uninstall for a suspended HelmRelease), and its
-     HelmRepository or OCIRepository. Then create a Kustomization for
+   - Flux: set `spec.suspend: true` on the HelmRelease first, then delete the
+     HelmRelease and its HelmRepository or OCIRepository (Flux skips the Helm
+     uninstall for a suspended HelmRelease). Then create a Kustomization for
      `zz_rendered/...`; it takes over the existing resources.
    - `helm install` or `kubectl apply`: create the Application or Kustomization
      for `zz_rendered/...`.
@@ -216,7 +218,7 @@ Reads a file, a directory (recursive, `*.yaml` / `*.yml`) or stdin (`-`).
 
 ```terminal
 # helm output -> normalized tree, one file per resource
-helm template my-release ./chart | kubenorm norm - -o rendered/my-release -r
+helm template my-release ./chart | kubenorm norm - -o zz_rendered/my-release -r
 
 # normalize to stdout (one multi-document stream, sorted)
 kubenorm norm ./manifests
@@ -234,8 +236,7 @@ content.
 kubenorm reads stdin, so it fits behind every renderer:
 
 ```terminal
-helm template demo ./chart --namespace demo | kubenorm norm - --add-namespace-if-missing demo
-kustomize build overlays/prod | kubenorm norm - -o rendered/prod -r
+kustomize build overlays/prod | kubenorm norm - -o zz_rendered/prod -r
 ```
 
 With Helm 3 it also works as a post-renderer (Helm 4 only accepts
@@ -343,11 +344,12 @@ Each side may contain a resource only once: compare one cluster at a time.
 
 ```terminal
 # What does this PR really change?
-kubenorm diff <(git show main:rendered.yaml) rendered.yaml
+git worktree add ../main main
+kubenorm diff ../main/zz_rendered zz_rendered
 
 # Compare a cluster dump (from dumpall) with the desired state
-dumpall --read-resource-names-from ./zz_rendered -o current
-kubenorm diff current ./zz_rendered
+dumpall --read-resource-names-from zz_rendered --ignore-config-use-common -o current -r
+kubenorm diff current zz_rendered
 ```
 
 For a summary or colors, write both sides with `norm -o` and use git:
@@ -429,7 +431,7 @@ quantityFields:
   With `kubenorm diff`, put the CRDs on both sides (or on none) or use
   `--crds`, which applies to both sides, else the quantities differ.
   `--crds` only reads CRDs and ignores everything else, so it can point at a
-  whole rendered tree: `kubenorm norm --check ./plain --crds ./rendered`.
+  whole rendered tree: `kubenorm norm --check ./plain --crds ./zz_rendered`.
 - The config is parsed strictly; unknown keys are an error.
 
 `--config FILE` (repeatable) adds your rules to the common config,
@@ -507,9 +509,8 @@ _ = rendered.WriteDir("out")
   fails if the api-server adds a default that the common config does not
   remove. CI runs it for every change.
 - Releases follow [semver](https://semver.org). Every merge to main creates the
-  next minor release. Changes of the common config are minor releases too: they
-  can change the normalized output, so a re-render in the same commit as the
-  version update keeps `norm --check` green. Breaking changes of the CLI or the
+  next minor release. It may change the normalized output: re-render in the
+  commit that updates kubenorm. Breaking changes of the CLI or the
   `normalize` package need a new major version (module path
   `github.com/guettli/kubenorm/v2`, tagged by hand).
 
