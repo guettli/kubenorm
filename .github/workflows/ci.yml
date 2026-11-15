@@ -57,6 +57,10 @@ jobs:
           go-version-file: go.mod
 
       - name: Check API compatibility
+        env:
+          # Fetch the base release from git: the Go proxy and checksum
+          # database may not know a release that was tagged minutes ago.
+          GOPRIVATE: github.com/guettli/kubenorm
         run: |
           base=$(git describe --tags --abbrev=0 --match 'v*')
           next=$(echo "$base" | awk -F. '{print $1"."$2+1".0"}')
