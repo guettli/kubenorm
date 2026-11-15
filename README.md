@@ -42,7 +42,9 @@ mise use --pin github:guettli/kubenorm@latest
 
 This writes the exact version to `mise.toml`, so your laptop and CI use the
 same kubenorm. `mise upgrade --bump github:guettli/kubenorm` moves to a newer
-release. For `render.sh` and CI pin helm the same way: `mise use --pin helm@latest`.
+release. mise skips releases younger than 24 hours (`minimum_release_age`),
+so `@latest` can be one release behind for a day. For `render.sh` and CI pin
+helm the same way: `mise use --pin helm@latest`.
 
 Alternatives: download a binary from the
 [releases](https://github.com/guettli/kubenorm/releases), or
