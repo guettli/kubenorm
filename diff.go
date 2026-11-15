@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"path"
 	"sort"
@@ -23,28 +24,20 @@ const (
 	statusDeleted  fileStatus = 'D'
 )
 
-// FileDiff is the difference of one resource.
-type FileDiff struct {
-	// Path is the relative path, see RelPath.
-	Path   string
-	Status fileStatus
-	// Unified is the unified diff (git apply compatible).
-	Unified string
-}
+// labels returns the "---" and "+++" labels of the diff of a resource.
+type labels func(rel string) (oldLabel, newLabel string)
 
-// Labels returns the "---" and "+++" labels of the diff of a resource.
-type Labels func(rel string) (oldLabel, newLabel string)
-
-// PrefixLabels labels a resource with its path below the given prefixes,
+// prefixLabels labels a resource with its path below the given prefixes,
 // like git diff does.
-func PrefixLabels(oldPrefix, newPrefix string) Labels {
+func prefixLabels(oldPrefix, newPrefix string) labels {
 	return func(rel string) (string, string) {
 		return path.Join(oldPrefix, rel), path.Join(newPrefix, rel)
 	}
 }
 
-// ComputeDiff compares old and new, sorted by path.
-func ComputeDiff(oldSide, newSide normalize.Rendered, labels Labels) []FileDiff {
+// computeDiff compares old and new and returns one unified diff (git apply
+// compatible) per differing resource, sorted by path.
+func computeDiff(oldSide, newSide normalize.Rendered, labels labels) []string {
 	all := make(map[string]struct{}, len(oldSide)+len(newSide))
 	for p := range oldSide {
 		all[p] = struct{}{}
@@ -61,7 +54,7 @@ func ComputeDiff(oldSide, newSide normalize.Rendered, labels Labels) []FileDiff 
 
 	sort.Strings(paths)
 
-	diffs := make([]FileDiff, 0, len(paths))
+	diffs := make([]string, 0, len(paths))
 
 	for _, rel := range paths {
 		oldContent, inOld := oldSide[rel]
@@ -94,47 +87,50 @@ func ComputeDiff(oldSide, newSide normalize.Rendered, labels Labels) []FileDiff 
 		case statusModified:
 		}
 
-		diffs = append(diffs, FileDiff{Path: rel, Status: status, Unified: text})
+		diffs = append(diffs, text)
 	}
 
 	return diffs
 }
 
-// SourceDiff holds the differences of one input file.
-type SourceDiff struct {
+// sourceDiff holds the differences of one input file.
+type sourceDiff struct {
 	Source string
-	Diffs  []FileDiff
+	Diffs  []string
 }
 
-// DiffBySource compares two processed versions of the same input file by
-// file (for example raw and normalized). Comparing per file allows separate
-// trees with the same resources. labels returns the diff labels for a
-// source file. The result keeps the order in which the files first appear
-// in oldSide.
-func DiffBySource(oldSide, newSide []normalize.Resource, labels func(source string) Labels) ([]SourceDiff, error) {
-	oldBySource, files := groupResourcesBySource(oldSide)
-	newBySource, newFiles := groupResourcesBySource(newSide)
+// diffBySource compares the raw and the normalized version of the same
+// resources (raw[i] is the input of normalized[i]) file by file, which
+// allows separate trees with the same resources. A raw resource is compared
+// under the path of its normalized version, so a changed namespace shows up
+// as a change, not as a deleted and an added file. labels returns the diff
+// labels for a source file. The result keeps the order of the files.
+func diffBySource(raw, normalized []normalize.Resource, labels func(source string) labels) ([]sourceDiff, error) {
+	rawBySource, files := groupResourcesBySource(raw)
+	normBySource, _ := groupResourcesBySource(normalized)
 
-	for _, f := range newFiles {
-		if _, ok := oldBySource[f]; !ok {
-			files = append(files, f)
-		}
-	}
-
-	result := make([]SourceDiff, len(files))
+	result := make([]sourceDiff, len(files))
 
 	for i, f := range files {
-		oldRendered, err := normalize.Render(oldBySource[f])
+		newRendered, err := normalize.Render(normBySource[f])
 		if err != nil {
 			return nil, err
 		}
 
-		newRendered, err := normalize.Render(newBySource[f])
-		if err != nil {
-			return nil, err
+		oldRendered := make(normalize.Rendered, len(rawBySource[f]))
+
+		for j, r := range rawBySource[f] {
+			var buf bytes.Buffer
+
+			err = normalize.Encode(&buf, r.Object)
+			if err != nil {
+				return nil, err
+			}
+
+			oldRendered[normBySource[f][j].RelPath()] = buf.Bytes()
 		}
 
-		result[i] = SourceDiff{Source: f, Diffs: ComputeDiff(oldRendered, newRendered, labels(f))}
+		result[i] = sourceDiff{Source: f, Diffs: computeDiff(oldRendered, newRendered, labels(f))}
 	}
 
 	return result, nil

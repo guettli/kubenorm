@@ -118,7 +118,7 @@ spec:
 func TestQuantityFields_UserConfig(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := parseConfig("test", []byte(`
+	cfg, err := ParseConfig("test", []byte(`
 quantityFields:
   - group: example.com
     kind: Widget

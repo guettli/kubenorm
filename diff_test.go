@@ -38,19 +38,19 @@ func TestComputeDiff(t *testing.T) {
 	oldSide := renderYAML(t, diffTestCM)
 	newSide := renderYAML(t, strings.Replace(diffTestCM, "k: v1", "k: v2", 1)+"---\n"+strings.Replace(diffTestCM, "name: a", "name: b", 1))
 
-	diffs := ComputeDiff(oldSide, newSide, PrefixLabels("old", "new"))
-	if len(diffs) != 2 || diffs[0].Status != statusModified || diffs[1].Status != statusAdded {
+	diffs := computeDiff(oldSide, newSide, prefixLabels("old", "new"))
+	if len(diffs) != 2 || !strings.HasPrefix(diffs[1], "--- /dev/null") {
 		t.Fatalf("unexpected diffs %+v", diffs)
 	}
 
-	out := diffs[0].Unified + diffs[1].Unified
+	out := diffs[0] + diffs[1]
 	for _, want := range []string{"--- old/ns/ConfigMap/a.yaml", "+++ new/ns/ConfigMap/a.yaml", "-  k: v1", "+  k: v2", "--- /dev/null", "+++ new/ns/ConfigMap/b.yaml", "@@ -0,0 +1,"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("diff output misses %q:\n%s", want, out)
 		}
 	}
 
-	if diffs := ComputeDiff(oldSide, oldSide, PrefixLabels("a", "b")); len(diffs) != 0 {
+	if diffs := computeDiff(oldSide, oldSide, prefixLabels("a", "b")); len(diffs) != 0 {
 		t.Fatalf("expected no diff, got %+v", diffs)
 	}
 }

@@ -182,6 +182,21 @@ func TestNorm_Check(t *testing.T) {
 	}
 }
 
+func TestNorm_CheckAddNamespaceIfMissing(t *testing.T) {
+	t.Parallel()
+
+	in := "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: c\ndata:\n  k: v\n"
+
+	code, out, errOut := runCLI(t, in, "norm", "-", "--check", "-n", "demo", "--add-namespace-if-missing", "demo")
+	if code != 1 {
+		t.Fatalf("expected exit 1, got %d: %s", code, errOut)
+	}
+
+	if strings.Contains(out, devNull) || !strings.Contains(out, "+  namespace: demo") || strings.Count(out, "\n+") != 2 {
+		t.Fatalf("expected a one-line diff:\n%s", out)
+	}
+}
+
 func TestNorm_CheckAndOutDirExclusive(t *testing.T) {
 	t.Parallel()
 

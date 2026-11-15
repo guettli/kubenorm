@@ -63,7 +63,7 @@ func (o *Options) applyQuantityRules(obj map[string]any, t *tracer) {
 // withCRDQuantities returns o with quantity rules for the fields that CRDs in
 // resources declare as quantities, or o itself if there are none.
 func (o *Options) withCRDQuantities(resources []Resource) *Options {
-	var rules []ignoreRule
+	var rules []removeRule
 
 	for _, r := range resources {
 		u := r.Unstructured()
@@ -87,13 +87,13 @@ func (o *Options) withCRDQuantities(resources []Resource) *Options {
 			continue
 		}
 
-		rule := ignoreRule{
+		rule := removeRule{
 			GroupPattern: group, KindPattern: kind, NamespacePattern: "*", NamePattern: "*",
 			Origin: "quantity in CRD " + u.GetName(),
 		}
 
 		for _, raw := range slices.Sorted(maps.Keys(paths)) {
-			rule.Fields = append(rule.Fields, ignoreFieldPath{raw: raw, segments: paths[raw]})
+			rule.Fields = append(rule.Fields, removeFieldPath{raw: raw, segments: paths[raw]})
 		}
 
 		rules = append(rules, rule)
