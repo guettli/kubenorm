@@ -1,0 +1,30 @@
+name: Mutation testing
+
+# Checks that the tests catch bugs, not only run the code: gremlins changes
+# the code (e.g. < to <=) and expects a test to fail. Takes a few minutes,
+# so it runs monthly and on demand, not for every pull request.
+on:
+  schedule:
+    - cron: "17 4 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gremlins:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      # Thresholds slightly below the state of 2026-11 (efficacy 86.7 %,
+      # mutator coverage 83.7 % for normalize). Raise them when tests improve.
+      # The log lists the surviving (LIVED) and NOT COVERED mutants.
+      - name: Run gremlins
+        run: >-
+          go run github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0 unleash
+          --threshold-efficacy 85 --threshold-mcover 80 ./normalize
