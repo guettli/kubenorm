@@ -3,8 +3,12 @@ repos:
 - repo: https://github.com/pre-commit/pre-commit-hooks
   rev: v5.0.0
   hooks:
+  # Golden files are compared byte by byte: a diff context line of an empty
+  # YAML line ends with a space.
   - id: trailing-whitespace
+    exclude: ^testdata/golden(-diff)?/
   - id: end-of-file-fixer
+    exclude: ^testdata/golden(-diff)?/
   - id: check-added-large-files
   - id: check-merge-conflict
   - id: check-yaml

@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "resources": [
+    {
+      "path": "demo/ConfigMap/added.yaml",
+      "status": "added",
+      "new": {
+        "file": "testdata/golden-diff/input/new/all.yaml",
+        "managedBy": [
+          "helm release demo/web",
+          "rendered by foo/render.sh"
+        ]
+      },
+      "diff": "--- /dev/null\n+++ testdata/golden-diff/input/new/demo/ConfigMap/added.yaml\n@@ -0,0 +1,9 @@\n+apiVersion: v1\n+data:\n+  k: v\n+kind: ConfigMap\n+metadata:\n+  annotations:\n+    kubenorm.guettli.github.io/rendered-by: foo/render.sh\n+  name: added\n+  namespace: demo\n"
+    },
+    {
+      "path": "demo/ConfigMap/legacy.yaml",
+      "status": "deleted",
+      "old": {
+        "file": "testdata/golden-diff/input/old/demo/legacy.yaml",
+        "managedBy": [
+          "argocd app shop",
+          "manager kubectl-edit"
+        ]
+      },
+      "diff": "--- testdata/golden-diff/input/old/demo/ConfigMap/legacy.yaml\n+++ /dev/null\n@@ -1,7 +0,0 @@\n-apiVersion: v1\n-data:\n-  k: v\n-kind: ConfigMap\n-metadata:\n-  name: legacy\n-  namespace: demo\n"
+    },
+    {
+      "path": "demo/apps_Deployment/web.yaml",
+      "status": "modified",
+      "old": {
+        "file": "testdata/golden-diff/input/old/demo/web.yaml",
+        "managedBy": []
+      },
+      "new": {
+        "file": "testdata/golden-diff/input/new/all.yaml",
+        "managedBy": []
+      },
+      "diff": "--- testdata/golden-diff/input/old/demo/apps_Deployment/web.yaml\n+++ testdata/golden-diff/input/new/demo/apps_Deployment/web.yaml\n@@ -4,7 +4,7 @@\n   name: web\n   namespace: demo\n spec:\n-  replicas: 2\n+  replicas: 3\n   selector:\n     matchLabels:\n       app: web\n@@ -14,5 +14,5 @@\n         app: web\n     spec:\n       containers:\n-      - image: nginx:1.27\n+      - image: nginx:1.28\n         name: web\n"
+    }
+  ]
+}

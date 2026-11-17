@@ -591,8 +591,9 @@ func diffLabel(input string) string {
 
 func buildDiffCmd() *cobra.Command {
 	var (
-		flags normFlags
-		full  bool
+		flags  normFlags
+		full   bool
+		output string
 	)
 
 	cmd := &cobra.Command{
@@ -603,17 +604,21 @@ options and print a unified diff. Resources are paired by identity
 (namespace, group, kind, name), not by file name, so differently organized
 trees can be compared. Each side must contain a resource only once, so
 compare one cluster at a time. A resource that exists on one side only is
-reported with one "Only here: <file>" line (plus "(<path>)" if the file
-holds several resources or is stdin), followed by the tools that seem to
-manage it: helm, argocd, flux, fleet/wrangler, rancher, kapp, kubectl apply,
-the rendered-by annotation, app.kubernetes.io/managed-by, the controller
-owner and managedFields managers. The ---/+++ headers of a changed resource
+reported with one "Only here (old|new): <file>" line (plus "(<path>)" if
+the file holds several resources or is stdin), followed by the tools that
+seem to manage it: helm, argocd, flux, fleet/wrangler, rancher, kapp,
+kubectl apply, the rendered-by annotation, app.kubernetes.io/managed-by,
+the controller owner and managedFields managers. The ---/+++ headers of a changed resource
 name the files it was read from (<file>/<path> for stdin or a file with
 several resources).
 
 --full shows the content of one-sided resources instead and labels every
 resource with <argument>/<normalized path>, in the format of "git apply"
 and "patch -p1".
+
+--output json writes one JSON object {"version": 1, "resources": [...]}
+with one entry per differing resource (path, status, the file and managers
+of each side, the unified diff) for scripts.
 
 Exits 1 if there are differences.
 
@@ -622,11 +627,12 @@ Examples:
   helm template ./chart | kubenorm diff deployed-dump/ -`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runDiff(cmd, &flags, args[0], args[1], full)
+			return runDiff(cmd, &flags, args[0], args[1], full, output)
 		},
 	}
 
 	flags.register(cmd)
+	cmd.Flags().StringVar(&output, "output", outputText, "Output format: text (unified diff) or json (for scripts: {\"version\": 1, \"resources\": [...]} with one entry per differing resource)")
 	cmd.Flags().BoolVar(&full, "full", false, "Show the whole content of resources that exist on one side only, as a diff from or to /dev/null (git apply compatible output)")
 
 	return cmd
@@ -643,9 +649,13 @@ func readDiffSide(cmd *cobra.Command, opts *normalize.Options, input string) (di
 }
 
 // runDiff implements "kubenorm diff".
-func runDiff(cmd *cobra.Command, flags *normFlags, oldPath, newPath string, full bool) error {
+func runDiff(cmd *cobra.Command, flags *normFlags, oldPath, newPath string, full bool, output string) error {
 	if oldPath == normalize.StdinPath && newPath == normalize.StdinPath {
 		return errors.New("only one side can be read from stdin")
+	}
+
+	if output != outputText && output != outputJSON {
+		return fmt.Errorf("--output %q: want %s or %s", output, outputText, outputJSON)
 	}
 
 	opts, err := flags.options(cmd.ErrOrStderr())
@@ -663,32 +673,24 @@ func runDiff(cmd *cobra.Command, flags *normFlags, oldPath, newPath string, full
 		return err
 	}
 
-	var onlyHere func(rel string, inOld bool) string
-	if !full {
-		onlyHere = func(rel string, inOld bool) string {
-			if inOld {
-				return onlyHereLine(oldSide.origins[rel])
-			}
-
-			return onlyHereLine(newSide.origins[rel])
-		}
-	}
-
 	// --full is for git apply: label both sides with the normalized path
-	// below the argument, so the names match after -p1 (apply it to a tree
-	// written by norm -o). Otherwise name the files the resources come from.
+	// below the argument, so the names match after -p1. Otherwise name the
+	// files the resources come from.
 	labels := originLabels(oldSide, newSide)
 	if full {
 		labels = prefixLabels(diffLabel(oldPath), diffLabel(newPath))
 	}
 
-	diffs := computeDiff(oldSide.rendered, newSide.rendered, labels, onlyHere)
+	diffs := compareRendered(oldSide.rendered, newSide.rendered, labels, full)
 
-	for _, d := range diffs {
-		_, err = io.WriteString(cmd.OutOrStdout(), d)
-		if err != nil {
-			return fmt.Errorf("writing diff: %w", err)
-		}
+	if output == outputJSON {
+		err = writeDiffJSON(cmd.OutOrStdout(), diffs, oldSide, newSide)
+	} else {
+		err = writeDiffText(cmd.OutOrStdout(), diffs, oldSide, newSide)
+	}
+
+	if err != nil {
+		return err
 	}
 
 	if len(diffs) == 0 {

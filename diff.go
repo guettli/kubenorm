@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"path"
 	"path/filepath"
 	"reflect"
@@ -37,12 +39,19 @@ func prefixLabels(oldPrefix, newPrefix string) labels {
 	}
 }
 
-// computeDiff compares old and new and returns one entry per differing
-// resource, sorted by path: a unified diff for a modified resource. A resource
-// that exists on one side only gets the line onlyHere returns for it, or, if
-// onlyHere is nil, a diff from or to /dev/null. Only with a nil onlyHere is
-// the whole output git apply compatible.
-func computeDiff(oldSide, newSide normalize.Rendered, labels labels, onlyHere func(rel string, inOld bool) string) []string {
+// resourceDiff is the difference of one resource.
+type resourceDiff struct {
+	rel    string
+	status fileStatus
+	// unified is the unified diff. Empty for a resource on one side only,
+	// unless compareRendered was called with full.
+	unified string
+}
+
+// compareRendered compares old and new and returns one entry per differing
+// resource, sorted by path. full adds the unified diff of resources on one
+// side only, from or to /dev/null.
+func compareRendered(oldSide, newSide normalize.Rendered, labels labels, full bool) []resourceDiff {
 	all := make(map[string]struct{}, len(oldSide)+len(newSide))
 	for p := range oldSide {
 		all[p] = struct{}{}
@@ -59,49 +68,73 @@ func computeDiff(oldSide, newSide normalize.Rendered, labels labels, onlyHere fu
 
 	sort.Strings(paths)
 
-	diffs := make([]string, 0, len(paths))
+	diffs := make([]resourceDiff, 0, len(paths))
 
 	for _, rel := range paths {
 		oldContent, inOld := oldSide[rel]
 		newContent, inNew := newSide[rel]
 
-		fromLabel, toLabel := labels(rel)
 		status := statusModified
 
 		switch {
 		case !inOld:
-			fromLabel = devNull
 			status = statusAdded
 		case !inNew:
-			toLabel = devNull
 			status = statusDeleted
 		case string(oldContent) == string(newContent):
 			continue
 		}
 
-		if onlyHere != nil && status != statusModified {
-			diffs = append(diffs, onlyHere(rel, inOld))
-
-			continue
+		d := resourceDiff{rel: rel, status: status}
+		if full || status == statusModified {
+			d.unified = unifiedDiff(rel, status, oldContent, newContent, labels)
 		}
 
-		edits := myers.ComputeEdits(span.URIFromPath(rel), string(oldContent), string(newContent))
-		text := fmt.Sprint(gotextdiff.ToUnified(fromLabel, toLabel, string(oldContent), edits))
-
-		// gotextdiff writes "-1" / "+1" for an empty side; patch and git
-		// apply expect "-0,0" / "+0,0" for created and deleted files.
-		switch status {
-		case statusAdded:
-			text = strings.Replace(text, "\n@@ -1 +", "\n@@ -0,0 +", 1)
-		case statusDeleted:
-			text = strings.Replace(text, " +1 @@\n", " +0,0 @@\n", 1)
-		case statusModified:
-		}
-
-		diffs = append(diffs, text)
+		diffs = append(diffs, d)
 	}
 
 	return diffs
+}
+
+// unifiedDiff returns the unified diff (git apply compatible) of a resource.
+func unifiedDiff(rel string, status fileStatus, oldContent, newContent []byte, labels labels) string {
+	fromLabel, toLabel := labels(rel)
+
+	switch status {
+	case statusAdded:
+		fromLabel = devNull
+	case statusDeleted:
+		toLabel = devNull
+	case statusModified:
+	}
+
+	edits := myers.ComputeEdits(span.URIFromPath(rel), string(oldContent), string(newContent))
+	text := fmt.Sprint(gotextdiff.ToUnified(fromLabel, toLabel, string(oldContent), edits))
+
+	// gotextdiff writes "-1" / "+1" for an empty side; patch and git
+	// apply expect "-0,0" / "+0,0" for created and deleted files.
+	switch status {
+	case statusAdded:
+		text = strings.Replace(text, "\n@@ -1 +", "\n@@ -0,0 +", 1)
+	case statusDeleted:
+		text = strings.Replace(text, " +1 @@\n", " +0,0 @@\n", 1)
+	case statusModified:
+	}
+
+	return text
+}
+
+// computeDiff returns the unified diffs of compareRendered with full, for
+// norm --check.
+func computeDiff(oldSide, newSide normalize.Rendered, labels labels) []string {
+	diffs := compareRendered(oldSide, newSide, labels, true)
+	out := make([]string, len(diffs))
+
+	for i, d := range diffs {
+		out[i] = d.unified
+	}
+
+	return out
 }
 
 // sourceDiff holds the differences of one input file.
@@ -163,7 +196,7 @@ func diffBySource(pairs []checkPair, labels func(source string) labels) ([]sourc
 			return nil, err
 		}
 
-		result[i] = sourceDiff{Source: f, Diffs: computeDiff(oldRendered, newRendered, labels(f), nil)}
+		result[i] = sourceDiff{Source: f, Diffs: computeDiff(oldRendered, newRendered, labels(f))}
 	}
 
 	return result, nil
@@ -184,18 +217,21 @@ type origin struct {
 	rel string
 	// shared is true if the source holds other resources too (or is stdin),
 	// so the source alone does not name the resource.
-	shared   bool
+	shared bool
+	// stdin is true if the resource was read from stdin.
+	stdin    bool
 	managers []string
 }
 
 // location names the resource for a reader: the source file, plus the
 // normalized path if the file holds several resources.
 func (o origin) location() string {
+	source := filepath.ToSlash(o.source)
 	if o.shared {
-		return o.source + " (" + o.rel + ")"
+		return source + " (" + o.rel + ")"
 	}
 
-	return o.source
+	return source
 }
 
 // path names the resource in a diff header: the source file, or, if the
@@ -211,7 +247,7 @@ func (o origin) path() string {
 }
 
 // originLabels labels a resource with the files it was read from. A label of
-// a side without the resource is empty; computeDiff replaces it with
+// a side without the resource is empty; unifiedDiff replaces it with
 // /dev/null.
 func originLabels(oldSide, newSide diffSide) labels {
 	return func(rel string) (string, string) {
@@ -266,6 +302,7 @@ func newDiffSide(resources []normalize.Resource, opts *normalize.Options) (diffS
 			source:   diffLabel(infos[i].source),
 			rel:      rel,
 			shared:   infos[i].source == normalize.StdinPath || perSource[infos[i].source] > 1,
+			stdin:    infos[i].source == normalize.StdinPath,
 			managers: infos[i].managers,
 		}
 	}
@@ -273,12 +310,127 @@ func newDiffSide(resources []normalize.Resource, opts *normalize.Options) (diffS
 	return diffSide{rendered: rendered, origins: origins}, nil
 }
 
-// onlyHereLine returns the line of a resource that exists on one side only.
-func onlyHereLine(o origin) string {
-	line := "Only here: " + o.location()
+// onlyHereLine returns the line of a resource that exists on one side
+// only; side is "old" or "new".
+func onlyHereLine(o origin, side string) string {
+	line := "Only here (" + side + "): " + o.location()
 	if len(o.managers) > 0 {
 		line += " managed by: " + strings.Join(o.managers, ", ")
 	}
 
 	return line + "\n"
+}
+
+// Output formats of kubenorm diff.
+const (
+	outputText = "text"
+	outputJSON = "json"
+)
+
+// writeDiffText writes the unified diffs and, for resources on one side
+// only without a diff, their "Only here" line.
+func writeDiffText(w io.Writer, diffs []resourceDiff, oldSide, newSide diffSide) error {
+	for _, d := range diffs {
+		text := d.unified
+
+		switch {
+		case text != "":
+		case d.status == statusDeleted:
+			text = onlyHereLine(oldSide.origins[d.rel], "old")
+		default:
+			text = onlyHereLine(newSide.origins[d.rel], "new")
+		}
+
+		_, err := io.WriteString(w, text)
+		if err != nil {
+			return fmt.Errorf("writing diff: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// jsonVersion is the version of the JSON output. Fields are only added
+// within a version.
+const jsonVersion = 1
+
+// jsonDiff is the output of kubenorm diff --output json.
+type jsonDiff struct {
+	Version   int            `json:"version"`
+	Resources []jsonResource `json:"resources"`
+}
+
+// jsonResource is one differing resource.
+type jsonResource struct {
+	// Path is the normalized path, the identity of the resource.
+	Path string `json:"path"`
+	// Status is added, deleted or modified.
+	Status string      `json:"status"`
+	Old    *jsonOrigin `json:"old,omitempty"`
+	New    *jsonOrigin `json:"new,omitempty"`
+	// Diff is the unified diff; for added and deleted resources only with
+	// --full.
+	Diff string `json:"diff,omitempty"`
+}
+
+// jsonOrigin tells where one side of a resource comes from.
+type jsonOrigin struct {
+	// File is the file the resource was read from, "-" for stdin.
+	File string `json:"file"`
+	// ManagedBy names the tools that seem to manage the resource, like the
+	// text output. The values are for humans and may change.
+	ManagedBy []string `json:"managedBy"`
+}
+
+// String returns the status name of the JSON output.
+func (s fileStatus) String() string {
+	switch s {
+	case statusAdded:
+		return "added"
+	case statusDeleted:
+		return "deleted"
+	case statusModified:
+		return "modified"
+	}
+
+	return "unknown"
+}
+
+// writeDiffJSON writes the differences as one JSON object.
+func writeDiffJSON(w io.Writer, diffs []resourceDiff, oldSide, newSide diffSide) error {
+	out := jsonDiff{Version: jsonVersion, Resources: make([]jsonResource, len(diffs))}
+
+	side := func(s diffSide, rel string) *jsonOrigin {
+		o, ok := s.origins[rel]
+		if !ok {
+			return nil
+		}
+
+		file := filepath.ToSlash(o.source)
+		if o.stdin {
+			file = normalize.StdinPath
+		}
+
+		return &jsonOrigin{File: file, ManagedBy: append([]string{}, o.managers...)}
+	}
+
+	for i, d := range diffs {
+		out.Resources[i] = jsonResource{
+			Path:   d.rel,
+			Status: d.status.String(),
+			Old:    side(oldSide, d.rel),
+			New:    side(newSide, d.rel),
+			Diff:   d.unified,
+		}
+	}
+
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+
+	err := enc.Encode(out)
+	if err != nil {
+		return fmt.Errorf("writing diff: %w", err)
+	}
+
+	return nil
 }

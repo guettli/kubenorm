@@ -396,9 +396,11 @@ manage it, read from labels, annotations, ownerReferences and managedFields
 before normalization removes them:
 
 ```text
-Only here: current/demo/apps_Deployment/web.yaml managed by: helm release demo/web, manager helm
-Only here: stdin (demo/ConfigMap/extra.yaml)
+Only here (old): current/demo/apps_Deployment/web.yaml managed by: helm release demo/web, manager helm
+Only here (new): stdin (demo/ConfigMap/extra.yaml)
 ```
+
+The side (`old` or `new`) is the argument the resource was found in.
 
 Use `--full` to see the content as a diff from or to `/dev/null`. It labels
 every resource with `<argument>/<normalized path>`, in the format of
@@ -415,6 +417,15 @@ kubenorm diff ../main/zz_rendered zz_rendered
 dumpall --read-resource-names-from zz_rendered --clean-out-dir --ignore-config-use-common -o current
 kubenorm diff current zz_rendered
 ```
+
+`--output json` writes the differences for scripts:
+`{"version": 1, "resources": [...]}` with, per resource, its normalized
+`path`, `status` (`added`, `deleted`, `modified`), `old` and `new` (left out
+for the side without the resource) with the `file` (`-` for stdin) and
+`managedBy`, and the unified `diff` (for added and deleted resources only
+with `--full`; its headers are labeled like the text output). The text
+format may change between releases; the JSON fields stay within a
+`version`. The values of `managedBy` are for humans and may change.
 
 For a summary or colors, write both sides with `norm -o` and use git:
 `git diff --no-index --stat old/ new/`.

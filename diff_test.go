@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -39,7 +40,7 @@ func TestComputeDiff(t *testing.T) {
 	oldSide := renderYAML(t, diffTestCM)
 	newSide := renderYAML(t, strings.Replace(diffTestCM, "k: v1", "k: v2", 1)+"---\n"+strings.Replace(diffTestCM, "name: a", "name: b", 1))
 
-	diffs := computeDiff(oldSide, newSide, prefixLabels("old", "new"), nil)
+	diffs := computeDiff(oldSide, newSide, prefixLabels("old", "new"))
 	if len(diffs) != 2 || !strings.HasPrefix(diffs[1], "--- /dev/null") {
 		t.Fatalf("unexpected diffs %+v", diffs)
 	}
@@ -51,33 +52,33 @@ func TestComputeDiff(t *testing.T) {
 		}
 	}
 
-	onlyHere := func(rel string, _ bool) string { return rel }
-	for _, f := range []func(string, bool) string{nil, onlyHere} {
-		if diffs := computeDiff(oldSide, oldSide, prefixLabels("a", "b"), f); len(diffs) != 0 {
+	for _, full := range []bool{false, true} {
+		if diffs := compareRendered(oldSide, oldSide, prefixLabels("a", "b"), full); len(diffs) != 0 {
 			t.Fatalf("expected no diff, got %+v", diffs)
 		}
 	}
 }
 
-func TestComputeDiffOnlyHere(t *testing.T) {
+func TestCompareRendered(t *testing.T) {
 	t.Parallel()
 
 	oldSide := renderYAML(t, diffTestCM+"---\n"+strings.Replace(diffTestCM, "name: a", "name: c", 1))
 	newSide := renderYAML(t, strings.Replace(diffTestCM, "k: v1", "k: v2", 1)+"---\n"+strings.Replace(diffTestCM, "name: a", "name: b", 1))
 
-	onlyHere := func(rel string, inOld bool) string {
-		return fmt.Sprintf("%s %v\n", rel, inOld)
+	diffs := compareRendered(oldSide, newSide, prefixLabels("old", "new"), false)
+
+	got := make([]string, len(diffs))
+	for i, d := range diffs {
+		got[i] = fmt.Sprintf("%s %s %v", d.rel, d.status, d.unified != "")
 	}
 
-	diffs := computeDiff(oldSide, newSide, prefixLabels("old", "new"), onlyHere)
-
-	want := []string{"ns/ConfigMap/b.yaml false\n", "ns/ConfigMap/c.yaml true\n"}
-	if len(diffs) != 3 || diffs[1] != want[0] || diffs[2] != want[1] {
-		t.Fatalf("unexpected diffs %q", diffs)
+	want := []string{"ns/ConfigMap/a.yaml modified true", "ns/ConfigMap/b.yaml added false", "ns/ConfigMap/c.yaml deleted false"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("got %q, want %q", got, want)
 	}
 
-	if !strings.Contains(diffs[0], "+  k: v2") {
-		t.Errorf("modified resource misses its diff:\n%s", diffs[0])
+	if !strings.Contains(diffs[0].unified, "+  k: v2") {
+		t.Errorf("modified resource misses its diff:\n%s", diffs[0].unified)
 	}
 }
 
@@ -107,11 +108,11 @@ func TestNewDiffSide(t *testing.T) {
 	}
 
 	for rel, want := range map[string]string{
-		"ns/ConfigMap/a.yaml": "Only here: chart.yaml (ns/ConfigMap/a.yaml)\n",
-		"ns/ConfigMap/b.yaml": "Only here: chart.yaml (ns/ConfigMap/b.yaml) managed by: helm release ns/web\n",
-		"ns/ConfigMap/c.yaml": "Only here: dump/ns/ConfigMap/c.yaml\n",
+		"ns/ConfigMap/a.yaml": "Only here (new): chart.yaml (ns/ConfigMap/a.yaml)\n",
+		"ns/ConfigMap/b.yaml": "Only here (new): chart.yaml (ns/ConfigMap/b.yaml) managed by: helm release ns/web\n",
+		"ns/ConfigMap/c.yaml": "Only here (new): dump/ns/ConfigMap/c.yaml\n",
 	} {
-		if got := onlyHereLine(side.origins[rel]); got != want {
+		if got := onlyHereLine(side.origins[rel], "new"); got != want {
 			t.Errorf("%s: got %q, want %q", rel, got, want)
 		}
 	}
@@ -158,8 +159,8 @@ items:
 		t.Fatal(err)
 	}
 
-	want := "Only here: list.yaml managed by: kapp app 1\n"
-	if got := onlyHereLine(side.origins["new/LimitRange/lr.yaml"]); got != want {
+	want := "Only here (new): list.yaml managed by: kapp app 1\n"
+	if got := onlyHereLine(side.origins["new/LimitRange/lr.yaml"], "new"); got != want {
 		t.Fatalf("got %q, want %q (origins %+v)", got, want, side.origins)
 	}
 }
