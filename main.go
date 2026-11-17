@@ -100,6 +100,8 @@ type normFlags struct {
 	overwriteNamespace    string
 	noConfigDiscovery     bool
 	crdPaths              []string
+	setLabels             []string
+	setAnnotations        []string
 }
 
 func (f *normFlags) register(cmd *cobra.Command) {
@@ -118,6 +120,8 @@ func (f *normFlags) register(cmd *cobra.Command) {
 	fl.StringVar(&f.addNamespaceIfMissing, "add-namespace-if-missing", "", "Set metadata.namespace on namespaced resources without namespace, and fill empty namespace references (cluster-scoped kinds are left alone)")
 	fl.StringVar(&f.overwriteNamespace, "overwrite-namespace", "", "Set metadata.namespace on all namespaced resources, replacing existing values, and move references to the replaced namespaces")
 	fl.StringArrayVar(&f.crdPaths, "crds", nil, "Also read CustomResourceDefinitions from this file or directory (repeatable; other resources there are ignored): their quantity fields and scope are used like CRDs in the input")
+	fl.StringArrayVar(&f.setLabels, "set-label", nil, "Set this label (key=value, repeatable) on every resource, replacing an existing value")
+	fl.StringArrayVar(&f.setAnnotations, "set-annotation", nil, "Set this annotation (key=value, repeatable) on every resource, replacing an existing value")
 	fl.BoolVar(&f.noConfigDiscovery, "no-config-discovery", false, "Do not load "+discoveredConfigName+" from the current directory or its parents")
 }
 
@@ -168,11 +172,10 @@ func (f *normFlags) options(stderr io.Writer) (*normalize.Options, error) {
 		return nil, err
 	}
 
-	opts.KeepManagedFields = f.keepManagedFields
-	opts.RedactSecrets = f.redactSecrets
-	opts.SecretsAsStringData = f.secretsAsStringData
-	opts.AddNamespaceIfMissing = strings.TrimSpace(f.addNamespaceIfMissing)
-	opts.OverwriteNamespace = strings.TrimSpace(f.overwriteNamespace)
+	err = f.setChangeOptions(opts)
+	if err != nil {
+		return nil, err
+	}
 
 	// diff processes both sides with these options: print each warning once.
 	warned := map[string]bool{}
@@ -197,6 +200,43 @@ func (f *normFlags) options(stderr io.Writer) (*normalize.Options, error) {
 	}
 
 	return opts, nil
+}
+
+// setChangeOptions sets the options that change resources, not which ones
+// are kept.
+func (f *normFlags) setChangeOptions(opts *normalize.Options) error {
+	opts.KeepManagedFields = f.keepManagedFields
+	opts.RedactSecrets = f.redactSecrets
+	opts.SecretsAsStringData = f.secretsAsStringData
+	opts.AddNamespaceIfMissing = strings.TrimSpace(f.addNamespaceIfMissing)
+	opts.OverwriteNamespace = strings.TrimSpace(f.overwriteNamespace)
+
+	var err error
+
+	opts.SetLabels, err = parseKeyValues("--set-label", f.setLabels)
+	if err != nil {
+		return err
+	}
+
+	opts.SetAnnotations, err = parseKeyValues("--set-annotation", f.setAnnotations)
+
+	return err
+}
+
+// parseKeyValues parses "key=value" flag values. The value may contain "=".
+func parseKeyValues(flag string, pairs []string) (map[string]string, error) {
+	out := make(map[string]string, len(pairs))
+
+	for _, p := range pairs {
+		k, v, ok := strings.Cut(p, "=")
+		if !ok || k == "" {
+			return nil, fmt.Errorf("%s %q: want key=value", flag, p)
+		}
+
+		out[k] = v
+	}
+
+	return out, nil
 }
 
 // scopeOptions returns options with only the filters set.

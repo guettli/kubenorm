@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"maps"
 	"regexp"
+	"slices"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // builtinClusterScoped lists group/kind pairs that are cluster-scoped.
@@ -449,6 +451,41 @@ func (o *Options) validate() error {
 
 	if o.SecretsAsStringData && o.RedactSecrets {
 		return errors.New("secrets-as-stringdata and redact-secrets are mutually exclusive")
+	}
+
+	return validateMetadataValues(o.SetLabels, o.SetAnnotations)
+}
+
+// validateMetadataValues checks the keys and label values of SetLabels and
+// SetAnnotations like the api-server does (it lowercases annotation keys
+// before checking them; it also limits the total size of annotations,
+// which is not checked here).
+func validateMetadataValues(labels, annotations map[string]string) error {
+	for _, set := range []struct {
+		what   string
+		values map[string]string
+	}{{"label", labels}, {"annotation", annotations}} {
+		what := set.what
+		for _, k := range slices.Sorted(maps.Keys(set.values)) {
+			v := set.values[k]
+
+			key := k
+			if what == "annotation" {
+				key = strings.ToLower(k)
+			}
+
+			if errs := validation.IsQualifiedName(key); len(errs) > 0 {
+				return fmt.Errorf("invalid %s key %q: %s", what, k, strings.Join(errs, "; "))
+			}
+
+			if what != "label" {
+				continue
+			}
+
+			if errs := validation.IsValidLabelValue(v); len(errs) > 0 {
+				return fmt.Errorf("invalid value of label %q: %s", k, strings.Join(errs, "; "))
+			}
+		}
 	}
 
 	return nil

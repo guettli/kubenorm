@@ -16,7 +16,7 @@
 //     SOPS-encrypted documents are marked).
 //  2. Configure: LoadConfig compiles the common config and user files into a
 //     Config. Options holds the Config plus the CLI choices (namespace
-//     handling, filters, secrets). WithCRDs adds CRDs that are not part of
+//     handling, filters, secrets, labels and annotations to set). WithCRDs adds CRDs that are not part of
 //     the input.
 //  3. Process: Options.Process sets namespaces, drops filtered and
 //     SOPS-encrypted resources and normalizes the rest in place. Explain

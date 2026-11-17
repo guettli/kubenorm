@@ -227,6 +227,8 @@ kubenorm diff <old> <new> [flags]
       --overwrite-namespace string        Set metadata.namespace on all namespaced resources, replacing existing values, and move references to the replaced namespaces
       --redact-secrets                    Replace values of Secrets with REDACTED
       --secrets-as-stringdata             Convert base64 Secret data to stringData
+      --set-annotation stringArray        Set this annotation (key=value, repeatable) on every resource, replacing an existing value
+      --set-label stringArray             Set this label (key=value, repeatable) on every resource, replacing an existing value
       --skip-name-glob string             Drop resources whose metadata.name matches this anchored glob
   -O, --skip-owned                        Drop resources with a controlling ownerReference and objects Kubernetes autogenerates
 ```
@@ -262,6 +264,8 @@ kubenorm explain <file|dir|->... [flags]
       --overwrite-namespace string        Set metadata.namespace on all namespaced resources, replacing existing values, and move references to the replaced namespaces
       --redact-secrets                    Replace values of Secrets with REDACTED
       --secrets-as-stringdata             Convert base64 Secret data to stringData
+      --set-annotation stringArray        Set this annotation (key=value, repeatable) on every resource, replacing an existing value
+      --set-label stringArray             Set this label (key=value, repeatable) on every resource, replacing an existing value
       --skip-name-glob string             Drop resources whose metadata.name matches this anchored glob
   -O, --skip-owned                        Drop resources with a controlling ownerReference and objects Kubernetes autogenerates
 ```
@@ -323,6 +327,8 @@ kubenorm norm <file|dir|->... [flags]
       --overwrite-namespace string        Set metadata.namespace on all namespaced resources, replacing existing values, and move references to the replaced namespaces
       --redact-secrets                    Replace values of Secrets with REDACTED
       --secrets-as-stringdata             Convert base64 Secret data to stringData
+      --set-annotation stringArray        Set this annotation (key=value, repeatable) on every resource, replacing an existing value
+      --set-label stringArray             Set this label (key=value, repeatable) on every resource, replacing an existing value
       --skip-name-glob string             Drop resources whose metadata.name matches this anchored glob
   -O, --skip-owned                        Drop resources with a controlling ownerReference and objects Kubernetes autogenerates
   -v, --verbose                           Print every written file to stderr

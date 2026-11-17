@@ -3,6 +3,7 @@ package normalize
 import (
 	"fmt"
 	"io"
+	"maps"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -67,6 +68,16 @@ type Options struct {
 	// OverwriteNamespace sets metadata.namespace on all namespaced resources,
 	// replacing an existing value. Applied before filtering.
 	OverwriteNamespace string
+
+	// SetLabels sets these labels in metadata.labels of every resource,
+	// replacing existing values. Applied after the remove rules, so a rule
+	// does not remove them. Pod templates and selectors are not changed.
+	SetLabels map[string]string
+
+	// SetAnnotations sets these annotations in metadata.annotations of every
+	// resource, like SetLabels.
+	SetAnnotations map[string]string
+
 	// Warn receives warnings about the input, for example a reference to a
 	// namespace that the namespace options cannot move. Nil discards them.
 	Warn func(msg string)
@@ -118,8 +129,8 @@ func identityOf(item *unstructured.Unstructured, isNamespaced bool) objectIdenti
 }
 
 // Normalize modifies obj in place: removes managed fields, handles Secrets,
-// canonicalizes quantityFields, applies the removeFields rules and prunes
-// empty labels/annotations.
+// canonicalizes quantityFields, applies the removeFields rules, sets
+// SetLabels and SetAnnotations and prunes empty labels/annotations.
 //
 // Unlike Process, it handles a single object and skips everything that needs
 // the other resources or decides about keeping one: no namespace options
@@ -160,6 +171,8 @@ func (o *Options) normalize(obj map[string]any, t *tracer) error {
 
 	o.applyQuantityRules(obj, t)
 	o.applyRemoveRules(obj, t)
+	setMetadataMap(obj, metadata, "labels", "--set-label", o.SetLabels, t)
+	setMetadataMap(obj, metadata, "annotations", "--set-annotation", o.SetAnnotations, t)
 	t.step(obj, "empty labels/annotations are removed", func() { pruneEmptyMetadataMaps(obj) })
 
 	return nil
@@ -192,6 +205,22 @@ func identityFromObject(obj map[string]any) objectIdentity {
 	u := &unstructured.Unstructured{Object: obj}
 
 	return identityOf(u, u.GetNamespace() != "")
+}
+
+// setMetadataMap sets the values in metadata.<field> (labels or
+// annotations), creating the map if needed.
+func setMetadataMap(obj, metadata map[string]any, field, reason string, values map[string]string, t *tracer) {
+	for _, k := range slices.Sorted(maps.Keys(values)) {
+		t.step(obj, reason+" "+k+"="+values[k], func() {
+			m, ok := metadata[field].(map[string]any)
+			if !ok {
+				m = map[string]any{}
+				metadata[field] = m
+			}
+
+			m[k] = values[k]
+		})
+	}
 }
 
 func pruneEmptyMetadataMaps(obj map[string]any) {
