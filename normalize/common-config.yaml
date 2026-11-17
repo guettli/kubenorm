@@ -44,8 +44,13 @@ removeFields:
       # Rancher "Redeploy") write a timestamp into the pod template
       # annotations ("...template" also matches a CronJob's jobTemplate).
       - metadata.annotations.kubernetes\.io/change-cause
-      - ...annotations.keel\.sh/update-time
-      - ...annotations.kubectl\.kubernetes\.io/restartedAt
+      # Not "...annotations": that would also match free-form content of
+      # custom resources (Helm values of a HelmRelease), where a timestamp
+      # can be set on purpose to force a rollout.
+      - metadata.annotations.keel\.sh/update-time
+      - ...template.metadata.annotations.keel\.sh/update-time
+      - metadata.annotations.kubectl\.kubernetes\.io/restartedAt
+      - ...template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt
       - metadata.annotations.cattle\.io/timestamp
       - ...template.metadata.annotations.cattle\.io/timestamp
 
