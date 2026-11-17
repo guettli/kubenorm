@@ -324,6 +324,20 @@ value. Pod templates and selectors are not changed. The values are set after
 the remove rules, so a rule does not remove them. Keys and label values are
 checked like the api-server does (not the total size of annotations).
 
+To tell the reader of a resource, also in the cluster, which script
+rendered it, use `--rendered-by`. It sets the annotation
+`kubenorm.guettli.github.io/rendered-by`, which takes any value, also a
+path. `kubenorm diff` shows it under "managed by" for resources on one side
+only.
+
+```terminal
+helm template ./chart | kubenorm norm - --rendered-by foo/render.sh -o zz_rendered
+```
+
+Use it instead of `app.kubernetes.io/managed-by`: label values can't hold a
+path, and that label names the tool that manages the resource in the
+cluster (Helm adopts resources only if it says `Helm`).
+
 `norm --check` with these flags fails until the files carry the values.
 `diff` sets them on both sides, so differences in these keys are hidden.
 

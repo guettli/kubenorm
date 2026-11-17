@@ -560,6 +560,55 @@ metadata:
 	}
 }
 
+func TestNorm_RenderedBy(t *testing.T) {
+	t.Parallel()
+
+	cm := "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: c\n  namespace: demo\n"
+
+	code, out, errOut := runCLI(t, cm, "norm", "-", "--rendered-by", "foo/render.sh")
+	if code != 0 || !strings.Contains(out, "  annotations:\n    kubenorm.guettli.github.io/rendered-by: foo/render.sh\n") {
+		t.Fatalf("got %d:\n%s%s", code, out, errOut)
+	}
+
+	rendered := out
+
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"--rendered-by", "a", "--set-annotation", "kubenorm.guettli.github.io/rendered-by=b"}, "mutually exclusive"},
+		{[]string{"--rendered-by", " "}, "empty value"},
+		{[]string{"--rendered-by", "a\nb"}, "control characters"},
+	} {
+		code, _, errOut = runCLI(t, cm, append([]string{"norm", "-"}, tc.args...)...)
+		if code != 2 || !strings.Contains(errOut, tc.want) {
+			t.Errorf("%q: expected exit 2 with %q, got %d: %s", tc.args, tc.want, code, errOut)
+		}
+	}
+
+	code, out, _ = runCLI(t, cm, "norm", "-", "--rendered-by", "  foo/render.sh ")
+	if code != 0 || out != rendered {
+		t.Errorf("value not trimmed, got %d:\n%s", code, out)
+	}
+
+	code, out, _ = runCLI(t, cm, "explain", "-", "--rendered-by", "foo/render.sh")
+	if code != 0 || !strings.Contains(out, "[--rendered-by kubenorm.guettli.github.io/rendered-by=foo/render.sh]") {
+		t.Errorf("explain misses the --rendered-by reason, got %d:\n%s", code, out)
+	}
+
+	code, _, _ = runCLI(t, rendered, "norm", "-", "--check", "--rendered-by", "other.sh")
+	if code != 1 {
+		t.Errorf("expected --check to fail on another value, got %d", code)
+	}
+
+	out = rendered
+
+	code, out, _ = runCLI(t, out, "diff", t.TempDir(), "-")
+	if code != 1 || !strings.Contains(out, "managed by: rendered by foo/render.sh") {
+		t.Fatalf("diff misses rendered by, got %d:\n%s", code, out)
+	}
+}
+
 func TestDiff_SetLabelOnBothSides(t *testing.T) {
 	t.Parallel()
 

@@ -197,8 +197,8 @@ compare one cluster at a time. A resource that exists on one side only is
 reported with one "Only here: <file>" line (plus "(<path>)" if the file
 holds several resources or is stdin), followed by the tools that seem to
 manage it: helm, argocd, flux, fleet/wrangler, rancher, kapp, kubectl apply,
-app.kubernetes.io/managed-by, the controller owner and managedFields
-managers. --full shows its content instead.
+the rendered-by annotation, app.kubernetes.io/managed-by, the controller
+owner and managedFields managers. --full shows its content instead.
 Exits 1 if there are differences.
 
 Examples:
@@ -226,6 +226,7 @@ kubenorm diff <old> <new> [flags]
       --no-config-discovery               Do not load .kubenorm.yaml from the current directory or its parents
       --overwrite-namespace string        Set metadata.namespace on all namespaced resources, replacing existing values, and move references to the replaced namespaces
       --redact-secrets                    Replace values of Secrets with REDACTED
+      --rendered-by string                Set the annotation kubenorm.guettli.github.io/rendered-by to this value (e.g. the script that renders the manifests) on every resource
       --secrets-as-stringdata             Convert base64 Secret data to stringData
       --set-annotation stringArray        Set this annotation (key=value, repeatable) on every resource, replacing an existing value
       --set-label stringArray             Set this label (key=value, repeatable) on every resource, replacing an existing value
@@ -263,6 +264,7 @@ kubenorm explain <file|dir|->... [flags]
       --no-config-discovery               Do not load .kubenorm.yaml from the current directory or its parents
       --overwrite-namespace string        Set metadata.namespace on all namespaced resources, replacing existing values, and move references to the replaced namespaces
       --redact-secrets                    Replace values of Secrets with REDACTED
+      --rendered-by string                Set the annotation kubenorm.guettli.github.io/rendered-by to this value (e.g. the script that renders the manifests) on every resource
       --secrets-as-stringdata             Convert base64 Secret data to stringData
       --set-annotation stringArray        Set this annotation (key=value, repeatable) on every resource, replacing an existing value
       --set-label stringArray             Set this label (key=value, repeatable) on every resource, replacing an existing value
@@ -326,6 +328,7 @@ kubenorm norm <file|dir|->... [flags]
   -o, --out-dir string                    Write one file per resource into this directory (must not exist, see --clean-out-dir)
       --overwrite-namespace string        Set metadata.namespace on all namespaced resources, replacing existing values, and move references to the replaced namespaces
       --redact-secrets                    Replace values of Secrets with REDACTED
+      --rendered-by string                Set the annotation kubenorm.guettli.github.io/rendered-by to this value (e.g. the script that renders the manifests) on every resource
       --secrets-as-stringdata             Convert base64 Secret data to stringData
       --set-annotation stringArray        Set this annotation (key=value, repeatable) on every resource, replacing an existing value
       --set-label stringArray             Set this label (key=value, repeatable) on every resource, replacing an existing value

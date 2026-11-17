@@ -20,6 +20,13 @@ const (
 	// RedactionMarker replaces Secret values when Options.RedactSecrets is set.
 	RedactionMarker = "REDACTED"
 
+	// RenderedByAnnotation names the script or pipeline that rendered a
+	// resource, see Options.RenderedBy and the --rendered-by flag of the
+	// kubenorm CLI. Unlike
+	// app.kubernetes.io/managed-by (the tool that manages the resource in
+	// the cluster) it allows any value, for example a path.
+	RenderedByAnnotation = "kubenorm.guettli.github.io/rendered-by"
+
 	fieldMetadata         = "metadata"
 	kindSecret            = "Secret"
 	lastAppliedAnnotation = "kubectl.kubernetes.io/last-applied-configuration"
@@ -78,6 +85,10 @@ type Options struct {
 	// resource, like SetLabels.
 	SetAnnotations map[string]string
 
+	// RenderedBy sets the annotation RenderedByAnnotation of every resource,
+	// like SetAnnotations. It must not contain control characters.
+	RenderedBy string
+
 	// Warn receives warnings about the input, for example a reference to a
 	// namespace that the namespace options cannot move. Nil discards them.
 	Warn func(msg string)
@@ -130,7 +141,7 @@ func identityOf(item *unstructured.Unstructured, isNamespaced bool) objectIdenti
 
 // Normalize modifies obj in place: removes managed fields, handles Secrets,
 // canonicalizes quantityFields, applies the removeFields rules, sets
-// SetLabels and SetAnnotations and prunes empty labels/annotations.
+// SetLabels, SetAnnotations and RenderedBy and prunes empty labels/annotations.
 //
 // Unlike Process, it handles a single object and skips everything that needs
 // the other resources or decides about keeping one: no namespace options
@@ -173,6 +184,11 @@ func (o *Options) normalize(obj map[string]any, t *tracer) error {
 	o.applyRemoveRules(obj, t)
 	setMetadataMap(obj, metadata, "labels", "--set-label", o.SetLabels, t)
 	setMetadataMap(obj, metadata, "annotations", "--set-annotation", o.SetAnnotations, t)
+
+	if o.RenderedBy != "" {
+		setMetadataMap(obj, metadata, "annotations", "--rendered-by", map[string]string{RenderedByAnnotation: o.RenderedBy}, t)
+	}
+
 	t.step(obj, "empty labels/annotations are removed", func() { pruneEmptyMetadataMaps(obj) })
 
 	return nil

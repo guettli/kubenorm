@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -451,6 +452,16 @@ func (o *Options) validate() error {
 
 	if o.SecretsAsStringData && o.RedactSecrets {
 		return errors.New("secrets-as-stringdata and redact-secrets are mutually exclusive")
+	}
+
+	if o.RenderedBy != "" {
+		if strings.ContainsFunc(o.RenderedBy, unicode.IsControl) {
+			return fmt.Errorf("rendered-by %q contains control characters", o.RenderedBy)
+		}
+
+		if _, ok := o.SetAnnotations[RenderedByAnnotation]; ok {
+			return fmt.Errorf("rendered-by and a set annotation %s are mutually exclusive", RenderedByAnnotation)
+		}
 	}
 
 	return validateMetadataValues(o.SetLabels, o.SetAnnotations)

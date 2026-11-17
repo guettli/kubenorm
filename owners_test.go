@@ -100,6 +100,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: g
+  annotations:
+    kubenorm.guettli.github.io/rendered-by: "foo/render.sh\nx"
   labels:
     authz.cluster.cattle.io/rtb-owner-updated: p-foo_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-9f2e1
 `), "test")
@@ -121,7 +123,7 @@ metadata:
 			"rancher roletemplate project-member", "rancher rtb uid 0b5c1f7e-1111-2222-3333-444455556666",
 			"rancher prtb p-foo/my-binding", "rancher membership-binding-owner c-abc/crtb-x",
 		},
-		{"rancher rtb p-foo/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-9f2e1 (truncated)"},
+		{"rancher rtb p-foo/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-9f2e1 (truncated)", `"rendered by foo/render.sh\nx"`},
 	} {
 		if got := managers(resources[i].Object); !slices.Equal(got, want) {
 			t.Errorf("resource %d: got %q, want %q", i, got, want)
