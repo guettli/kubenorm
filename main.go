@@ -308,21 +308,6 @@ func readInputs(cmd *cobra.Command, inputs ...string) ([]normalize.Resource, err
 	return resources, nil
 }
 
-// readRendered reads, processes and renders the inputs.
-func readRendered(cmd *cobra.Command, opts *normalize.Options, inputs ...string) (normalize.Rendered, error) {
-	resources, err := readInputs(cmd, inputs...)
-	if err != nil {
-		return nil, err
-	}
-
-	resources, err = opts.Process(resources)
-	if err != nil {
-		return nil, err
-	}
-
-	return normalize.Render(resources)
-}
-
 func runNorm(cmd *cobra.Command, flags *normFlags, inputs []string, outDir string, cleanOutDir bool, comment string, verbose bool) error {
 	opts, err := flags.options(cmd.ErrOrStderr())
 	if err != nil {
@@ -564,7 +549,11 @@ options and print a unified diff. Resources are paired by identity
 (namespace, group, kind, name), not by file name, so differently organized
 trees can be compared. Each side must contain a resource only once, so
 compare one cluster at a time. A resource that exists on one side only is
-reported with one "Only in <dir>: <file>" line; --full shows its content.
+reported with one "Only here: <file>" line (plus "(<path>)" if the file
+holds several resources or is stdin), followed by the tools that seem to
+manage it: helm, argocd, flux, fleet/wrangler, kapp, kubectl apply,
+app.kubernetes.io/managed-by, the controller owner and managedFields
+managers. --full shows its content instead.
 Exits 1 if there are differences.
 
 Examples:
@@ -582,6 +571,16 @@ Examples:
 	return cmd
 }
 
+// readDiffSide reads one side of kubenorm diff.
+func readDiffSide(cmd *cobra.Command, opts *normalize.Options, input string) (diffSide, error) {
+	resources, err := readInputs(cmd, input)
+	if err != nil {
+		return diffSide{}, err
+	}
+
+	return newDiffSide(resources, opts)
+}
+
 // runDiff implements "kubenorm diff".
 func runDiff(cmd *cobra.Command, flags *normFlags, oldPath, newPath string, full bool) error {
 	if oldPath == normalize.StdinPath && newPath == normalize.StdinPath {
@@ -593,17 +592,28 @@ func runDiff(cmd *cobra.Command, flags *normFlags, oldPath, newPath string, full
 		return err
 	}
 
-	oldSide, err := readRendered(cmd, opts, oldPath)
+	oldSide, err := readDiffSide(cmd, opts, oldPath)
 	if err != nil {
 		return err
 	}
 
-	newSide, err := readRendered(cmd, opts, newPath)
+	newSide, err := readDiffSide(cmd, opts, newPath)
 	if err != nil {
 		return err
 	}
 
-	diffs := computeDiff(oldSide, newSide, prefixLabels(diffLabel(oldPath), diffLabel(newPath)), full)
+	var onlyHere func(rel string, inOld bool) string
+	if !full {
+		onlyHere = func(rel string, inOld bool) string {
+			if inOld {
+				return onlyHereLine(oldSide.origins[rel])
+			}
+
+			return onlyHereLine(newSide.origins[rel])
+		}
+	}
+
+	diffs := computeDiff(oldSide.rendered, newSide.rendered, prefixLabels(diffLabel(oldPath), diffLabel(newPath)), onlyHere)
 
 	for _, d := range diffs {
 		_, err = io.WriteString(cmd.OutOrStdout(), d)

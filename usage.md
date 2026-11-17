@@ -194,7 +194,11 @@ options and print a unified diff. Resources are paired by identity
 (namespace, group, kind, name), not by file name, so differently organized
 trees can be compared. Each side must contain a resource only once, so
 compare one cluster at a time. A resource that exists on one side only is
-reported with one "Only in <dir>: <file>" line; --full shows its content.
+reported with one "Only here: <file>" line (plus "(<path>)" if the file
+holds several resources or is stdin), followed by the tools that seem to
+manage it: helm, argocd, flux, fleet/wrangler, kapp, kubectl apply,
+app.kubernetes.io/managed-by, the controller owner and managedFields
+managers. --full shows its content instead.
 Exits 1 if there are differences.
 
 Examples:

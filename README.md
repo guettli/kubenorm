@@ -353,14 +353,23 @@ latest release.
 
 ## `kubenorm diff`
 
-Normalizes both sides with the same options and prints a unified diff. Resources are paired by identity, not by file name,
-so differently organized trees, single files and streams can be compared.
+Normalizes both sides with the same options and prints a unified diff.
+Resources are paired by identity, not by file name, so differently organized trees, single files and streams can be compared.
 Each side may contain a resource only once: compare one cluster at a time.
 
-A resource that exists on one side only is reported with one line per
-resource, like `diff -r` does (`Only in zz_rendered/ns/apps_Deployment:
-web.yaml`), instead of its whole content. Use `--full` to see the content as
-a diff from or to `/dev/null`; only then is the output `git apply` compatible.
+A resource that exists on one side only is reported with one line instead
+of its whole content. It names the file the resource was read from (plus
+its path if the file holds several resources) and the tools that seem to
+manage it, read from labels, annotations, ownerReferences and managedFields
+before normalization removes them:
+
+```text
+Only here: current/demo/apps_Deployment/web.yaml managed by: helm release demo/web, manager helm
+Only here: stdin (demo/ConfigMap/extra.yaml)
+```
+
+Use `--full` to see the content as a diff from or to `/dev/null`; only then
+is the output `git apply` compatible.
 
 ```terminal
 # What does this PR really change?
