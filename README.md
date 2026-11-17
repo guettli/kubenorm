@@ -353,10 +353,14 @@ latest release.
 
 ## `kubenorm diff`
 
-Normalizes both sides with the same options and prints a unified diff
-(`git apply` compatible). Resources are paired by identity, not by file name,
+Normalizes both sides with the same options and prints a unified diff. Resources are paired by identity, not by file name,
 so differently organized trees, single files and streams can be compared.
 Each side may contain a resource only once: compare one cluster at a time.
+
+A resource that exists on one side only is reported with one line per
+resource, like `diff -r` does (`Only in zz_rendered/ns/apps_Deployment:
+web.yaml`), instead of its whole content. Use `--full` to see the content as
+a diff from or to `/dev/null`; only then is the output `git apply` compatible.
 
 ```terminal
 # What does this PR really change?

@@ -193,7 +193,9 @@ Normalize both sides (file, directory or "-" for stdin) with the same
 options and print a unified diff. Resources are paired by identity
 (namespace, group, kind, name), not by file name, so differently organized
 trees can be compared. Each side must contain a resource only once, so
-compare one cluster at a time. Exits 1 if there are differences.
+compare one cluster at a time. A resource that exists on one side only is
+reported with one "Only in <dir>: <file>" line; --full shows its content.
+Exits 1 if there are differences.
 
 Examples:
   kubenorm diff zz_generated-main/tc zz_generated-pr/tc
@@ -210,6 +212,7 @@ kubenorm diff <old> <new> [flags]
   -c, --config stringArray                YAML config with removeFields/skipResources/excludeNamespaces/quantityFields/clusterScopedResources rules (repeatable; merged with the common config)
       --crds stringArray                  Also read CustomResourceDefinitions from this file or directory (repeatable; other resources there are ignored): their quantity fields and scope are used like CRDs in the input
       --exclude-namespaces string         Drop these namespaces (globs, comma-separated): the Namespace object and everything inside
+      --full                              Show the whole content of resources that exist on one side only, as a diff from or to /dev/null (git apply compatible output)
   -h, --help                              help for diff
       --keep-managed-fields               Keep metadata.managedFields
       --kind string                       Only keep kinds matching these globs (comma-separated, e.g. 'ConfigMap,Cluster*')

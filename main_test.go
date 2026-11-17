@@ -306,6 +306,37 @@ func TestDiff(t *testing.T) {
 	}
 }
 
+func TestDiff_OneSideOnly(t *testing.T) {
+	t.Parallel()
+
+	b := t.TempDir()
+	writeFile(t, filepath.Join(b, "web.yaml"), normalizedDeployment)
+
+	changed := strings.Replace(deploymentYAML, "replicas: 2", "replicas: 3", 1)
+
+	extra := changed + "---\n" + strings.Replace(normalizedDeployment, "name: web", "name: api", 1)
+
+	code, out, _ := runCLI(t, extra, "diff", b, "-")
+	if code != 1 || !strings.Contains(out, "Only in stdin/demo/apps_Deployment: api.yaml\n") || strings.Contains(out, "/dev/null") {
+		t.Fatalf("expected an Only in line, got %d:\n%s", code, out)
+	}
+
+	code, out, _ = runCLI(t, extra, "diff", "--full", b, "-")
+	if code != 1 || !strings.Contains(out, "+++ stdin/demo/apps_Deployment/api.yaml") || !strings.Contains(out, "--- /dev/null") {
+		t.Fatalf("expected the full content with --full, got %d:\n%s", code, out)
+	}
+
+	code, out, _ = runCLI(t, changed, "diff", "-", b)
+	if code != 1 || !strings.Contains(out, "+  replicas: 2") {
+		t.Fatalf("expected a diff, got %d:\n%s", code, out)
+	}
+
+	code, out, _ = runCLI(t, extra, "diff", "-", b)
+	if code != 1 || !strings.Contains(out, "Only in stdin/demo/apps_Deployment: api.yaml\n") {
+		t.Fatalf("expected an Only in line for the old side, got %d:\n%s", code, out)
+	}
+}
+
 func TestShowCommonConfig(t *testing.T) {
 	t.Parallel()
 

@@ -35,9 +35,12 @@ func prefixLabels(oldPrefix, newPrefix string) labels {
 	}
 }
 
-// computeDiff compares old and new and returns one unified diff (git apply
-// compatible) per differing resource, sorted by path.
-func computeDiff(oldSide, newSide normalize.Rendered, labels labels) []string {
+// computeDiff compares old and new and returns one entry per differing
+// resource, sorted by path: a unified diff for a modified resource. A resource
+// that exists on one side only gets one line like "diff -r" prints ("Only in
+// new/ns/ConfigMap: b.yaml"), or, with full, a diff from or to /dev/null.
+// Only with full is the whole output git apply compatible.
+func computeDiff(oldSide, newSide normalize.Rendered, labels labels, full bool) []string {
 	all := make(map[string]struct{}, len(oldSide)+len(newSide))
 	for p := range oldSide {
 		all[p] = struct{}{}
@@ -74,6 +77,12 @@ func computeDiff(oldSide, newSide normalize.Rendered, labels labels) []string {
 			continue
 		}
 
+		if !full && status != statusModified {
+			diffs = append(diffs, onlyIn(fromLabel, toLabel))
+
+			continue
+		}
+
 		edits := myers.ComputeEdits(span.URIFromPath(rel), string(oldContent), string(newContent))
 		text := fmt.Sprint(gotextdiff.ToUnified(fromLabel, toLabel, string(oldContent), edits))
 
@@ -91,6 +100,17 @@ func computeDiff(oldSide, newSide normalize.Rendered, labels labels) []string {
 	}
 
 	return diffs
+}
+
+// onlyIn returns the "diff -r" style line of a resource that exists on one
+// side only: the label that is not /dev/null.
+func onlyIn(fromLabel, toLabel string) string {
+	label := toLabel
+	if label == devNull {
+		label = fromLabel
+	}
+
+	return fmt.Sprintf("Only in %s: %s\n", path.Dir(label), path.Base(label))
 }
 
 // sourceDiff holds the differences of one input file.
@@ -152,7 +172,7 @@ func diffBySource(pairs []checkPair, labels func(source string) labels) ([]sourc
 			return nil, err
 		}
 
-		result[i] = sourceDiff{Source: f, Diffs: computeDiff(oldRendered, newRendered, labels(f))}
+		result[i] = sourceDiff{Source: f, Diffs: computeDiff(oldRendered, newRendered, labels(f), true)}
 	}
 
 	return result, nil

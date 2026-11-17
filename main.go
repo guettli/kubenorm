@@ -551,7 +551,10 @@ func diffLabel(input string) string {
 }
 
 func buildDiffCmd() *cobra.Command {
-	var flags normFlags
+	var (
+		flags normFlags
+		full  bool
+	)
 
 	cmd := &cobra.Command{
 		Use:   "diff <old> <new>",
@@ -560,52 +563,60 @@ func buildDiffCmd() *cobra.Command {
 options and print a unified diff. Resources are paired by identity
 (namespace, group, kind, name), not by file name, so differently organized
 trees can be compared. Each side must contain a resource only once, so
-compare one cluster at a time. Exits 1 if there are differences.
+compare one cluster at a time. A resource that exists on one side only is
+reported with one "Only in <dir>: <file>" line; --full shows its content.
+Exits 1 if there are differences.
 
 Examples:
   kubenorm diff zz_generated-main/tc zz_generated-pr/tc
   helm template ./chart | kubenorm diff deployed-dump/ -`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if args[0] == normalize.StdinPath && args[1] == normalize.StdinPath {
-				return errors.New("only one side can be read from stdin")
-			}
-
-			opts, err := flags.options(cmd.ErrOrStderr())
-			if err != nil {
-				return err
-			}
-
-			oldSide, err := readRendered(cmd, opts, args[0])
-			if err != nil {
-				return err
-			}
-
-			newSide, err := readRendered(cmd, opts, args[1])
-			if err != nil {
-				return err
-			}
-
-			diffs := computeDiff(oldSide, newSide, prefixLabels(diffLabel(args[0]), diffLabel(args[1])))
-
-			for _, d := range diffs {
-				_, err = io.WriteString(cmd.OutOrStdout(), d)
-				if err != nil {
-					return fmt.Errorf("writing diff: %w", err)
-				}
-			}
-
-			if len(diffs) == 0 {
-				return nil
-			}
-
-			return errDifferences
+			return runDiff(cmd, &flags, args[0], args[1], full)
 		},
 	}
 
 	flags.register(cmd)
+	cmd.Flags().BoolVar(&full, "full", false, "Show the whole content of resources that exist on one side only, as a diff from or to /dev/null (git apply compatible output)")
 
 	return cmd
+}
+
+// runDiff implements "kubenorm diff".
+func runDiff(cmd *cobra.Command, flags *normFlags, oldPath, newPath string, full bool) error {
+	if oldPath == normalize.StdinPath && newPath == normalize.StdinPath {
+		return errors.New("only one side can be read from stdin")
+	}
+
+	opts, err := flags.options(cmd.ErrOrStderr())
+	if err != nil {
+		return err
+	}
+
+	oldSide, err := readRendered(cmd, opts, oldPath)
+	if err != nil {
+		return err
+	}
+
+	newSide, err := readRendered(cmd, opts, newPath)
+	if err != nil {
+		return err
+	}
+
+	diffs := computeDiff(oldSide, newSide, prefixLabels(diffLabel(oldPath), diffLabel(newPath)), full)
+
+	for _, d := range diffs {
+		_, err = io.WriteString(cmd.OutOrStdout(), d)
+		if err != nil {
+			return fmt.Errorf("writing diff: %w", err)
+		}
+	}
+
+	if len(diffs) == 0 {
+		return nil
+	}
+
+	return errDifferences
 }
 
 func buildShowCommonConfigCmd() *cobra.Command {
