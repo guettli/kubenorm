@@ -317,8 +317,8 @@ func TestDiff_OneSideOnly(t *testing.T) {
 	extra := changed + "---\n" + strings.Replace(normalizedDeployment, "name: web", "name: api", 1)
 
 	code, out, _ := runCLI(t, extra, "diff", b, "-")
-	if code != 1 || !strings.Contains(out, "Only in stdin/demo/apps_Deployment: api.yaml\n") || strings.Contains(out, "/dev/null") {
-		t.Fatalf("expected an Only in line, got %d:\n%s", code, out)
+	if code != 1 || !strings.Contains(out, "Only here: stdin (demo/apps_Deployment/api.yaml)\n") || strings.Contains(out, "/dev/null") {
+		t.Fatalf("expected an Only here line, got %d:\n%s", code, out)
 	}
 
 	code, out, _ = runCLI(t, extra, "diff", "--full", b, "-")
@@ -332,8 +332,18 @@ func TestDiff_OneSideOnly(t *testing.T) {
 	}
 
 	code, out, _ = runCLI(t, extra, "diff", "-", b)
-	if code != 1 || !strings.Contains(out, "Only in stdin/demo/apps_Deployment: api.yaml\n") {
-		t.Fatalf("expected an Only in line for the old side, got %d:\n%s", code, out)
+	if code != 1 || !strings.Contains(out, "Only here: stdin (demo/apps_Deployment/api.yaml)\n") {
+		t.Fatalf("expected an Only here line for the old side, got %d:\n%s", code, out)
+	}
+
+	// A file in a directory is named by its real path, not by the input
+	// argument plus the normalized path.
+	dumped := filepath.Join(b, "demo", "cm.yaml")
+	writeFile(t, dumped, "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cm\n  namespace: demo\n  managedFields:\n    - manager: kubectl-edit\n      operation: Update\n")
+
+	code, out, _ = runCLI(t, changed, "diff", filepath.Join(b, "demo"), "-")
+	if want := "Only here: " + dumped + " managed by: manager kubectl-edit\n"; code != 1 || !strings.Contains(out, want) {
+		t.Fatalf("expected %q, got %d:\n%s", want, code, out)
 	}
 }
 

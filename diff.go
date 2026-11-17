@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"path"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -37,10 +38,10 @@ func prefixLabels(oldPrefix, newPrefix string) labels {
 
 // computeDiff compares old and new and returns one entry per differing
 // resource, sorted by path: a unified diff for a modified resource. A resource
-// that exists on one side only gets one line like "diff -r" prints ("Only in
-// new/ns/ConfigMap: b.yaml"), or, with full, a diff from or to /dev/null.
-// Only with full is the whole output git apply compatible.
-func computeDiff(oldSide, newSide normalize.Rendered, labels labels, full bool) []string {
+// that exists on one side only gets the line onlyHere returns for it, or, if
+// onlyHere is nil, a diff from or to /dev/null. Only with a nil onlyHere is
+// the whole output git apply compatible.
+func computeDiff(oldSide, newSide normalize.Rendered, labels labels, onlyHere func(rel string, inOld bool) string) []string {
 	all := make(map[string]struct{}, len(oldSide)+len(newSide))
 	for p := range oldSide {
 		all[p] = struct{}{}
@@ -77,8 +78,8 @@ func computeDiff(oldSide, newSide normalize.Rendered, labels labels, full bool) 
 			continue
 		}
 
-		if !full && status != statusModified {
-			diffs = append(diffs, onlyIn(fromLabel, toLabel))
+		if onlyHere != nil && status != statusModified {
+			diffs = append(diffs, onlyHere(rel, inOld))
 
 			continue
 		}
@@ -100,17 +101,6 @@ func computeDiff(oldSide, newSide normalize.Rendered, labels labels, full bool) 
 	}
 
 	return diffs
-}
-
-// onlyIn returns the "diff -r" style line of a resource that exists on one
-// side only: the label that is not /dev/null.
-func onlyIn(fromLabel, toLabel string) string {
-	label := toLabel
-	if label == devNull {
-		label = fromLabel
-	}
-
-	return fmt.Sprintf("Only in %s: %s\n", path.Dir(label), path.Base(label))
 }
 
 // sourceDiff holds the differences of one input file.
@@ -172,8 +162,87 @@ func diffBySource(pairs []checkPair, labels func(source string) labels) ([]sourc
 			return nil, err
 		}
 
-		result[i] = sourceDiff{Source: f, Diffs: computeDiff(oldRendered, newRendered, labels(f), true)}
+		result[i] = sourceDiff{Source: f, Diffs: computeDiff(oldRendered, newRendered, labels(f), nil)}
 	}
 
 	return result, nil
+}
+
+// diffSide is one side of kubenorm diff: the rendered resources and, by
+// path, where each one comes from.
+type diffSide struct {
+	rendered normalize.Rendered
+	origins  map[string]origin
+}
+
+// origin tells where a resource was read from and who manages it.
+type origin struct {
+	// location is the source file, plus the path of the resource if the
+	// file holds several resources.
+	location string
+	managers []string
+}
+
+// rawInfo is what newDiffSide reads from a resource before processing.
+type rawInfo struct {
+	source   string
+	managers []string
+}
+
+// newDiffSide processes and renders the resources. Who manages a resource is
+// read before normalization removes the fields that tell it.
+func newDiffSide(resources []normalize.Resource, opts *normalize.Options) (diffSide, error) {
+	// Process normalizes the objects in place, so their maps identify them.
+	raw := make(map[uintptr]rawInfo, len(resources))
+	for _, r := range resources {
+		raw[reflect.ValueOf(r.Object).Pointer()] = rawInfo{source: r.Source, managers: managers(r.Object)}
+	}
+
+	kept, err := opts.Process(resources)
+	if err != nil {
+		return diffSide{}, err
+	}
+
+	rendered, err := normalize.Render(kept)
+	if err != nil {
+		return diffSide{}, err
+	}
+
+	infos := make([]rawInfo, len(kept))
+	perSource := map[string]int{}
+
+	for i := range kept {
+		info, ok := raw[reflect.ValueOf(kept[i].Object).Pointer()]
+		if !ok {
+			info.source = kept[i].Source
+		}
+
+		infos[i] = info
+		perSource[info.source]++
+	}
+
+	origins := make(map[string]origin, len(kept))
+
+	for i := range kept {
+		rel := kept[i].RelPath()
+
+		location := diffLabel(infos[i].source)
+		if infos[i].source == normalize.StdinPath || perSource[infos[i].source] > 1 {
+			location += " (" + rel + ")"
+		}
+
+		origins[rel] = origin{location: location, managers: infos[i].managers}
+	}
+
+	return diffSide{rendered: rendered, origins: origins}, nil
+}
+
+// onlyHereLine returns the line of a resource that exists on one side only.
+func onlyHereLine(o origin) string {
+	line := "Only here: " + o.location
+	if len(o.managers) > 0 {
+		line += " managed by: " + strings.Join(o.managers, ", ")
+	}
+
+	return line + "\n"
 }
