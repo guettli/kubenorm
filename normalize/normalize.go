@@ -140,8 +140,8 @@ func identityOf(item *unstructured.Unstructured, isNamespaced bool) objectIdenti
 }
 
 // Normalize modifies obj in place: removes managed fields, handles Secrets,
-// canonicalizes quantityFields, applies the removeFields rules, sets
-// SetLabels, SetAnnotations and RenderedBy and prunes empty labels/annotations.
+// canonicalizes quantityFields, applies the removeFields and setMetadata
+// rules, sets SetLabels, SetAnnotations and RenderedBy and prunes empty labels/annotations.
 //
 // Unlike Process, it handles a single object and skips everything that needs
 // the other resources or decides about keeping one: no namespace options

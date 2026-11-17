@@ -530,13 +530,17 @@ ownerHints:                    # extra "managed by" hints of kubenorm diff
   `--crds` only reads CRDs and ignores everything else, so it can point at a
   whole rendered tree: `kubenorm norm --check ./plain --crds ./zz_rendered`.
 - `setMetadata` sets labels and annotations in `metadata` of the matching
-  resources (pod templates are not changed), after `removeFields`.
-  `--set-label`, `--set-annotation` and `--rendered-by` are applied after it
-  and win. Put the rule in `.kubenorm.yaml` instead of repeating flags in
-  render scripts.
+  resources (pod templates are not changed), after `removeFields`. If
+  several rules set a key, the later one wins (common config, then the
+  config files in order); `--set-label`, `--set-annotation` and
+  `--rendered-by` are applied last and win. A key without a value is an
+  error, write `''` for an empty value. Put the rule in `.kubenorm.yaml`
+  instead of repeating flags in render scripts.
 - `ownerHints` adds hints to the "managed by" list of `kubenorm diff` for
   resources that carry a label or annotation, for tools kubenorm does not
-  know. `{value}` in `text` is the value of the key.
+  know. `{value}` in `text` is the value of the key (shortened after 100
+  characters). Hints are read from the input before normalization, so keys
+  set by `setMetadata` or `--set-label` do not trigger them.
 - The config is parsed strictly; unknown keys are an error.
 
 `--config FILE` (repeatable) adds your rules to the common config,

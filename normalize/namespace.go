@@ -475,13 +475,13 @@ func validateMetadataValues(labels, annotations map[string]string) error {
 	for _, set := range []struct {
 		what   string
 		values map[string]string
-	}{{"label", labels}, {"annotation", annotations}} {
+	}{{kindLabel, labels}, {kindAnnotation, annotations}} {
 		what := set.what
 		for _, k := range slices.Sorted(maps.Keys(set.values)) {
 			v := set.values[k]
 
 			key := k
-			if what == "annotation" {
+			if what == kindAnnotation {
 				key = strings.ToLower(k)
 			}
 
@@ -489,7 +489,7 @@ func validateMetadataValues(labels, annotations map[string]string) error {
 				return fmt.Errorf("invalid %s key %q: %s", what, k, strings.Join(errs, "; "))
 			}
 
-			if what != "label" {
+			if what != kindLabel {
 				continue
 			}
 

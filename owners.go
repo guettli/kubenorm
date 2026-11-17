@@ -15,7 +15,7 @@ import (
 // object, as found in its labels, annotations, ownerReferences and
 // managedFields, plus the owner hints of the config. Normalization removes
 // all of these, so call it before.
-func managers(obj map[string]any, hints []normalize.OwnerHint) []string {
+func managers(obj map[string]any, cfg *normalize.Config) []string {
 	u := unstructured.Unstructured{Object: obj}
 
 	var found []string
@@ -34,10 +34,8 @@ func managers(obj map[string]any, hints []normalize.OwnerHint) []string {
 	labels, annotations := u.GetLabels(), u.GetAnnotations()
 	addToolLabels(add, labels, annotations)
 
-	for _, h := range hints {
-		if hint, ok := h.Hint(labels, annotations); ok {
-			add(hint)
-		}
+	for _, hint := range cfg.OwnerHints(labels, annotations) {
+		add(hint)
 	}
 
 	for _, ref := range u.GetOwnerReferences() {

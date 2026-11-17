@@ -41,7 +41,7 @@ type Config struct {
 	// clusterScopedPattern extends the built-in list of cluster-scoped kinds.
 	clusterScopedPattern []groupKindPattern
 	setMetadataRules     []setMetadataRule
-	ownerHints           []OwnerHint
+	ownerHints           []ownerHint
 }
 
 // LoadConfig builds a Config from the embedded common config (if useCommon is
@@ -141,7 +141,7 @@ type configFile struct {
 	ClusterScoped     []groupKindFile       `yaml:"clusterScopedResources"`
 	Quantities        []quantityRuleFile    `yaml:"quantityFields"`
 	SetMetadata       []setMetadataRuleFile `yaml:"setMetadata"`
-	OwnerHints        []OwnerHint           `yaml:"ownerHints"`
+	OwnerHints        []ownerHint           `yaml:"ownerHints"`
 }
 
 // quantityRuleFile selects fields whose values are Kubernetes quantities

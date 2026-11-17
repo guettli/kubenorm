@@ -1,6 +1,9 @@
 package normalize
 
 import (
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -99,39 +102,90 @@ func TestConfig_SetMetadataAndOwnerHintsInvalid(t *testing.T) {
 	}
 }
 
-func TestOwnerHint(t *testing.T) {
+func TestOwnerHints(t *testing.T) {
 	t.Parallel()
 
-	labels := map[string]string{"example.com/team": "web"}
-	annotations := map[string]string{"example.com/tool": "pulumi"}
-
-	for _, tc := range []struct {
-		hint OwnerHint
-		want string
-		ok   bool
-	}{
-		{OwnerHint{Label: "example.com/team", Text: "team {value}"}, "team web", true},
-		{OwnerHint{Label: "example.com/team"}, "example.com/team web", true},
-		{OwnerHint{Annotation: "example.com/tool", Value: "pulumi", Text: "pulumi"}, "pulumi", true},
-		{OwnerHint{Annotation: "example.com/tool", Value: "terraform"}, "", false},
-		{OwnerHint{Label: "missing"}, "", false},
-	} {
-		got, ok := tc.hint.Hint(labels, annotations)
-		if got != tc.want || ok != tc.ok {
-			t.Errorf("%+v: got %q %v, want %q %v", tc.hint, got, ok, tc.want, tc.ok)
-		}
-	}
-
-	cfg, err := LoadConfig(false, "")
+	cfg, err := ParseConfig("test.yaml", []byte(`
+ownerHints:
+  - label: example.com/team
+    text: team {value}
+  - label: example.com/team
+  - annotation: example.com/tool
+    value: pulumi
+    text: pulumi
+  - annotation: example.com/tool
+    value: terraform
+  - annotation: example.com/empty
+    value: ''
+    text: empty
+  - annotation: example.com/long
+  - label: missing
+`))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if hints := cfg.OwnerHints(); len(hints) != 0 {
-		t.Errorf("expected no hints, got %v", hints)
+	labels := map[string]string{"example.com/team": "web"}
+	annotations := map[string]string{
+		"example.com/tool":  "pulumi",
+		"example.com/empty": "",
+		"example.com/long":  strings.Repeat("x", 200),
 	}
 
-	if hints := (*Config)(nil).OwnerHints(); hints != nil {
+	want := []string{
+		"team web", "example.com/team web", "pulumi", "empty",
+		"example.com/long " + strings.Repeat("x", maxHintValue) + "... (truncated)",
+	}
+	if got := cfg.OwnerHints(labels, annotations); !slices.Equal(got, want) {
+		t.Errorf("got %q, want %q", got, want)
+	}
+
+	// An explicit empty value matches only an empty value.
+	if got := cfg.OwnerHints(nil, map[string]string{"example.com/empty": "x"}); len(got) != 0 {
+		t.Errorf("got %q, want no hints", got)
+	}
+
+	if hints := (*Config)(nil).OwnerHints(labels, annotations); hints != nil {
 		t.Errorf("expected nil, got %v", hints)
+	}
+}
+
+func TestConfig_SetMetadataMergeOrderAndNamespace(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	first := filepath.Join(dir, "first.yaml")
+	second := filepath.Join(dir, "second.yaml")
+
+	err := os.WriteFile(first, []byte("setMetadata:\n  - namespace: moved\n    labels: {team: first}\n"), 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = os.WriteFile(second, []byte("setMetadata:\n  - namespace: moved\n    labels: {team: second}\n"), 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadConfig(false, first, second)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resources, err := ParseYAML([]byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cm\n  namespace: old\n"), "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The rule matches the namespace after --overwrite-namespace; the later
+	// file wins.
+	resources, err = (&Options{Config: cfg, OverwriteNamespace: "moved"}).Process(resources)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	labels := resources[0].Unstructured().GetLabels()
+	if labels["team"] != "second" {
+		t.Fatalf("got labels %v", labels)
 	}
 }

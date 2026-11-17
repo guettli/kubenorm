@@ -111,7 +111,7 @@ type normFlags struct {
 func (f *normFlags) register(cmd *cobra.Command) {
 	fl := cmd.Flags()
 	f.flagSet = fl
-	fl.StringArrayVarP(&f.configFiles, "config", "c", nil, "YAML config with removeFields/skipResources/excludeNamespaces/quantityFields/clusterScopedResources rules (repeatable; merged with the common config)")
+	fl.StringArrayVarP(&f.configFiles, "config", "c", nil, "YAML config with removeFields/skipResources/excludeNamespaces/quantityFields/clusterScopedResources/setMetadata/ownerHints rules (repeatable; merged with the common config)")
 	fl.BoolVar(&f.noCommonConfig, "no-common-config", false, "Do not apply the embedded common config (see show-common-config)")
 	fl.StringVarP(&f.namespacesCSV, "namespaces", "n", "", "Only keep resources in these namespaces (comma-separated)")
 	fl.StringVar(&f.kindsCSV, "kind", "", "Only keep kinds matching these globs (comma-separated, e.g. 'ConfigMap,Cluster*')")

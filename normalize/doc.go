@@ -16,11 +16,12 @@
 //     SOPS-encrypted documents are marked).
 //  2. Configure: LoadConfig compiles the common config and user files into a
 //     Config. Options holds the Config plus the CLI choices (namespace
-//     handling, filters, secrets, labels and annotations to set). WithCRDs adds CRDs that are not part of
-//     the input.
+//     handling, filters, secrets, labels and annotations to set). WithCRDs
+//     adds CRDs that are not part of the input.
 //  3. Process: Options.Process sets namespaces, drops filtered and
-//     SOPS-encrypted resources and normalizes the rest in place. Explain
-//     does the same and records every change.
+//     SOPS-encrypted resources and normalizes the rest in place: remove
+//     rules, then setMetadata rules, then the labels and annotations of the
+//     Options. Explain does the same and records every change.
 //  4. Write: Render encodes the resources like kubectl and maps them to
 //     their paths (two resources on one path are an error). Rendered.WriteDir
 //     writes one file per resource and never overwrites a file;
