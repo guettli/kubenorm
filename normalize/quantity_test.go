@@ -532,3 +532,93 @@ metadata:
 		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
 	}
 }
+
+func TestCommonConfig_RestartTimestamps(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := LoadConfig(true, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resources, err := ParseYAML([]byte(`
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: demo
+  annotations:
+    cattle.io/timestamp: "2026-11-12T13:55:13Z"
+spec:
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+      annotations:
+        cattle.io/timestamp: "2026-11-12T13:55:13Z"
+        kubectl.kubernetes.io/restartedAt: "2026-11-12T13:55:13Z"
+        keel.sh/update-time: "2026-11-12T13:55:13Z"
+        example.com/keep: "yes"
+    spec:
+      containers:
+        - name: web
+          image: nginx
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: job
+  namespace: demo
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          annotations:
+            cattle.io/timestamp: "2026-11-12T13:55:13Z"
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: busybox
+`), "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resources, err = (&Options{Config: cfg}).Process(resources)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered, err := Render(resources)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := string(rendered["demo/apps_Deployment/web.yaml"])
+	for _, gone := range []string{"cattle.io/timestamp", "restartedAt", "keel.sh/update-time"} {
+		if strings.Contains(got, gone) {
+			t.Errorf("%s not removed:\n%s", gone, got)
+		}
+	}
+
+	// The only template annotation left is the user's one.
+	if !strings.Contains(got, "      annotations:\n        example.com/keep: \"yes\"\n      labels:") {
+		t.Errorf("unexpected template annotations:\n%s", got)
+	}
+
+	// Top-level annotations map is gone, not left empty.
+	if strings.Contains(got, "metadata:\n  annotations:") {
+		t.Errorf("empty annotations kept:\n%s", got)
+	}
+
+	cronJob := string(rendered["demo/batch_CronJob/job.yaml"])
+	if cronJob == "" || strings.Contains(cronJob, "cattle.io/timestamp") || strings.Contains(cronJob, "annotations") {
+		t.Errorf("CronJob template annotation not removed:\n%s", cronJob)
+	}
+}

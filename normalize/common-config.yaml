@@ -40,9 +40,14 @@ removeFields:
       - metadata.annotations.meta\.helm\.sh/release-namespace
 
       # Runtime-volatile annotations set by tools, not by the user.
+      # change-cause is top-level. Restarts (kubectl rollout restart, keel,
+      # Rancher "Redeploy") write a timestamp into the pod template
+      # annotations ("...template" also matches a CronJob's jobTemplate).
       - metadata.annotations.kubernetes\.io/change-cause
       - ...annotations.keel\.sh/update-time
       - ...annotations.kubectl\.kubernetes\.io/restartedAt
+      - metadata.annotations.cattle\.io/timestamp
+      - ...template.metadata.annotations.cattle\.io/timestamp
 
       - status
       # Remove empty labels/annotations maps. Helm often renders these as explicit

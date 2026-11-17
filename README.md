@@ -19,7 +19,7 @@ What normalization does:
 - writes quantities in the canonical form of the api-server
   (`cpu: 1000m` → `cpu: "1"`, `memory: 1024Mi` → `memory: 1Gi`, `cpu: 0.5` → `cpu: 500m`)
 - removes tool noise (`helm.sh/chart` labels, kapp/argocd tracking labels,
-  `last-applied-configuration`, ...)
+  `last-applied-configuration`, restart timestamps, ...)
 - drops noise resources (Pods, Events, ControllerRevisions, cert-manager
   CertificateRequests, ...)
 - sorts keys and writes every resource to its own stable path
