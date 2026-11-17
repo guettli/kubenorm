@@ -42,6 +42,8 @@ func deleteField(obj map[string]any, f removeFieldPath) {
 			remove = ok && valueMatches(m[key], sibling)
 		case f.valueConstrained && f.value == nil:
 			remove = m[key] == nil // fast path for the frequent null rules
+		case f.valueConstrained && isEmptyList(f.value):
+			remove = isEmptyList(m[key]) // fast path for the [] rules
 		case f.valueConstrained:
 			remove = valueMatches(m[key], f.value)
 		case f.exceptConstrained:
@@ -164,4 +166,9 @@ func getGroup(groupVersion string) string {
 	}
 
 	return ""
+}
+
+func isEmptyList(v any) bool {
+	l, ok := v.([]any)
+	return ok && len(l) == 0
 }

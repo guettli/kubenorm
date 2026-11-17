@@ -41,6 +41,27 @@ spec:
   - expression: "false"
 ---
 apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: empty-values
+spec:
+  matchResources:
+    excludeResourceRules:
+    - apiGroups:
+      - ""
+      apiVersions:
+      - v1
+      operations:
+      - DELETE
+      resourceNames:
+      - kube-system
+      resources:
+      - namespaces
+  policyName: empty-values
+  validationActions:
+  - Deny
+---
+apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   name: empty-values
@@ -67,6 +88,37 @@ webhooks:
   failurePolicy: Ignore
   name: b.example.com
   sideEffects: None
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: widgets.example.com
+spec:
+  group: example.com
+  names:
+    kind: Widget
+    plural: widgets
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        properties:
+          spec:
+            properties:
+              note:
+                default: null
+                nullable: true
+                type: string
+              tags:
+                default: []
+                items:
+                  type: string
+                type: array
+            type: object
+        type: object
+    served: true
+    storage: true
 ---
 apiVersion: v1
 kind: Service
@@ -174,6 +226,14 @@ spec:
       - image: busybox:1.36
         name: job
       restartPolicy: Never
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: empty-values
+  namespace: default
+spec:
+  rules: []
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
