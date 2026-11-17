@@ -32,7 +32,11 @@ func managers(obj map[string]any, cfg *normalize.Config) []string {
 	}
 
 	labels, annotations := u.GetLabels(), u.GetAnnotations()
+	// Copies carry the labels and annotations of their source: name the
+	// copy first.
+	addReplicators(add, labels, annotations)
 	addToolLabels(add, labels, annotations)
+	addPlatformTools(add, u.GetName(), labels, annotations)
 
 	for _, hint := range cfg.OwnerHints(labels, annotations) {
 		add(hint)
@@ -59,12 +63,8 @@ func managers(obj map[string]any, cfg *normalize.Config) []string {
 // of helm, argocd, flux, wrangler/fleet, rancher, kapp and kubectl apply.
 func addToolLabels(add func(string), labels, annotations map[string]string) {
 	addPair := func(what, ns, name string) {
-		switch {
-		case name == "":
-		case ns == "":
-			add(what + " " + name)
-		default:
-			add(what + " " + ns + "/" + name)
+		if name != "" {
+			add(what + " " + nsName(ns, name))
 		}
 	}
 
@@ -75,6 +75,14 @@ func addToolLabels(add func(string), labels, annotations map[string]string) {
 	case "Helm":
 		if annotations["meta.helm.sh/release-name"] == "" {
 			add("helm")
+		}
+	case "configmanagement.gke.io":
+		if annotations["configmanagement.gke.io/managed"] != "enabled" {
+			add("managed-by " + by)
+		}
+	case "kyverno":
+		if labels["generate.kyverno.io/policy-name"] == "" {
+			add("managed-by " + by)
 		}
 	default:
 		add("managed-by " + by)
