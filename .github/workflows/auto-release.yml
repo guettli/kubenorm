@@ -26,6 +26,15 @@ jobs:
       # builds the release binaries.
       - uses: jdx/mise-action@v5
 
+      # setup-go cached these; mise-action caches only the tools.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ hashFiles('go.sum', 'mise.toml') }}
+          restore-keys: go-${{ runner.os }}-
+
       - name: Run prek
         run: prek run --all-files --show-diff-on-failure
 

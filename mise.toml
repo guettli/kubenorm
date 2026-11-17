@@ -4,8 +4,7 @@
 go = "1.27.4"
 # pre-commit replacement, runs .pre-commit-config.yaml.
 prek = "0.4.9"
-# The go-lint hook runs the same version with `go run`; this one is for
-# editors and running `golangci-lint run` by hand.
+# Run by the go-lint hook.
 golangci-lint = "2.15.0"
 # scripts/render-golden-inputs.sh renders the golden test inputs.
 helm = "3.20.2"

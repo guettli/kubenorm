@@ -17,9 +17,17 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: actions/setup-go@v6
+      # Installs the tools of mise.toml (go, ...).
+      - uses: jdx/mise-action@v5
+
+      # setup-go cached these; mise-action caches only the tools.
+      - uses: actions/cache@v4
         with:
-          go-version-file: go.mod
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ hashFiles('go.sum', 'mise.toml') }}
+          restore-keys: go-${{ runner.os }}-
 
       # Thresholds slightly below the state of 2026-11 (efficacy 86.7 %,
       # mutator coverage 83.7 % for normalize). Raise them when tests improve.

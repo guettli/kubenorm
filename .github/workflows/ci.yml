@@ -18,6 +18,15 @@ jobs:
       # on a developer machine.
       - uses: jdx/mise-action@v5
 
+      # setup-go cached these; mise-action caches only the tools.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ hashFiles('go.sum', 'mise.toml') }}
+          restore-keys: go-${{ runner.os }}-
+
       - name: Run prek
         # Fails if a hook changed files (go mod tidy, usage.md, README).
         run: prek run --all-files --show-diff-on-failure
@@ -29,9 +38,17 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: actions/setup-go@v6
+      # Installs the tools of mise.toml (go, ...).
+      - uses: jdx/mise-action@v5
+
+      # setup-go cached these; mise-action caches only the tools.
+      - uses: actions/cache@v4
         with:
-          go-version-file: go.mod
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ hashFiles('go.sum', 'mise.toml') }}
+          restore-keys: go-${{ runner.os }}-
 
       - name: Check defaults
         run: scripts/check-defaults.sh
@@ -45,9 +62,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v6
+      # Installs the tools of mise.toml (go, ...).
+      - uses: jdx/mise-action@v5
+
+      # setup-go cached these; mise-action caches only the tools.
+      - uses: actions/cache@v4
         with:
-          go-version-file: go.mod
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ hashFiles('go.sum', 'mise.toml') }}
+          restore-keys: go-${{ runner.os }}-
 
       - name: Check API compatibility
         env:
