@@ -402,6 +402,14 @@ Only here (new): stdin (demo/ConfigMap/extra.yaml)
 
 The side (`old` or `new`) is the argument the resource was found in.
 
+Known tools: Helm, Argo CD, Flux, Fleet and other Wrangler objectsets,
+Rancher, kapp, `kubectl apply`, `--rendered-by`, Config Sync, kpt/cli-utils
+inventories, OLM, cert-manager, Kyverno generate rules, Crossplane, Gardener,
+the Kubernetes addon-manager, Kluctl, and the copies of Reflector, kubed
+(config-syncer) and kubernetes-replicator. A copy is named first: it carries
+the labels and annotations of its source, so the hints after it may describe
+the source. Add your own tools with `ownerHints` (see [Config](#config)).
+
 Use `--full` to see the content as a diff from or to `/dev/null`. It labels
 every resource with `<argument>/<normalized path>`, in the format of
 `git apply` and `patch -p1`. Files written by `norm -o` start with a header

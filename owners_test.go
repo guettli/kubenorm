@@ -130,3 +130,123 @@ metadata:
 		}
 	}
 }
+
+func TestPlatformManagers(t *testing.T) {
+	t.Parallel()
+
+	resources, err := normalize.ParseYAML([]byte(`
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: a
+  namespace: ns
+  labels:
+    app.kubernetes.io/managed-by: configmanagement.gke.io
+  annotations:
+    configmanagement.gke.io/managed: enabled
+    configmanagement.gke.io/source-path: namespaces/ns/cm.yaml
+    configsync.gke.io/manager: :root
+    config.k8s.io/owning-inventory: config-management-system_root-sync
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: b
+  namespace: operators
+  labels:
+    olm.owner: etcd.v0.9.4
+    olm.owner.kind: ClusterServiceVersion
+    olm.owner.namespace: operators
+    addonmanager.kubernetes.io/mode: Reconcile
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: c
+  namespace: ns
+  labels:
+    app.kubernetes.io/managed-by: kyverno
+    generate.kyverno.io/policy-name: default-secret
+  annotations:
+    cert-manager.io/certificate-name: web-tls
+    cert-manager.io/issuer-name: letsencrypt
+    reflector.v1.k8s.emberstack.com/reflects: src/tls
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: d
+  namespace: ns
+  labels:
+    app.kubernetes.io/managed-by: kyverno
+    crossplane.io/composite: db-x7k2p
+    crossplane.io/claim-name: db
+    crossplane.io/claim-namespace: team
+    kubed.appscode.com/origin.name: cfg
+    kubed.appscode.com/origin.namespace: src
+    kluctl.io/discriminator: prod
+  annotations:
+    resources.gardener.cloud/origin: shoot--foo/addons
+    replicator.v1.mittwald.de/replicated-from-version: "17"
+    kluctl.io/deployment-item-dir: apps/web
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e
+  namespace: ns
+  labels:
+    app.kubernetes.io/managed-by: configmanagement.gke.io
+    crossplane.io/composite: db-x7k2p
+    olm.owner: etcd
+  annotations:
+    config.k8s.io/owning-inventory: abc
+    replicator.v1.mittwald.de/replicate-from: src/cfg
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: f
+  namespace: ns
+  labels:
+    generate.kyverno.io/policy-name: p
+    generate.kyverno.io/policy-namespace: team
+    crossplane.io/composite: f
+  annotations:
+    configmanagement.gke.io/managed: enabled
+    config.k8s.io/owning-inventory: abc
+    replicator.v1.mittwald.de/replicated-from-source: src/f
+    replicator.v1.mittwald.de/replicated-from-version: "3"
+    kluctl.io/deployment-item-dir: apps
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: g
+  labels:
+    kluctl.io/discriminator: dev
+`), "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i, want := range [][]string{
+		{"config sync :root (file namespaces/ns/cm.yaml)"},
+		{"olm ClusterServiceVersion operators/etcd.v0.9.4", "addon-manager Reconcile"},
+		{"reflector copy of src/tls", "cert-manager certificate web-tls", "kyverno policy default-secret"},
+		{
+			"kubed copy of src/cfg", "kubernetes-replicator copy", "managed-by kyverno", "crossplane claim team/db",
+			"gardener managedresource shoot--foo/addons", "kluctl prod (dir apps/web)",
+		},
+		{
+			"kubernetes-replicator copy of src/cfg", "managed-by configmanagement.gke.io",
+			"kpt/cli-utils inventory abc", "olm etcd", "crossplane composite db-x7k2p",
+		},
+		{"kubernetes-replicator copy of src/f", "config sync", "kyverno policy team/p", "kluctl (dir apps)"},
+		{"kluctl dev"},
+	} {
+		if got := managers(resources[i].Object, nil); !slices.Equal(got, want) {
+			t.Errorf("resource %d: got %q, want %q", i, got, want)
+		}
+	}
+}
