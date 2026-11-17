@@ -1,0 +1,20 @@
+Only here (new): testdata/golden-diff/input/new/all.yaml (demo/ConfigMap/added.yaml) managed by: helm release demo/web, rendered by foo/render.sh
+Only here (old): testdata/golden-diff/input/old/demo/legacy.yaml managed by: argocd app shop, manager kubectl-edit
+--- testdata/golden-diff/input/old/demo/web.yaml
++++ testdata/golden-diff/input/new/all.yaml/demo/apps_Deployment/web.yaml
+@@ -4,7 +4,7 @@
+   name: web
+   namespace: demo
+ spec:
+-  replicas: 2
++  replicas: 3
+   selector:
+     matchLabels:
+       app: web
+@@ -14,5 +14,5 @@
+         app: web
+     spec:
+       containers:
+-      - image: nginx:1.27
++      - image: nginx:1.28
+         name: web

@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-var update = flag.Bool("update", false, "rewrite testdata/golden/*/want.yaml")
+var update = flag.Bool("update", false, "rewrite the want files of testdata/golden and testdata/golden-diff")
 
 // TestGolden normalizes rendered helm charts (scripts/render-golden-inputs.sh)
 // and compares the result with want.yaml. Run with -update after a deliberate
@@ -66,6 +66,54 @@ func TestGolden(t *testing.T) {
 
 			if again := stripHeader(stdout); again != got {
 				t.Errorf("not idempotent: normalizing %s changes it", wantFile)
+			}
+		})
+	}
+}
+
+// TestGoldenDiff runs kubenorm diff on testdata/golden-diff/input/{old,new}
+// with the args of each case in testdata/golden-diff/cases and compares the
+// output with want.txt, so a change of the output format shows up in review.
+func TestGoldenDiff(t *testing.T) {
+	t.Parallel()
+
+	cases, err := filepath.Glob("testdata/golden-diff/cases/*")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, dir := range cases {
+		t.Run(filepath.Base(dir), func(t *testing.T) {
+			t.Parallel()
+
+			args, err := os.ReadFile(filepath.Join(dir, "args"))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			cliArgs := append([]string{"diff", "--no-config-discovery", "testdata/golden-diff/input/old", "testdata/golden-diff/input/new"}, strings.Fields(string(args))...)
+
+			code, got, stderr := runCLI(t, "", cliArgs...)
+			if code != 1 {
+				t.Fatalf("exit code %d, want 1: %s", code, stderr)
+			}
+
+			wantFile := filepath.Join(dir, "want.txt")
+
+			if *update {
+				err = os.WriteFile(wantFile, []byte(got), 0o600) //nolint:gosec // path comes from testdata/golden-diff
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			want, err := os.ReadFile(wantFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got != string(want) {
+				t.Errorf("output differs from %s, run: go test -run TestGoldenDiff -update", wantFile)
 			}
 		})
 	}

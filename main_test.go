@@ -340,7 +340,7 @@ func TestDiff_OneSideOnly(t *testing.T) {
 	extra := changed + "---\n" + strings.Replace(normalizedDeployment, "name: web", "name: api", 1)
 
 	code, out, _ := runCLI(t, extra, "diff", b, "-")
-	if code != 1 || !strings.Contains(out, "Only here: stdin (demo/apps_Deployment/api.yaml)\n") || strings.Contains(out, "/dev/null") {
+	if code != 1 || !strings.Contains(out, "Only here (new): stdin (demo/apps_Deployment/api.yaml)\n") || strings.Contains(out, "/dev/null") {
 		t.Fatalf("expected an Only here line, got %d:\n%s", code, out)
 	}
 
@@ -355,7 +355,7 @@ func TestDiff_OneSideOnly(t *testing.T) {
 	}
 
 	code, out, _ = runCLI(t, extra, "diff", "-", b)
-	if code != 1 || !strings.Contains(out, "Only here: stdin (demo/apps_Deployment/api.yaml)\n") {
+	if code != 1 || !strings.Contains(out, "Only here (old): stdin (demo/apps_Deployment/api.yaml)\n") {
 		t.Fatalf("expected an Only here line for the old side, got %d:\n%s", code, out)
 	}
 
@@ -365,7 +365,7 @@ func TestDiff_OneSideOnly(t *testing.T) {
 	writeFile(t, dumped, "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cm\n  namespace: demo\n  managedFields:\n    - manager: kubectl-edit\n      operation: Update\n")
 
 	code, out, _ = runCLI(t, changed, "diff", filepath.Join(b, "demo"), "-")
-	if want := "Only here: " + dumped + " managed by: manager kubectl-edit\n"; code != 1 || !strings.Contains(out, want) {
+	if want := "Only here (old): " + dumped + " managed by: manager kubectl-edit\n"; code != 1 || !strings.Contains(out, want) {
 		t.Fatalf("expected %q, got %d:\n%s", want, code, out)
 	}
 }
@@ -675,5 +675,22 @@ func TestDiff_HeadersSeveralResourcesAndFull(t *testing.T) {
 		if code != 1 || !strings.Contains(out, want) {
 			t.Errorf("want %q, got %d:\n%s", want, code, out)
 		}
+	}
+}
+
+func TestDiff_OutputJSONNoDifferences(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "a.yaml"), deploymentYAML)
+
+	code, out, errOut := runCLI(t, "", "diff", "--output", "json", filepath.Join(dir, "a.yaml"), filepath.Join(dir, "a.yaml"))
+	if code != 0 || out != "{\n  \"resources\": []\n}\n" {
+		t.Fatalf("got %d:\n%s%s", code, out, errOut)
+	}
+
+	code, _, errOut = runCLI(t, "", "diff", "--output", "yaml", dir, dir)
+	if code != 2 || !strings.Contains(errOut, "want text or json") {
+		t.Fatalf("got %d: %s", code, errOut)
 	}
 }

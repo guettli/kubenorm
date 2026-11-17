@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: legacy
+  namespace: demo
+  labels:
+    argocd.argoproj.io/instance: shop
+  managedFields:
+    - manager: kubectl-edit
+      operation: Update
+data:
+  k: v

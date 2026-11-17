@@ -107,11 +107,11 @@ func TestNewDiffSide(t *testing.T) {
 	}
 
 	for rel, want := range map[string]string{
-		"ns/ConfigMap/a.yaml": "Only here: chart.yaml (ns/ConfigMap/a.yaml)\n",
-		"ns/ConfigMap/b.yaml": "Only here: chart.yaml (ns/ConfigMap/b.yaml) managed by: helm release ns/web\n",
-		"ns/ConfigMap/c.yaml": "Only here: dump/ns/ConfigMap/c.yaml\n",
+		"ns/ConfigMap/a.yaml": "Only here (new): chart.yaml (ns/ConfigMap/a.yaml)\n",
+		"ns/ConfigMap/b.yaml": "Only here (new): chart.yaml (ns/ConfigMap/b.yaml) managed by: helm release ns/web\n",
+		"ns/ConfigMap/c.yaml": "Only here (new): dump/ns/ConfigMap/c.yaml\n",
 	} {
-		if got := onlyHereLine(side.origins[rel]); got != want {
+		if got := onlyHereLine(side.origins[rel], "new"); got != want {
 			t.Errorf("%s: got %q, want %q", rel, got, want)
 		}
 	}
@@ -158,8 +158,8 @@ items:
 		t.Fatal(err)
 	}
 
-	want := "Only here: list.yaml managed by: kapp app 1\n"
-	if got := onlyHereLine(side.origins["new/LimitRange/lr.yaml"]); got != want {
+	want := "Only here (new): list.yaml managed by: kapp app 1\n"
+	if got := onlyHereLine(side.origins["new/LimitRange/lr.yaml"], "new"); got != want {
 		t.Fatalf("got %q, want %q (origins %+v)", got, want, side.origins)
 	}
 }

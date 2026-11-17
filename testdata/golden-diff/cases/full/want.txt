@@ -1,0 +1,40 @@
+--- /dev/null
++++ testdata/golden-diff/input/new/demo/ConfigMap/added.yaml
+@@ -0,0 +1,9 @@
++apiVersion: v1
++data:
++  k: v
++kind: ConfigMap
++metadata:
++  annotations:
++    kubenorm.guettli.github.io/rendered-by: foo/render.sh
++  name: added
++  namespace: demo
+--- testdata/golden-diff/input/old/demo/ConfigMap/legacy.yaml
++++ /dev/null
+@@ -1,7 +0,0 @@
+-apiVersion: v1
+-data:
+-  k: v
+-kind: ConfigMap
+-metadata:
+-  name: legacy
+-  namespace: demo
+--- testdata/golden-diff/input/old/demo/apps_Deployment/web.yaml
++++ testdata/golden-diff/input/new/demo/apps_Deployment/web.yaml
+@@ -4,7 +4,7 @@
+   name: web
+   namespace: demo
+ spec:
+-  replicas: 2
++  replicas: 3
+   selector:
+     matchLabels:
+       app: web
+@@ -14,5 +14,5 @@
+         app: web
+     spec:
+       containers:
+-      - image: nginx:1.27
++      - image: nginx:1.28
+         name: web

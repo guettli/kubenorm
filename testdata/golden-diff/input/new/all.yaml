@@ -1,0 +1,33 @@
+# Several resources in one file, like helm template writes them.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: demo
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.28
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: added
+  namespace: demo
+  labels:
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    meta.helm.sh/release-name: web
+    meta.helm.sh/release-namespace: demo
+    kubenorm.guettli.github.io/rendered-by: foo/render.sh
+data:
+  k: v
