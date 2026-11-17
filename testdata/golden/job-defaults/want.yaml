@@ -1,0 +1,154 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: c1
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+      - image: busybox:1.36
+        name: c
+      restartPolicy: Never
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: c1p1
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+      - image: busybox:1.36
+        name: c
+      restartPolicy: Never
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: c1p3
+  namespace: default
+spec:
+  completions: 1
+  parallelism: 3
+  template:
+    spec:
+      containers:
+      - image: busybox:1.36
+        name: c
+      restartPolicy: Never
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: c5p1
+  namespace: default
+spec:
+  completions: 5
+  template:
+    spec:
+      containers:
+      - image: busybox:1.36
+        name: c
+      restartPolicy: Never
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: none
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+      - image: busybox:1.36
+        name: c
+      restartPolicy: Never
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: p1
+  namespace: default
+spec:
+  parallelism: 1
+  template:
+    spec:
+      containers:
+      - image: busybox:1.36
+        name: c
+      restartPolicy: Never
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: p3
+  namespace: default
+spec:
+  parallelism: 3
+  template:
+    spec:
+      containers:
+      - image: busybox:1.36
+        name: c
+      restartPolicy: Never
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: perindex-bl6
+  namespace: default
+spec:
+  backoffLimit: 6
+  backoffLimitPerIndex: 1
+  completionMode: Indexed
+  completions: 3
+  template:
+    spec:
+      containers:
+      - image: busybox:1.36
+        name: c
+      restartPolicy: Never
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: perindex
+  namespace: default
+spec:
+  backoffLimitPerIndex: 1
+  completionMode: Indexed
+  completions: 3
+  template:
+    spec:
+      containers:
+      - image: busybox:1.36
+        name: c
+      restartPolicy: Never
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pfp
+  namespace: default
+spec:
+  podFailurePolicy:
+    rules:
+    - action: FailJob
+      onExitCodes:
+        operator: In
+        values:
+        - 42
+    - action: Ignore
+      onPodConditions:
+      - type: DisruptionTarget
+      - status: "False"
+        type: ConfigIssue
+  template:
+    spec:
+      containers:
+      - image: busybox:1.36
+        name: c
+      restartPolicy: Never

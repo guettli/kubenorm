@@ -1,0 +1,173 @@
+# Job defaults that depend on other fields (verified with
+# kubectl create --dry-run=server). Each Job notes how the API server stores
+# it; Jobs with the same stored spec must normalize alike, the others not.
+# stored: completions 1, parallelism 1
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: none
+  namespace: default
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: c
+        image: busybox:1.36
+---
+# stored: completions 1, parallelism 1 (same as none)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: c1
+  namespace: default
+spec:
+  completions: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: c
+        image: busybox:1.36
+---
+# stored: completions 1, parallelism 1 (same as none)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: c1p1
+  namespace: default
+spec:
+  completions: 1
+  parallelism: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: c
+        image: busybox:1.36
+---
+# stored: parallelism 1, no completions (work queue)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: p1
+  namespace: default
+spec:
+  parallelism: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: c
+        image: busybox:1.36
+---
+# stored: completions 1, parallelism 3
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: c1p3
+  namespace: default
+spec:
+  completions: 1
+  parallelism: 3
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: c
+        image: busybox:1.36
+---
+# stored: parallelism 3, no completions (work queue)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: p3
+  namespace: default
+spec:
+  parallelism: 3
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: c
+        image: busybox:1.36
+---
+# stored: completions 5, parallelism 1
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: c5p1
+  namespace: default
+spec:
+  completions: 5
+  parallelism: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: c
+        image: busybox:1.36
+---
+# stored: backoffLimit 2147483647
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: perindex
+  namespace: default
+spec:
+  completionMode: Indexed
+  completions: 3
+  backoffLimitPerIndex: 1
+  backoffLimit: 2147483647
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: c
+        image: busybox:1.36
+---
+# stored: backoffLimit 6 (explicit)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: perindex-bl6
+  namespace: default
+spec:
+  completionMode: Indexed
+  completions: 3
+  backoffLimitPerIndex: 1
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: c
+        image: busybox:1.36
+---
+# stored: podReplacementPolicy Failed
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pfp
+  namespace: default
+spec:
+  podReplacementPolicy: Failed
+  podFailurePolicy:
+    rules:
+    - action: FailJob
+      onExitCodes:
+        operator: In
+        values:
+        - 42
+    - action: Ignore
+      onPodConditions:
+      - type: DisruptionTarget
+        status: "True"
+      - type: ConfigIssue
+        status: "False"
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: c
+        image: busybox:1.36

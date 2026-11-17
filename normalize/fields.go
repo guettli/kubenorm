@@ -34,6 +34,10 @@ func isManagedFieldsPath(segments []string) bool {
 // omitempty and omitIfEqualToSibling constraints.
 func deleteField(obj map[string]any, f removeFieldPath) {
 	visitFieldPath(obj, f.segments, func(m map[string]any, key string) {
+		if !f.siblingConditionHolds(m) {
+			return
+		}
+
 		var remove bool
 
 		switch {
@@ -171,4 +175,14 @@ func getGroup(groupVersion string) string {
 func isEmptyList(v any) bool {
 	l, ok := v.([]any)
 	return ok && len(l) == 0
+}
+
+// siblingConditionHolds reports whether the ifSiblingPresent and
+// ifSiblingAbsent conditions of the rule hold in m (null counts as absent).
+func (f removeFieldPath) siblingConditionHolds(m map[string]any) bool {
+	if f.ifSiblingPresent != "" && m[f.ifSiblingPresent] == nil {
+		return false
+	}
+
+	return f.ifSiblingAbsent == "" || m[f.ifSiblingAbsent] == nil
 }

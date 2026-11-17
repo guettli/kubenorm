@@ -467,6 +467,9 @@ removeFields:
         omitempty: true
       - path: spec.ports.targetPort
         omitIfEqualToSibling: port
+      - path: spec.completions     # only remove if parallelism is not set
+        value: 1
+        ifSiblingAbsent: parallelism  # also: ifSiblingPresent
       - path: spec.clusterIP     # remove unless the value is None
         exceptValue: None
 
