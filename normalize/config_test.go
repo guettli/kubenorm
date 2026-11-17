@@ -26,4 +26,9 @@ func TestParseConfig(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), `legacy key "rules"`) {
 		t.Fatalf("expected legacy key error, got %v", err)
 	}
+
+	_, err = ParseConfig("inline", []byte("removeFields:\n- fields:\n  - {path: spec.a, ifSiblingAbsent: \" \"}\n"))
+	if err == nil || !strings.Contains(err.Error(), "'ifSiblingAbsent' must not be empty") {
+		t.Fatalf("expected empty sibling error, got %v", err)
+	}
 }

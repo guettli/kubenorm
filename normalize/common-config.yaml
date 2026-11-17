@@ -513,20 +513,37 @@ removeFields:
   - group: batch
     kind: Job
     fields:
+      # The defaults of these depend on other fields.
       - path: spec.backoffLimit
         value: 6
-      - path: spec.completionMode
-        value: NonIndexed
-      - path: spec.completions
-        value: 1
+        ifSiblingAbsent: backoffLimitPerIndex
+      - path: spec.backoffLimit
+        value: 2147483647
+        ifSiblingPresent: backoffLimitPerIndex
+      - path: spec.podReplacementPolicy
+        value: TerminatingOrFailed
+        ifSiblingAbsent: podFailurePolicy
+      - path: spec.podReplacementPolicy
+        value: Failed
+        ifSiblingPresent: podFailurePolicy
+      - path: spec.podFailurePolicy.rules.onPodConditions.status
+        value: "True"
+      # Without both, the API server sets completions and parallelism to 1;
+      # parallelism alone (a work queue) leaves completions unset. So
+      # parallelism: 1 goes only next to completions, and then completions: 1
+      # only when it stands alone.
       - path: spec.parallelism
         value: 1
+        ifSiblingPresent: completions
+      - path: spec.completions
+        value: 1
+        ifSiblingAbsent: parallelism
+      - path: spec.completionMode
+        value: NonIndexed
       - path: spec.suspend
         value: false
       - path: spec.manualSelector
         value: false
-      - path: spec.podReplacementPolicy
-        value: TerminatingOrFailed
       - spec.selector.matchLabels.batch\.kubernetes\.io/controller-uid
       - path: spec.selector.matchLabels
         omitempty: true

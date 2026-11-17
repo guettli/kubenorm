@@ -214,6 +214,7 @@ type removeRuleFile struct {
 // fieldEntryFile is a single entry in the fields list of a removeFields rule.
 // It is either a plain field path string, or a map with "path" and optional "value",
 // "exceptValue", "omitempty" or "omitIfEqualToSibling" key. These modifiers are mutually exclusive.
+// The optional conditions "ifSiblingPresent" and "ifSiblingAbsent" combine with them.
 type fieldEntryFile struct {
 	Path             string
 	Value            any
@@ -231,6 +232,12 @@ type fieldEntryFile struct {
 	// clusterIP: None). Mutually exclusive with the other modifiers.
 	ExceptValue       any
 	exceptConstrained bool
+	// IfSiblingPresent / IfSiblingAbsent restrict the removal to maps in
+	// which the named sibling field is set / not set. They combine with the
+	// modifiers above (Job: completions: 1 is a default only without
+	// parallelism).
+	IfSiblingPresent string
+	IfSiblingAbsent  string
 }
 
 func (e *fieldEntryFile) UnmarshalYAML(value *yaml.Node) error {
@@ -250,6 +257,8 @@ func (e *fieldEntryFile) UnmarshalYAML(value *yaml.Node) error {
 		ExceptValue          any    `yaml:"exceptValue"`
 		OmitEmpty            bool   `yaml:"omitempty"`
 		OmitIfEqualToSibling string `yaml:"omitIfEqualToSibling"`
+		IfSiblingPresent     string `yaml:"ifSiblingPresent"`
+		IfSiblingAbsent      string `yaml:"ifSiblingAbsent"`
 	}
 
 	err = value.Decode(&m)
@@ -261,8 +270,14 @@ func (e *fieldEntryFile) UnmarshalYAML(value *yaml.Node) error {
 		return errors.New("field entry map must have a non-empty 'path' key")
 	}
 
-	if seen["omitIfEqualToSibling"] && strings.TrimSpace(m.OmitIfEqualToSibling) == "" {
-		return errors.New("field entry 'omitIfEqualToSibling' must not be empty")
+	for key, sibling := range map[string]string{
+		"omitIfEqualToSibling": m.OmitIfEqualToSibling,
+		"ifSiblingPresent":     m.IfSiblingPresent,
+		"ifSiblingAbsent":      m.IfSiblingAbsent,
+	} {
+		if seen[key] && strings.TrimSpace(sibling) == "" {
+			return fmt.Errorf("field entry '%s' must not be empty", key)
+		}
 	}
 
 	*e = fieldEntryFile{
@@ -273,6 +288,8 @@ func (e *fieldEntryFile) UnmarshalYAML(value *yaml.Node) error {
 		OmitIfEqualToSibling: m.OmitIfEqualToSibling,
 		ExceptValue:          m.ExceptValue,
 		exceptConstrained:    seen["exceptValue"],
+		IfSiblingPresent:     m.IfSiblingPresent,
+		IfSiblingAbsent:      m.IfSiblingAbsent,
 	}
 
 	return nil
@@ -291,11 +308,11 @@ func fieldEntryKeys(value *yaml.Node) (map[string]bool, error) {
 	for i := 0; i+1 < len(value.Content); i += 2 {
 		key := value.Content[i].Value
 		switch key {
-		case "path":
+		case "path", "ifSiblingPresent", "ifSiblingAbsent":
 		case "value", "exceptValue", "omitempty", "omitIfEqualToSibling":
 			modifiers++
 		default:
-			return nil, fmt.Errorf("unknown field %q in field entry (allowed: path, value, exceptValue, omitempty, omitIfEqualToSibling)", key)
+			return nil, fmt.Errorf("unknown field %q in field entry (allowed: path, value, exceptValue, omitempty, omitIfEqualToSibling, ifSiblingPresent, ifSiblingAbsent)", key)
 		}
 
 		seen[key] = true
@@ -326,6 +343,8 @@ type removeFieldPath struct {
 	omitIfEqualToSibling string
 	exceptValue          any
 	exceptConstrained    bool
+	ifSiblingPresent     string
+	ifSiblingAbsent      string
 }
 
 // ParseConfig parses a single YAML config document, like a file given to
@@ -544,6 +563,8 @@ func compileRemoveRule(fileRule removeRuleFile) (removeRule, error) {
 			omitIfEqualToSibling: field.OmitIfEqualToSibling,
 			exceptValue:          field.ExceptValue,
 			exceptConstrained:    field.exceptConstrained,
+			ifSiblingPresent:     field.IfSiblingPresent,
+			ifSiblingAbsent:      field.IfSiblingAbsent,
 		})
 	}
 
