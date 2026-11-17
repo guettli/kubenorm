@@ -316,6 +316,21 @@ CRDs (kustomize sets a namespace on a `ClusterIssuer`), does not rename
 `Namespace` objects, rewrites webhook service references, and only moves
 references that point to moved namespaces (kustomize: subjects named `default`).
 
+### Labels and annotations
+
+`--set-label key=value` and `--set-annotation key=value` (repeatable) set a
+label or annotation in `metadata` of every resource, replacing an existing
+value. Pod templates and selectors are not changed. The values are set after
+the remove rules, so a rule does not remove them. Keys and label values are
+checked like the api-server does (not the total size of annotations).
+
+`norm --check` with these flags fails until the files carry the values.
+`diff` sets them on both sides, so differences in these keys are hidden.
+
+```terminal
+helm template ./chart | kubenorm norm - --set-label team=platform -o zz_rendered
+```
+
 ### Secrets
 
 Secret values are kept as they are (the files are your own input). Use

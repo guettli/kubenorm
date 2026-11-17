@@ -1,6 +1,7 @@
 package normalize
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -521,5 +522,55 @@ subjects:
 				t.Errorf("got:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(tc.want, "\n"))
 			}
 		})
+	}
+}
+
+func TestNormalize_SetLabelsAndAnnotations(t *testing.T) {
+	t.Parallel()
+
+	obj := map[string]any{
+		"apiVersion": "v1",
+		"kind":       "ConfigMap",
+		"metadata":   map[string]any{"name": "cm"},
+	}
+
+	opts := &Options{SetLabels: map[string]string{"a": "1"}, SetAnnotations: map[string]string{"example.com/n": "x y"}}
+
+	err := opts.Normalize(obj)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	metadata, _ := obj["metadata"].(map[string]any)
+	if !reflect.DeepEqual(metadata["labels"], map[string]any{"a": "1"}) || !reflect.DeepEqual(metadata["annotations"], map[string]any{"example.com/n": "x y"}) {
+		t.Fatalf("unexpected metadata %v", metadata)
+	}
+
+	// A remove rule (here of the common config) does not remove a set value.
+	cfg, err := LoadConfig(true, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lastApplied := "kubectl.kubernetes.io/last-applied-configuration"
+
+	err = (&Options{Config: cfg, SetAnnotations: map[string]string{lastApplied: "{}"}}).Normalize(obj)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if annotations, _ := metadata["annotations"].(map[string]any); annotations[lastApplied] != "{}" {
+		t.Fatalf("set annotation removed: %v", metadata)
+	}
+
+	// Annotation keys are checked lowercased, like the api-server does.
+	err = (&Options{SetAnnotations: map[string]string{"Example.com/x": ""}}).Normalize(obj)
+	if err != nil {
+		t.Fatalf("expected a valid annotation key, got %v", err)
+	}
+
+	err = (&Options{SetLabels: map[string]string{"a": "not valid"}}).Normalize(obj)
+	if err == nil || !strings.Contains(err.Error(), `label "a"`) {
+		t.Fatalf("expected an invalid label value error, got %v", err)
 	}
 }

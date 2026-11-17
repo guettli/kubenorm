@@ -203,6 +203,29 @@ func TestNorm_CheckAddNamespaceIfMissing(t *testing.T) {
 	}
 }
 
+func TestNorm_CheckSetLabel(t *testing.T) {
+	t.Parallel()
+
+	in := "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: c\n  namespace: demo\n"
+
+	code, out, errOut := runCLI(t, in, "norm", "-", "--check", "--set-label", "team=x")
+	if code != 1 || !strings.Contains(out, "+    team: x") {
+		t.Fatalf("expected exit 1 with the label as diff, got %d:\n%s%s", code, out, errOut)
+	}
+
+	code, normalized, errOut := runCLI(t, in, "norm", "-", "--set-label", "team=x")
+	if code != 0 {
+		t.Fatalf("got %d: %s", code, errOut)
+	}
+
+	for _, args := range [][]string{{"--set-label", "team=x"}, nil} {
+		code, out, errOut = runCLI(t, normalized, append([]string{"norm", "-", "--check"}, args...)...)
+		if code != 0 {
+			t.Fatalf("%v: expected exit 0, got %d:\n%s%s", args, code, out, errOut)
+		}
+	}
+}
+
 func TestNorm_CheckFailsOnDroppedResource(t *testing.T) {
 	t.Parallel()
 
@@ -488,5 +511,64 @@ spec:
 	code, _, errOut = runCLI(t, in, "norm", "-", "--crds", "-")
 	if code != 2 || !strings.Contains(errOut, "--crds") {
 		t.Fatalf("got %d: %s", code, errOut)
+	}
+}
+
+func TestNorm_SetLabelsAndAnnotations(t *testing.T) {
+	t.Parallel()
+
+	cm := "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cm\n  namespace: demo\n  labels:\n    team: old\n    argocd.argoproj.io/instance: shop\n"
+
+	code, out, errOut := runCLI(t, cm, "norm", "-",
+		"--set-label", "team=platform", "--set-label", "argocd.argoproj.io/instance=kept",
+		"--set-annotation", "example.com/note=a=b, c")
+	if code != 0 {
+		t.Fatalf("got %d: %s", code, errOut)
+	}
+
+	want := `apiVersion: v1
+kind: ConfigMap
+metadata:
+  annotations:
+    example.com/note: a=b, c
+  labels:
+    argocd.argoproj.io/instance: kept
+    team: platform
+  name: cm
+  namespace: demo
+`
+	if !strings.HasSuffix(out, want) {
+		t.Fatalf("got:\n%s\nwant:\n%s", out, want)
+	}
+
+	code, out, _ = runCLI(t, cm, "explain", "-", "--set-label", "team=platform")
+	if code != 0 || !strings.Contains(out, "--set-label team=platform") {
+		t.Fatalf("explain misses the set label, got %d:\n%s", code, out)
+	}
+
+	for _, args := range [][]string{
+		{"--set-label", "team"},
+		{"--set-label", "=x"},
+		{"--set-label", "team=a b"},
+		{"--set-label", "bad key=x"},
+		{"--set-annotation", "bad key=x"},
+	} {
+		code, _, errOut = runCLI(t, cm, append([]string{"norm", "-"}, args...)...)
+		if code != 2 || errOut == "" {
+			t.Errorf("%v: expected exit 2 with an error, got %d: %s", args, code, errOut)
+		}
+	}
+}
+
+func TestDiff_SetLabelOnBothSides(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	old := filepath.Join(dir, "old.yaml")
+	writeFile(t, old, "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: c\n  namespace: demo\n  labels:\n    team: old\n")
+
+	code, out, errOut := runCLI(t, "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: c\n  namespace: demo\n", "diff", old, "-", "--set-label", "team=x")
+	if code != 0 || out != "" {
+		t.Fatalf("expected no diff, got %d:\n%s%s", code, out, errOut)
 	}
 }
