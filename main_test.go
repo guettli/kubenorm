@@ -621,3 +621,59 @@ func TestDiff_SetLabelOnBothSides(t *testing.T) {
 		t.Fatalf("expected no diff, got %d:\n%s%s", code, out, errOut)
 	}
 }
+
+func TestDiff_HeadersNameRealFiles(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	cm := "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n  namespace: ns1\ndata:\n  k: \"1\"\n"
+	oldFile := filepath.Join(dir, "a", "ns1", "x.yaml")
+	newFile := filepath.Join(dir, "b", "ns1", "renamed.yaml")
+
+	writeFile(t, oldFile, cm)
+	writeFile(t, newFile, strings.Replace(cm, `"1"`, `"2"`, 1))
+
+	// The arguments are namespace directories: before, the header was
+	// a/ns1/ns1/ConfigMap/x.yaml.
+	code, out, errOut := runCLI(t, "", "diff", filepath.Join(dir, "a", "ns1"), filepath.Join(dir, "b", "ns1"))
+	if code != 1 || !strings.HasPrefix(out, "--- "+filepath.ToSlash(oldFile)+"\n+++ "+filepath.ToSlash(newFile)+"\n") {
+		t.Fatalf("got %d:\n%s%s", code, out, errOut)
+	}
+
+	// stdin: the normalized path below it.
+	code, out, errOut = runCLI(t, cm+"---\n"+strings.Replace(cm, "name: x", "name: other", 1), "diff", "-", filepath.Join(dir, "b", "ns1"))
+	if code != 1 || !strings.Contains(out, "\n--- stdin/ns1/ConfigMap/x.yaml\n+++ "+filepath.ToSlash(newFile)+"\n") {
+		t.Fatalf("got %d: stdout=%q stderr=%q", code, out, errOut)
+	}
+}
+
+func TestDiff_HeadersSeveralResourcesAndFull(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	cm := "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n  namespace: ns1\ndata:\n  k: \"1\"\n"
+	other := strings.Replace(cm, "name: x", "name: other", 1)
+
+	writeFile(t, filepath.Join(dir, "old", "all.yaml"), cm+"---\n"+other)
+	writeFile(t, filepath.Join(dir, "new", "all.yaml"), strings.Replace(cm, `"1"`, `"2"`, 1))
+
+	oldDir, newDir := filepath.Join(dir, "old"), filepath.Join(dir, "new")
+	slash := filepath.ToSlash
+
+	code, out, errOut := runCLI(t, "", "diff", oldDir, newDir)
+	if want := "--- " + slash(oldDir) + "/all.yaml/ns1/ConfigMap/x.yaml\n+++ " + slash(newDir) + "/all.yaml\n"; code != 1 || !strings.Contains(out, want) {
+		t.Fatalf("want %q, got %d:\n%s%s", want, code, out, errOut)
+	}
+
+	// --full: <argument>/<normalized path> on both sides, /dev/null for the
+	// missing side.
+	code, out, _ = runCLI(t, "", "diff", "--full", oldDir, newDir)
+	for _, want := range []string{
+		"--- " + slash(oldDir) + "/ns1/ConfigMap/x.yaml\n+++ " + slash(newDir) + "/ns1/ConfigMap/x.yaml\n",
+		"--- " + slash(oldDir) + "/ns1/ConfigMap/other.yaml\n+++ /dev/null\n",
+	} {
+		if code != 1 || !strings.Contains(out, want) {
+			t.Errorf("want %q, got %d:\n%s", want, code, out)
+		}
+	}
+}

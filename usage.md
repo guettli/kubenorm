@@ -198,7 +198,14 @@ reported with one "Only here: <file>" line (plus "(<path>)" if the file
 holds several resources or is stdin), followed by the tools that seem to
 manage it: helm, argocd, flux, fleet/wrangler, rancher, kapp, kubectl apply,
 the rendered-by annotation, app.kubernetes.io/managed-by, the controller
-owner and managedFields managers. --full shows its content instead.
+owner and managedFields managers. The ---/+++ headers of a changed resource
+name the files it was read from (<file>/<path> for stdin or a file with
+several resources).
+
+--full shows the content of one-sided resources instead and labels every
+resource with <argument>/<normalized path>, in the format of "git apply"
+and "patch -p1".
+
 Exits 1 if there are differences.
 
 Examples:

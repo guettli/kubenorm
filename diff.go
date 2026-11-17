@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"path"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -177,10 +178,45 @@ type diffSide struct {
 
 // origin tells where a resource was read from and who manages it.
 type origin struct {
-	// location is the source file, plus the path of the resource if the
-	// file holds several resources.
-	location string
+	// source is the file the resource was read from, "stdin" for stdin.
+	source string
+	// rel is the normalized path of the resource.
+	rel string
+	// shared is true if the source holds other resources too (or is stdin),
+	// so the source alone does not name the resource.
+	shared   bool
 	managers []string
+}
+
+// location names the resource for a reader: the source file, plus the
+// normalized path if the file holds several resources.
+func (o origin) location() string {
+	if o.shared {
+		return o.source + " (" + o.rel + ")"
+	}
+
+	return o.source
+}
+
+// path names the resource in a diff header: the source file, or, if the
+// file holds several resources, the normalized path below it. It uses "/"
+// on every OS, like patch and git apply expect.
+func (o origin) path() string {
+	source := path.Clean(filepath.ToSlash(o.source))
+	if o.shared {
+		return path.Join(source, o.rel)
+	}
+
+	return source
+}
+
+// originLabels labels a resource with the files it was read from. A label of
+// a side without the resource is empty; computeDiff replaces it with
+// /dev/null.
+func originLabels(oldSide, newSide diffSide) labels {
+	return func(rel string) (string, string) {
+		return oldSide.origins[rel].path(), newSide.origins[rel].path()
+	}
 }
 
 // rawInfo is what newDiffSide reads from a resource before processing.
@@ -226,12 +262,12 @@ func newDiffSide(resources []normalize.Resource, opts *normalize.Options) (diffS
 	for i := range kept {
 		rel := kept[i].RelPath()
 
-		location := diffLabel(infos[i].source)
-		if infos[i].source == normalize.StdinPath || perSource[infos[i].source] > 1 {
-			location += " (" + rel + ")"
+		origins[rel] = origin{
+			source:   diffLabel(infos[i].source),
+			rel:      rel,
+			shared:   infos[i].source == normalize.StdinPath || perSource[infos[i].source] > 1,
+			managers: infos[i].managers,
 		}
-
-		origins[rel] = origin{location: location, managers: infos[i].managers}
 	}
 
 	return diffSide{rendered: rendered, origins: origins}, nil
@@ -239,7 +275,7 @@ func newDiffSide(resources []normalize.Resource, opts *normalize.Options) (diffS
 
 // onlyHereLine returns the line of a resource that exists on one side only.
 func onlyHereLine(o origin) string {
-	line := "Only here: " + o.location
+	line := "Only here: " + o.location()
 	if len(o.managers) > 0 {
 		line += " managed by: " + strings.Join(o.managers, ", ")
 	}
