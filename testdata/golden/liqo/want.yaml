@@ -20,7 +20,6 @@ webhooks:
       namespace: liqo
       path: /mutate/pod
       port: 9443
-  failurePolicy: Fail
   name: pod.mutate.liqo.io
   namespaceSelector:
     matchLabels:
@@ -44,7 +43,6 @@ webhooks:
       namespace: liqo
       path: /mutate/shadowpods
       port: 9443
-  failurePolicy: Fail
   name: shadowpod.mutate.liqo.io
   rules:
   - apiGroups:
@@ -67,7 +65,6 @@ webhooks:
       namespace: liqo
       path: /mutate/foreign-cluster
       port: 9443
-  failurePolicy: Fail
   name: fc.mutate.liqo.io
   objectSelector:
     matchExpressions:
@@ -95,7 +92,6 @@ webhooks:
       namespace: liqo
       path: /mutate/firewallconfigurations
       port: 9443
-  failurePolicy: Fail
   name: firewallconfiguration.mutate.liqo.io
   objectSelector:
     matchExpressions:
@@ -123,7 +119,6 @@ webhooks:
       namespace: liqo
       path: /mutate/tenants
       port: 9443
-  failurePolicy: Fail
   name: tenant.validate.liqo.io
   objectSelector:
     matchExpressions:
@@ -164,7 +159,6 @@ webhooks:
       namespace: liqo
       path: /validate/namespace-offloading
       port: 9443
-  failurePolicy: Fail
   name: nsoff.validate.liqo.io
   objectSelector:
     matchExpressions:
@@ -192,7 +186,6 @@ webhooks:
       namespace: liqo
       path: /validate/shadowpods
       port: 9443
-  failurePolicy: Fail
   name: shadowpod.validate.liqo.io
   rules:
   - apiGroups:
@@ -215,7 +208,6 @@ webhooks:
       namespace: liqo
       path: /validate/firewallconfigurations
       port: 9443
-  failurePolicy: Fail
   name: firewallconfiguration.validate.liqo.io
   objectSelector:
     matchExpressions:
@@ -243,7 +235,6 @@ webhooks:
       namespace: liqo
       path: /validate/routeconfigurations
       port: 9443
-  failurePolicy: Fail
   name: routeconfiguration.validate.liqo.io
   objectSelector:
     matchExpressions:
@@ -271,7 +262,6 @@ webhooks:
       namespace: liqo
       path: /validate/resourceslices
       port: 9443
-  failurePolicy: Fail
   name: resourceslice.validate.liqo.io
   rules:
   - apiGroups:
@@ -293,7 +283,6 @@ webhooks:
       namespace: liqo
       path: /validate/tenants
       port: 9443
-  failurePolicy: Fail
   name: tenant.validate.liqo.io
   objectSelector:
     matchExpressions:
@@ -321,7 +310,6 @@ webhooks:
       namespace: liqo
       path: /validate/virtualnodes
       port: 9443
-  failurePolicy: Fail
   name: virtualnode.validate.liqo.io
   objectSelector:
     matchExpressions:

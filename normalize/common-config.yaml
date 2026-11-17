@@ -61,15 +61,18 @@ removeFields:
         omitempty: true
       - path: metadata.annotations
         omitempty: true
-  # In the typed built-in APIs a null field is the same as an absent one.
-  # Helm renders empty values as null; the API server returns null for some
-  # fields (Role rules). Custom resources keep their nulls: in free-form fields
+  # In the typed built-in APIs a null field and an empty list are the same as
+  # an absent one: the API server stores them alike and never returns [].
+  # Helm renders empty values as null or []; the API server returns null for
+  # some fields (Role rules). Custom resources keep them: in free-form fields
   # (Helm values of a HelmRelease) null can mean "delete this default".
   # Runs before the {} rules below, so they see the emptied parents.
   - group: ""
     fields: &nullFields
       - path: ...*
         value: null
+      - path: ...*
+        value: []
   - group: apps
     fields: *nullFields
   - group: batch
@@ -95,6 +98,8 @@ removeFields:
     kind: "*WebhookConfiguration"
     fields:
       - webhooks.clientConfig.caBundle
+      - path: webhooks.failurePolicy
+        value: Fail
       - path: webhooks.clientConfig.service.port
         value: 443
       - path: webhooks.matchPolicy
@@ -109,6 +114,20 @@ removeFields:
         value: "*"
       - path: webhooks.timeoutSeconds
         value: 10
+  # Defaults of ValidatingAdmissionPolicy and MutatingAdmissionPolicy.
+  - group: admissionregistration.k8s.io
+    kind: "*AdmissionPolicy"
+    fields:
+      - path: spec.failurePolicy
+        value: Fail
+      - path: spec.matchConstraints.matchPolicy
+        value: Equivalent
+      - path: spec.matchConstraints.namespaceSelector
+        value: {}
+      - path: spec.matchConstraints.objectSelector
+        value: {}
+      - path: spec.matchConstraints.resourceRules.scope
+        value: "*"
   # CRD conversion webhook defaults and None-strategy cleanup.
   - group: apiextensions.k8s.io
     kind: CustomResourceDefinition
@@ -176,6 +195,10 @@ removeFields:
       # Default protocol for Service ports. UDP/SCTP would be explicit.
       - path: spec.ports.protocol
         value: TCP
+      - path: spec.ports.name
+        value: ""
+      - path: spec.publishNotReadyAddresses
+        value: false
 
       # Default Service type. NodePort/LoadBalancer/ExternalName would be explicit.
       - path: spec.type
@@ -252,20 +275,29 @@ removeFields:
         value: 30
       - path: ...template.spec.hostNetwork
         value: false
+      - path: ...template.spec.hostPID
+        value: false
+      - path: ...template.spec.hostIPC
+        value: false
+      # Optional strings (omitempty): the API server drops "".
+      - path: ...template.spec.hostname
+        value: ""
+      - path: ...template.spec.nodeName
+        value: ""
+      - path: ...template.spec.priorityClassName
+        value: ""
+      - path: ...template.spec.serviceAccountName
+        value: ""
+      - path: ...template.spec.subdomain
+        value: ""
       # Deprecated alias for serviceAccountName, copied by the API server.
       - ...template.spec.serviceAccount
       - path: ...template.spec.nodeSelector
         value: {}
-      - path: ...template.spec.tolerations
-        value: []
       - path: ...template.spec.affinity.nodeAffinity
         value: null
       - path: ...template.spec.affinity.podAffinity
         value: null
-      - path: ...template.spec.securityContext.supplementalGroups
-        value: []
-      - path: ...template.spec.securityContext.sysctls
-        value: []
       - path: ...template.spec.securityContext
         value: {}
 
@@ -288,7 +320,23 @@ removeFields:
         value: ""
       - path: ...template.spec.*ontainers.ports.protocol
         value: TCP
+      - path: ...template.spec.*ontainers.ports.name
+        value: ""
+      - path: ...template.spec.*ontainers.ports.hostIP
+        value: ""
+      - path: ...template.spec.*ontainers.ports.hostPort
+        value: 0
+      - path: ...template.spec.*ontainers.stdin
+        value: false
+      - path: ...template.spec.*ontainers.stdinOnce
+        value: false
+      - path: ...template.spec.*ontainers.tty
+        value: false
+      - path: ...template.spec.*ontainers.volumeMounts.readOnly
+        value: false
       - path: ...template.spec.*ontainers.volumeMounts.subPath
+        value: ""
+      - path: ...template.spec.*ontainers.volumeMounts.subPathExpr
         value: ""
       - path: ...template.spec.*ontainers.volumeMounts
         value: null
@@ -300,6 +348,8 @@ removeFields:
         value: {}
 
       # Probe defaults.
+      - path: ...template.spec.*ontainers.*Probe.initialDelaySeconds
+        value: 0
       - path: ...template.spec.*ontainers.*Probe.failureThreshold
         value: 3
       - path: ...template.spec.*ontainers.*Probe.successThreshold
@@ -324,6 +374,8 @@ removeFields:
         value: 420
       - path: ...template.spec.volumes.downwardAPI.defaultMode
         value: 420
+      - path: ...template.spec.volumes.emptyDir.medium
+        value: ""
       - path: ...template.spec.volumes.hostPath.type
         value: ""
       - path: ...template.spec.volumes.projected.sources.serviceAccountToken.expirationSeconds
@@ -338,6 +390,8 @@ removeFields:
   - group: apps
     kind: Deployment
     fields:
+      - path: spec.paused
+        value: false
       - path: spec.progressDeadlineSeconds
         value: 600
       - path: spec.revisionHistoryLimit
@@ -408,6 +462,16 @@ removeFields:
       - ...template.metadata.labels.batch\.kubernetes\.io/job-name
       - ...template.metadata.labels.controller-uid
       - ...template.metadata.labels.job-name
+  # The same labels on the Job itself.
+  - group: batch
+    kind: Job
+    fields:
+      - metadata.labels.batch\.kubernetes\.io/controller-uid
+      - metadata.labels.batch\.kubernetes\.io/job-name
+      - metadata.labels.controller-uid
+      - metadata.labels.job-name
+      - path: metadata.labels
+        omitempty: true
   - group: batch
     kind: "*"
     fields: *podTemplateDefaults
