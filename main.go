@@ -667,7 +667,7 @@ func runDiff(cmd *cobra.Command, flags *normFlags, oldPath, newPath string, full
 		}
 	}
 
-	diffs := computeDiff(oldSide.rendered, newSide.rendered, prefixLabels(diffLabel(oldPath), diffLabel(newPath)), onlyHere)
+	diffs := computeDiff(oldSide.rendered, newSide.rendered, originLabels(oldSide, newSide), onlyHere)
 
 	for _, d := range diffs {
 		_, err = io.WriteString(cmd.OutOrStdout(), d)

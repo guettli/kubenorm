@@ -621,3 +621,28 @@ func TestDiff_SetLabelOnBothSides(t *testing.T) {
 		t.Fatalf("expected no diff, got %d:\n%s%s", code, out, errOut)
 	}
 }
+
+func TestDiff_HeadersNameRealFiles(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	cm := "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n  namespace: ns1\ndata:\n  k: \"1\"\n"
+	oldFile := filepath.Join(dir, "a", "ns1", "x.yaml")
+	newFile := filepath.Join(dir, "b", "ns1", "renamed.yaml")
+
+	writeFile(t, oldFile, cm)
+	writeFile(t, newFile, strings.Replace(cm, `"1"`, `"2"`, 1))
+
+	// The arguments are namespace directories: before, the header was
+	// a/ns1/ns1/ConfigMap/x.yaml.
+	code, out, errOut := runCLI(t, "", "diff", filepath.Join(dir, "a", "ns1"), filepath.Join(dir, "b", "ns1"))
+	if code != 1 || !strings.HasPrefix(out, "--- "+oldFile+"\n+++ "+newFile+"\n") {
+		t.Fatalf("got %d:\n%s%s", code, out, errOut)
+	}
+
+	// A file with several resources: the normalized path below it.
+	code, out, errOut = runCLI(t, cm+"---\n"+strings.Replace(cm, "name: x", "name: other", 1), "diff", "-", filepath.Join(dir, "b", "ns1"))
+	if code != 1 || !strings.Contains(out, "\n--- stdin/ns1/ConfigMap/x.yaml\n+++ "+newFile+"\n") {
+		t.Fatalf("got %d: stdout=%q stderr=%q", code, out, errOut)
+	}
+}
