@@ -269,10 +269,17 @@ removeFields:
         value: IfNotPresent
       - path: ...template.spec.*ontainers.env.valueFrom.fieldRef.apiVersion
         value: v1
+      # Optional strings (omitempty): the API server drops "".
+      - path: ...template.spec.*ontainers.env.value
+        value: ""
+      - path: ...template.spec.*ontainers.envFrom.prefix
+        value: ""
+      - path: ...template.spec.*ontainers.workingDir
+        value: ""
       - path: ...template.spec.*ontainers.ports.protocol
         value: TCP
       - path: ...template.spec.*ontainers.volumeMounts.subPath
-        value: null
+        value: ""
       - path: ...template.spec.*ontainers.volumeMounts
         value: null
       - path: ...template.spec.*ontainers.resources.limits
