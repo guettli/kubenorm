@@ -67,9 +67,16 @@ removeFields:
   # some fields (Role rules). Custom resources keep them: in free-form fields
   # (Helm values of a HelmRelease) null can mean "delete this default", and
   # in a CRD schema default: [] is a default. So the built-in groups are
-  # listed one by one: not apiextensions.k8s.io (schemas), resource.k8s.io
-  # (opaque parameters), or CRD groups like gateway.networking.k8s.io.
+  # listed one by one, and CRD groups like gateway.networking.k8s.io are not.
+  # CRD schemas and opaque parameters (resource.k8s.io) keep [], only null
+  # goes.
   # Runs before the {} rules below, so they see the emptied parents.
+  - group: apiextensions.k8s.io
+    fields: &nullOnlyFields
+      - path: ...*
+        value: null
+  - group: resource.k8s.io
+    fields: *nullOnlyFields
   - group: ""
     fields: &nullFields
       - path: ...*
