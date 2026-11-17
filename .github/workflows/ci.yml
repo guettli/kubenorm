@@ -80,6 +80,14 @@ jobs:
           # database may not know a release that was tagged minutes ago.
           GOPRIVATE: github.com/guettli/kubenorm
         run: |
+          # On main, auto-release may have tagged this commit already, and
+          # gorelease refuses a version that exists. The pull request ran the
+          # check on the same code, so skip it.
+          tag=$(git tag --points-at HEAD --list 'v*' | sort -V | tail -1)
+          if [ -n "$tag" ]; then
+            echo "HEAD is already released as $tag, checked in its pull request"
+            exit 0
+          fi
           base=$(git describe --tags --abbrev=0 --match 'v*')
           next=$(echo "$base" | awk -F. '{print $1"."$2+1".0"}')
           go run golang.org/x/exp/cmd/gorelease@v0.0.0-20261113113407-e3970619a1a4 -base="$base" -version="$next"
