@@ -20,6 +20,7 @@ import (
 	"github.com/gavv/cobradoc"
 	"github.com/guettli/kubenorm/normalize"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 const (
@@ -102,10 +103,14 @@ type normFlags struct {
 	crdPaths              []string
 	setLabels             []string
 	setAnnotations        []string
+	renderedBy            string
+	// flagSet tells which flags were given.
+	flagSet *pflag.FlagSet
 }
 
 func (f *normFlags) register(cmd *cobra.Command) {
 	fl := cmd.Flags()
+	f.flagSet = fl
 	fl.StringArrayVarP(&f.configFiles, "config", "c", nil, "YAML config with removeFields/skipResources/excludeNamespaces/quantityFields/clusterScopedResources rules (repeatable; merged with the common config)")
 	fl.BoolVar(&f.noCommonConfig, "no-common-config", false, "Do not apply the embedded common config (see show-common-config)")
 	fl.StringVarP(&f.namespacesCSV, "namespaces", "n", "", "Only keep resources in these namespaces (comma-separated)")
@@ -122,6 +127,7 @@ func (f *normFlags) register(cmd *cobra.Command) {
 	fl.StringArrayVar(&f.crdPaths, "crds", nil, "Also read CustomResourceDefinitions from this file or directory (repeatable; other resources there are ignored): their quantity fields and scope are used like CRDs in the input")
 	fl.StringArrayVar(&f.setLabels, "set-label", nil, "Set this label (key=value, repeatable) on every resource, replacing an existing value")
 	fl.StringArrayVar(&f.setAnnotations, "set-annotation", nil, "Set this annotation (key=value, repeatable) on every resource, replacing an existing value")
+	fl.StringVar(&f.renderedBy, "rendered-by", "", "Set the annotation "+normalize.RenderedByAnnotation+" to this value (e.g. the script that renders the manifests) on every resource")
 	fl.BoolVar(&f.noConfigDiscovery, "no-config-discovery", false, "Do not load "+discoveredConfigName+" from the current directory or its parents")
 }
 
@@ -219,8 +225,16 @@ func (f *normFlags) setChangeOptions(opts *normalize.Options) error {
 	}
 
 	opts.SetAnnotations, err = parseKeyValues("--set-annotation", f.setAnnotations)
+	if err != nil {
+		return err
+	}
 
-	return err
+	opts.RenderedBy = strings.TrimSpace(f.renderedBy)
+	if opts.RenderedBy == "" && f.flagSet != nil && f.flagSet.Changed("rendered-by") {
+		return errors.New("--rendered-by: empty value")
+	}
+
+	return nil
 }
 
 // parseKeyValues parses "key=value" flag values. The value may contain "=".
@@ -592,8 +606,8 @@ compare one cluster at a time. A resource that exists on one side only is
 reported with one "Only here: <file>" line (plus "(<path>)" if the file
 holds several resources or is stdin), followed by the tools that seem to
 manage it: helm, argocd, flux, fleet/wrangler, rancher, kapp, kubectl apply,
-app.kubernetes.io/managed-by, the controller owner and managedFields
-managers. --full shows its content instead.
+the rendered-by annotation, app.kubernetes.io/managed-by, the controller
+owner and managedFields managers. --full shows its content instead.
 Exits 1 if there are differences.
 
 Examples:

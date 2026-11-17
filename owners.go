@@ -3,8 +3,11 @@ package main
 import (
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
+	"unicode"
 
+	"github.com/guettli/kubenorm/normalize"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -17,6 +20,11 @@ func managers(obj map[string]any) []string {
 	var found []string
 
 	add := func(s string) {
+		// Values come from the input: keep the output on one line.
+		if strings.ContainsFunc(s, unicode.IsControl) {
+			s = strconv.Quote(s)
+		}
+
 		if !slices.Contains(found, s) {
 			found = append(found, s)
 		}
@@ -78,6 +86,8 @@ func addToolLabels(add func(string), labels, annotations map[string]string) {
 	addWrangler(add, annotations)
 	addRancher(add, labels, annotations)
 	addPair("kapp app", "", labels["kapp.k14s.io/app"])
+
+	addPair("rendered by", "", annotations[normalize.RenderedByAnnotation])
 
 	if _, ok := annotations["kubectl.kubernetes.io/last-applied-configuration"]; ok {
 		add("kubectl apply")
