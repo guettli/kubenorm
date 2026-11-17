@@ -256,3 +256,48 @@ spec:
 		t.Fatalf("cluster-scoped Gadget got namespace %q", ns)
 	}
 }
+
+const quantityCRDTestInput = `
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: widgets.example.com
+spec:
+  group: example.com
+  scope: Namespaced
+  names: {kind: Widget}
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              size: &quantity
+                anyOf: [{type: integer}, {type: string}]
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
+              limits:
+                type: object
+                additionalProperties: *quantity
+              disks:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    capacity: *quantity
+              port:
+                anyOf: [{type: integer}, {type: string}]
+                x-kubernetes-int-or-string: true
+---
+apiVersion: example.com/v1
+kind: Widget
+metadata: {name: w, namespace: ns1}
+spec:
+  size: 2048Mi
+  limits: {cpu: 1000m}
+  disks: [{capacity: 0.5Gi}]
+  port: "1000"
+`
