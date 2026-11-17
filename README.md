@@ -564,6 +564,9 @@ _ = rendered.WriteDir("out")
 
 ## Development
 
+- `mise install` installs the tools of `mise.toml` (go, prek, golangci-lint,
+  helm) in the versions CI uses, `prek install` the git hook. `prek run
+  --all-files` runs the same checks as CI.
 - `go test ./...` runs unit tests, golden tests (`testdata/golden`, rendered
   helm charts) and the seeds of the fuzz test. Update golden files with
   `go test -run TestGolden -update`, inputs with `scripts/render-golden-inputs.sh`.
