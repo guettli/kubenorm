@@ -13,8 +13,9 @@ import (
 
 // managers returns the systems that seem to manage the raw (not normalized)
 // object, as found in its labels, annotations, ownerReferences and
-// managedFields. Normalization removes all of these, so call it before.
-func managers(obj map[string]any) []string {
+// managedFields, plus the owner hints of the config. Normalization removes
+// all of these, so call it before.
+func managers(obj map[string]any, hints []normalize.OwnerHint) []string {
 	u := unstructured.Unstructured{Object: obj}
 
 	var found []string
@@ -30,7 +31,14 @@ func managers(obj map[string]any) []string {
 		}
 	}
 
-	addToolLabels(add, u.GetLabels(), u.GetAnnotations())
+	labels, annotations := u.GetLabels(), u.GetAnnotations()
+	addToolLabels(add, labels, annotations)
+
+	for _, h := range hints {
+		if hint, ok := h.Hint(labels, annotations); ok {
+			add(hint)
+		}
+	}
 
 	for _, ref := range u.GetOwnerReferences() {
 		if ref.Controller != nil && *ref.Controller {

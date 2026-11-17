@@ -28,9 +28,10 @@ func CommonConfig() []byte {
 // Config holds compiled normalization rules, read from the top-level config
 // keys removeFields (fields to remove), skipResources (resources to drop),
 // excludeNamespaces (namespaces to drop with everything inside),
-// quantityFields (fields to canonicalize as quantities) and
-// clusterScopedResources (kinds to treat as cluster-scoped). The zero value
-// (or nil) applies no rules.
+// quantityFields (fields to canonicalize as quantities),
+// clusterScopedResources (kinds to treat as cluster-scoped), setMetadata
+// (labels and annotations to set) and ownerHints (who manages a resource,
+// for kubenorm diff). The zero value (or nil) applies no rules.
 type Config struct {
 	removeRules       []removeRule
 	skipRules         []skipRule
@@ -39,6 +40,8 @@ type Config struct {
 	quantityRules []removeRule
 	// clusterScopedPattern extends the built-in list of cluster-scoped kinds.
 	clusterScopedPattern []groupKindPattern
+	setMetadataRules     []setMetadataRule
+	ownerHints           []OwnerHint
 }
 
 // LoadConfig builds a Config from the embedded common config (if useCommon is
@@ -132,11 +135,13 @@ func (c *Config) SkipsEveryResourceOf(group, kind string) bool {
 }
 
 type configFile struct {
-	RemoveFields      []removeRuleFile   `yaml:"removeFields"`
-	Skip              []skipRuleFile     `yaml:"skipResources"`
-	ExcludeNamespaces []string           `yaml:"excludeNamespaces"`
-	ClusterScoped     []groupKindFile    `yaml:"clusterScopedResources"`
-	Quantities        []quantityRuleFile `yaml:"quantityFields"`
+	RemoveFields      []removeRuleFile      `yaml:"removeFields"`
+	Skip              []skipRuleFile        `yaml:"skipResources"`
+	ExcludeNamespaces []string              `yaml:"excludeNamespaces"`
+	ClusterScoped     []groupKindFile       `yaml:"clusterScopedResources"`
+	Quantities        []quantityRuleFile    `yaml:"quantityFields"`
+	SetMetadata       []setMetadataRuleFile `yaml:"setMetadata"`
+	OwnerHints        []OwnerHint           `yaml:"ownerHints"`
 }
 
 // quantityRuleFile selects fields whose values are Kubernetes quantities
@@ -337,26 +342,14 @@ func ParseConfig(name string, data []byte) (*Config, error) {
 		return nil, err
 	}
 
-	rules := make([]removeRule, 0, len(cfg.RemoveFields))
-	for idx := range cfg.RemoveFields {
-		rule, err := compileRemoveRule(cfg.RemoveFields[idx])
-		if err != nil {
-			return nil, fmt.Errorf("invalid removeFields[%d] in %s: %w", idx+1, name, err)
-		}
-
-		rule.Origin = fmt.Sprintf("removeFields[%d] in %s", idx+1, name)
-		rules = append(rules, rule)
+	rules, err := compileRemoveRules(name, cfg.RemoveFields)
+	if err != nil {
+		return nil, err
 	}
 
-	skips := make([]skipRule, 0, len(cfg.Skip))
-	for idx := range cfg.Skip {
-		skip, err := compileSkipRule(cfg.Skip[idx])
-		if err != nil {
-			return nil, fmt.Errorf("invalid skipResources[%d] in %s: %w", idx+1, name, err)
-		}
-
-		skip.Origin = fmt.Sprintf("skipResources[%d] in %s", idx+1, name)
-		skips = append(skips, skip)
+	skips, err := compileSkipRules(name, cfg.Skip)
+	if err != nil {
+		return nil, err
 	}
 
 	excludes, err := validateExcludeNamespacePatterns(name, cfg.ExcludeNamespaces)
@@ -374,13 +367,57 @@ func ParseConfig(name string, data []byte) (*Config, error) {
 		return nil, err
 	}
 
+	setRules, err := compileSetMetadataRules(name, cfg.SetMetadata)
+	if err != nil {
+		return nil, err
+	}
+
+	err = validateOwnerHints(name, cfg.OwnerHints)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
+		setMetadataRules:     setRules,
+		ownerHints:           cfg.OwnerHints,
 		quantityRules:        quantityRules,
 		removeRules:          rules,
 		skipRules:            skips,
 		excludeNamespaces:    excludes,
 		clusterScopedPattern: clusterScoped,
 	}, nil
+}
+
+func compileRemoveRules(name string, files []removeRuleFile) ([]removeRule, error) {
+	rules := make([]removeRule, 0, len(files))
+
+	for idx := range files {
+		rule, err := compileRemoveRule(files[idx])
+		if err != nil {
+			return nil, fmt.Errorf("invalid removeFields[%d] in %s: %w", idx+1, name, err)
+		}
+
+		rule.Origin = fmt.Sprintf("removeFields[%d] in %s", idx+1, name)
+		rules = append(rules, rule)
+	}
+
+	return rules, nil
+}
+
+func compileSkipRules(name string, files []skipRuleFile) ([]skipRule, error) {
+	skips := make([]skipRule, 0, len(files))
+
+	for idx := range files {
+		skip, err := compileSkipRule(files[idx])
+		if err != nil {
+			return nil, fmt.Errorf("invalid skipResources[%d] in %s: %w", idx+1, name, err)
+		}
+
+		skip.Origin = fmt.Sprintf("skipResources[%d] in %s", idx+1, name)
+		skips = append(skips, skip)
+	}
+
+	return skips, nil
 }
 
 // decodeIgnoreConfig decodes data, which must be a single YAML document
@@ -671,4 +708,6 @@ func (c *Config) merge(other *Config) {
 	c.excludeNamespaces = append(c.excludeNamespaces, other.excludeNamespaces...)
 	c.clusterScopedPattern = append(c.clusterScopedPattern, other.clusterScopedPattern...)
 	c.quantityRules = append(c.quantityRules, other.quantityRules...)
+	c.setMetadataRules = append(c.setMetadataRules, other.setMetadataRules...)
+	c.ownerHints = append(c.ownerHints, other.ownerHints...)
 }

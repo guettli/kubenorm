@@ -182,6 +182,7 @@ func (o *Options) normalize(obj map[string]any, t *tracer) error {
 
 	o.applyQuantityRules(obj, t)
 	o.applyRemoveRules(obj, t)
+	o.applySetMetadataRules(obj, metadata, t)
 	setMetadataMap(obj, metadata, "labels", "--set-label", o.SetLabels, t)
 	setMetadataMap(obj, metadata, "annotations", "--set-annotation", o.SetAnnotations, t)
 

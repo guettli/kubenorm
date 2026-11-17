@@ -490,6 +490,21 @@ quantityFields:
     fields:
       - spec.storage.size
       - ...resources.limits.*
+
+setMetadata:                   # set labels/annotations, after removeFields
+  - kind: Deployment
+    namespace: prod-*
+    labels:
+      team: platform
+    annotations:
+      example.com/owner: platform-team
+
+ownerHints:                    # extra "managed by" hints of kubenorm diff
+  - label: example.com/team
+    text: team {value}         # default: "<key> {value}"
+  - annotation: example.com/tool
+    value: pulumi              # only if the value matches
+    text: pulumi
 ```
 
 - Matchers (`group`, `kind`, `namespace`, `name`) are globs; omitted means `*`.
@@ -514,6 +529,14 @@ quantityFields:
   `--crds`, which applies to both sides, else the quantities differ.
   `--crds` only reads CRDs and ignores everything else, so it can point at a
   whole rendered tree: `kubenorm norm --check ./plain --crds ./zz_rendered`.
+- `setMetadata` sets labels and annotations in `metadata` of the matching
+  resources (pod templates are not changed), after `removeFields`.
+  `--set-label`, `--set-annotation` and `--rendered-by` are applied after it
+  and win. Put the rule in `.kubenorm.yaml` instead of repeating flags in
+  render scripts.
+- `ownerHints` adds hints to the "managed by" list of `kubenorm diff` for
+  resources that carry a label or annotation, for tools kubenorm does not
+  know. `{value}` in `text` is the value of the key.
 - The config is parsed strictly; unknown keys are an error.
 
 `--config FILE` (repeatable) adds your rules to the common config,
