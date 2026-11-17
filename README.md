@@ -418,11 +418,14 @@ dumpall --read-resource-names-from zz_rendered --clean-out-dir --ignore-config-u
 kubenorm diff current zz_rendered
 ```
 
-`--output json` writes the differences for scripts: per resource its
-normalized path, `status` (`added`, `deleted`, `modified`), the `file` and
-`managedBy` of each side and the unified `diff` (for added and deleted
-resources only with `--full`). The text format may change between
-releases, the JSON fields stay.
+`--output json` writes the differences for scripts:
+`{"version": 1, "resources": [...]}` with, per resource, its normalized
+`path`, `status` (`added`, `deleted`, `modified`), `old` and `new` (left out
+for the side without the resource) with the `file` (`-` for stdin) and
+`managedBy`, and the unified `diff` (for added and deleted resources only
+with `--full`; its headers are labeled like the text output). The text
+format may change between releases; the JSON fields stay within a
+`version`. The values of `managedBy` are for humans and may change.
 
 For a summary or colors, write both sides with `norm -o` and use git:
 `git diff --no-index --stat old/ new/`.

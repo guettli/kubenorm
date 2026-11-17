@@ -195,10 +195,10 @@ options and print a unified diff. Resources are paired by identity
 trees can be compared. Each side must contain a resource only once, so
 compare one cluster at a time. A resource that exists on one side only is
 reported with one "Only here (old|new): <file>" line (plus "(<path>)" if
-the file holds several resources or is stdin), followed by the tools that seem to
-manage it: helm, argocd, flux, fleet/wrangler, rancher, kapp, kubectl apply,
-the rendered-by annotation, app.kubernetes.io/managed-by, the controller
-owner and managedFields managers. The ---/+++ headers of a changed resource
+the file holds several resources or is stdin), followed by the tools that
+seem to manage it: helm, argocd, flux, fleet/wrangler, rancher, kapp,
+kubectl apply, the rendered-by annotation, app.kubernetes.io/managed-by,
+the controller owner and managedFields managers. The ---/+++ headers of a changed resource
 name the files it was read from (<file>/<path> for stdin or a file with
 several resources).
 
@@ -206,8 +206,9 @@ several resources).
 resource with <argument>/<normalized path>, in the format of "git apply"
 and "patch -p1".
 
---output json writes one object per differing resource (path, status,
-the file and managers of each side, the unified diff) for scripts.
+--output json writes one JSON object {"version": 1, "resources": [...]}
+with one entry per differing resource (path, status, the file and managers
+of each side, the unified diff) for scripts.
 
 Exits 1 if there are differences.
 
@@ -234,7 +235,7 @@ kubenorm diff <old> <new> [flags]
   -n, --namespaces string                 Only keep resources in these namespaces (comma-separated)
       --no-common-config                  Do not apply the embedded common config (see show-common-config)
       --no-config-discovery               Do not load .kubenorm.yaml from the current directory or its parents
-      --output string                     Output format: text (unified diff) or json (one object per differing resource, for scripts) (default "text")
+      --output string                     Output format: text (unified diff) or json (for scripts: {"version": 1, "resources": [...]} with one entry per differing resource) (default "text")
       --overwrite-namespace string        Set metadata.namespace on all namespaced resources, replacing existing values, and move references to the replaced namespaces
       --redact-secrets                    Replace values of Secrets with REDACTED
       --rendered-by string                Set the annotation kubenorm.guettli.github.io/rendered-by to this value (e.g. the script that renders the manifests) on every resource

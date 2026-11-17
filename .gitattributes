@@ -1,0 +1,2 @@
+# Golden files compare byte by byte: never convert line endings.
+testdata/** -text

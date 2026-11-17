@@ -685,7 +685,7 @@ func TestDiff_OutputJSONNoDifferences(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "a.yaml"), deploymentYAML)
 
 	code, out, errOut := runCLI(t, "", "diff", "--output", "json", filepath.Join(dir, "a.yaml"), filepath.Join(dir, "a.yaml"))
-	if code != 0 || out != "{\n  \"resources\": []\n}\n" {
+	if code != 0 || out != "{\n  \"version\": 1,\n  \"resources\": []\n}\n" {
 		t.Fatalf("got %d:\n%s%s", code, out, errOut)
 	}
 
