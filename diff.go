@@ -267,7 +267,7 @@ func newDiffSide(resources []normalize.Resource, opts *normalize.Options) (diffS
 	// Process normalizes the objects in place, so their maps identify them.
 	raw := make(map[uintptr]rawInfo, len(resources))
 	for _, r := range resources {
-		raw[reflect.ValueOf(r.Object).Pointer()] = rawInfo{source: r.Source, managers: managers(r.Object)}
+		raw[reflect.ValueOf(r.Object).Pointer()] = rawInfo{source: r.Source, managers: managers(r.Object, opts.Config)}
 	}
 
 	kept, err := opts.Process(resources)

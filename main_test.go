@@ -694,3 +694,29 @@ func TestDiff_OutputJSONNoDifferences(t *testing.T) {
 		t.Fatalf("got %d: %s", code, errOut)
 	}
 }
+
+func TestDiff_OwnerHintsFromConfig(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	config := filepath.Join(dir, "kubenorm.yaml")
+	writeFile(t, config, "ownerHints:\n  - label: example.com/team\n    text: team {value}\n")
+
+	cm := "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: c\n  namespace: demo\n  labels:\n    example.com/team: web\n"
+
+	code, out, errOut := runCLI(t, cm, "diff", "--no-config-discovery", "-c", config, t.TempDir(), "-")
+	if want := "Only here (new): stdin (demo/ConfigMap/c.yaml) managed by: team web\n"; code != 1 || out != want {
+		t.Fatalf("want %q, got %d:\n%s%s", want, code, out, errOut)
+	}
+
+	// An annotation hint on the old side.
+	writeFile(t, config, "ownerHints:\n  - annotation: example.com/tool\n")
+
+	old := filepath.Join(dir, "old.yaml")
+	writeFile(t, old, "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: c\n  namespace: demo\n  annotations:\n    example.com/tool: pulumi\n")
+
+	code, out, errOut = runCLI(t, "", "diff", "--no-config-discovery", "-c", config, old, t.TempDir())
+	if want := "Only here (old): " + filepath.ToSlash(old) + " managed by: example.com/tool pulumi\n"; code != 1 || out != want {
+		t.Fatalf("want %q, got %d:\n%s%s", want, code, out, errOut)
+	}
+}

@@ -125,7 +125,7 @@ metadata:
 		},
 		{"rancher rtb p-foo/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-9f2e1 (truncated)", `"rendered by foo/render.sh\nx"`},
 	} {
-		if got := managers(resources[i].Object); !slices.Equal(got, want) {
+		if got := managers(resources[i].Object, nil); !slices.Equal(got, want) {
 			t.Errorf("resource %d: got %q, want %q", i, got, want)
 		}
 	}
