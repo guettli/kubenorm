@@ -1,6 +1,7 @@
 package main
 
 import (
+	"maps"
 	"slices"
 	"strings"
 
@@ -41,7 +42,7 @@ func managers(obj map[string]any) []string {
 }
 
 // addToolLabels adds the tools found in the tracking labels and annotations
-// of helm, argocd, flux, wrangler/fleet, kapp and kubectl apply.
+// of helm, argocd, flux, wrangler/fleet, rancher, kapp and kubectl apply.
 func addToolLabels(add func(string), labels, annotations map[string]string) {
 	addPair := func(what, ns, name string) {
 		switch {
@@ -75,6 +76,7 @@ func addToolLabels(add func(string), labels, annotations map[string]string) {
 	addPair("flux kustomization", labels["kustomize.toolkit.fluxcd.io/namespace"], labels["kustomize.toolkit.fluxcd.io/name"])
 	addPair("flux helmrelease", labels["helm.toolkit.fluxcd.io/namespace"], labels["helm.toolkit.fluxcd.io/name"])
 	addWrangler(add, annotations)
+	addRancher(add, labels, annotations)
 	addPair("kapp app", "", labels["kapp.k14s.io/app"])
 
 	if _, ok := annotations["kubectl.kubernetes.io/last-applied-configuration"]; ok {
@@ -107,4 +109,81 @@ func addWrangler(add func(string), annotations map[string]string) {
 	}
 
 	add(what)
+}
+
+// rancherOwnerValues are label values of Rancher whose key names the owner
+// (a "<namespace>_<name>" of a role template binding, or a UID).
+var rancherOwnerValues = []string{
+	"membership-binding-owner",
+	"memberhsip-binding-owner", // Rancher's legacy misspelling
+	"prtb-in-cluster-binding-owner",
+	"crtb-in-project-binding-owner",
+	"owner-user",
+}
+
+// rancherOwnerLabels are Rancher labels whose value names the owner.
+var rancherOwnerLabels = []struct{ key, what string }{
+	// "<namespace>_<name>" of the PRTB or CRTB, see rancherRTB.
+	{"authz.cluster.cattle.io/rtb-owner-updated", "rtb"},
+	{"authz.cluster.cattle.io/crtb-owner", "crtb"},
+	{"authz.cluster.cattle.io/clusterrole-owner", "roletemplate"},
+	{"authz.management.cattle.io/gr-owner", "globalrole"},
+	{"authz.management.cattle.io/grb-owner", "globalrolebinding"},
+}
+
+// addRancher adds the Rancher objects that own RBAC resources (role
+// template bindings, role templates, global roles) and the creator of
+// objects made through the Norman API.
+func addRancher(add func(string), labels, annotations map[string]string) {
+	for _, l := range rancherOwnerLabels {
+		if v := labels[l.key]; v != "" {
+			add("rancher " + l.what + " " + rancherRTB(v))
+		}
+	}
+
+	// The legacy label holds the UID of the binding.
+	if uid := labels["authz.cluster.cattle.io/rtb-owner"]; uid != "" && labels["authz.cluster.cattle.io/rtb-owner-updated"] == "" {
+		add("rancher rtb uid " + uid)
+	}
+
+	keys := slices.Sorted(maps.Keys(labels))
+
+	for _, k := range keys {
+		v := labels[k]
+
+		for _, prefix := range []string{"prtb", "crtb"} {
+			if name, ok := strings.CutPrefix(k, "authz.cluster.cattle.io/"+prefix+"-owner-"); ok && v == "true" {
+				add("rancher " + prefix + " " + rancherRTB(name))
+			}
+		}
+
+		if slices.Contains(rancherOwnerValues, v) {
+			add("rancher " + v + " " + rancherRTB(k))
+		}
+	}
+
+	if labels["cattle.io/creator"] == "norman" {
+		norman := "rancher norman"
+		if user := annotations["field.cattle.io/creatorId"]; user != "" {
+			norman += " (creator " + user + ")"
+		}
+
+		add(norman)
+	}
+}
+
+// rancherRTB turns "<namespace>_<name>" into "<namespace>/<name>". Rancher
+// shortens values longer than 63 characters to a prefix plus a hash, so such
+// a name may not exist.
+func rancherRTB(v string) string {
+	out := v
+	if ns, name, ok := strings.Cut(v, "_"); ok {
+		out = ns + "/" + name
+	}
+
+	if len(v) == 63 {
+		out += " (truncated)"
+	}
+
+	return out
 }
