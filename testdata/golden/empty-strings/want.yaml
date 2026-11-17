@@ -1,0 +1,61 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: empty-strings
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: empty-strings
+  template:
+    metadata:
+      labels:
+        app: empty-strings
+    spec:
+      containers:
+      - env:
+        - name: EMPTY
+        - name: SET
+          value: x
+        envFrom:
+        - configMapRef:
+            name: cm
+        - prefix: APP_
+          secretRef:
+            name: s
+        image: busybox:1.36
+        name: main
+        volumeMounts:
+        - mountPath: /a
+          name: v
+        - mountPath: /b
+          name: v
+          subPath: b
+        workingDir: /data
+      initContainers:
+      - env:
+        - name: EMPTY
+        image: busybox:1.36
+        name: init
+      volumes:
+      - emptyDir: {}
+        name: v
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: empty-strings
+  namespace: default
+spec:
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - env:
+            - name: EMPTY
+            image: busybox:1.36
+            name: job
+          restartPolicy: OnFailure
+  schedule: 0 * * * *
