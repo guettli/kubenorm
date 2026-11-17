@@ -14,20 +14,22 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: actions/setup-go@v6
+      # Installs the tools of mise.toml (go, prek, ...): the same versions as
+      # on a developer machine.
+      - uses: jdx/mise-action@v5
+
+      # setup-go cached these; mise-action caches only the tools.
+      - uses: actions/cache@v4
         with:
-          go-version-file: go.mod
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ hashFiles('go.sum', 'mise.toml') }}
+          restore-keys: go-${{ runner.os }}-
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
-      - name: Install pre-commit
-        run: pip install pre-commit
-
-      - name: Run pre-commit
+      - name: Run prek
         # Fails if a hook changed files (go mod tidy, usage.md, README).
-        run: pre-commit run --all-files --show-diff-on-failure
+        run: prek run --all-files --show-diff-on-failure
 
   defaults:
     # Checks the default rules against a real kube-apiserver (envtest
@@ -36,9 +38,17 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: actions/setup-go@v6
+      # Installs the tools of mise.toml (go, ...).
+      - uses: jdx/mise-action@v5
+
+      # setup-go cached these; mise-action caches only the tools.
+      - uses: actions/cache@v4
         with:
-          go-version-file: go.mod
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ hashFiles('go.sum', 'mise.toml') }}
+          restore-keys: go-${{ runner.os }}-
 
       - name: Check defaults
         run: scripts/check-defaults.sh
@@ -52,9 +62,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v6
+      # Installs the tools of mise.toml (go, ...).
+      - uses: jdx/mise-action@v5
+
+      # setup-go cached these; mise-action caches only the tools.
+      - uses: actions/cache@v4
         with:
-          go-version-file: go.mod
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ hashFiles('go.sum', 'mise.toml') }}
+          restore-keys: go-${{ runner.os }}-
 
       - name: Check API compatibility
         env:

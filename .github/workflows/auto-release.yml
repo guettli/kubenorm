@@ -22,19 +22,21 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v6
+      # Installs the tools of mise.toml (go, prek, ...), also the go that
+      # builds the release binaries.
+      - uses: jdx/mise-action@v5
+
+      # setup-go cached these; mise-action caches only the tools.
+      - uses: actions/cache@v4
         with:
-          go-version-file: go.mod
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ hashFiles('go.sum', 'mise.toml') }}
+          restore-keys: go-${{ runner.os }}-
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
-      - name: Install pre-commit
-        run: pip install pre-commit
-
-      - name: Run pre-commit
-        run: pre-commit run --all-files --show-diff-on-failure
+      - name: Run prek
+        run: prek run --all-files --show-diff-on-failure
 
       - name: Check if HEAD needs a release
         id: check
