@@ -73,6 +73,35 @@ metadata:
     objectset.rio.cattle.io/id: ""
     objectset.rio.cattle.io/owner-gvk: k3s.cattle.io/v1, Kind=Addon
     objectset.rio.cattle.io/owner-name: traefik
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: e
+  labels:
+    authz.cluster.cattle.io/rtb-owner-updated: p-foo_prtb-ddphg
+    authz.cluster.cattle.io/rtb-owner: 0b5c1f7e-1111-2222-3333-444455556666
+    cattle.io/creator: norman
+  annotations:
+    field.cattle.io/creatorId: u-abc
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: f
+  labels:
+    authz.cluster.cattle.io/rtb-owner: 0b5c1f7e-1111-2222-3333-444455556666
+    authz.cluster.cattle.io/prtb-owner-p-foo_my-binding: "true"
+    authz.cluster.cattle.io/clusterrole-owner: project-member
+    c-abc_crtb-x: membership-binding-owner
+    cattle.io/creator: someone
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: g
+  labels:
+    authz.cluster.cattle.io/rtb-owner-updated: p-foo_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-9f2e1
 `), "test")
 	if err != nil {
 		t.Fatal(err)
@@ -87,6 +116,12 @@ metadata:
 		{"helm", "argocd app shop"},
 		nil,
 		{"managed-by pulumi", "wrangler objectset (owner traefik)"},
+		{"rancher rtb p-foo/prtb-ddphg", "rancher norman (creator u-abc)"},
+		{
+			"rancher roletemplate project-member", "rancher rtb uid 0b5c1f7e-1111-2222-3333-444455556666",
+			"rancher prtb p-foo/my-binding", "rancher membership-binding-owner c-abc/crtb-x",
+		},
+		{"rancher rtb p-foo/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-9f2e1 (truncated)"},
 	} {
 		if got := managers(resources[i].Object); !slices.Equal(got, want) {
 			t.Errorf("resource %d: got %q, want %q", i, got, want)

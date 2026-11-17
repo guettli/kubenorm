@@ -196,7 +196,7 @@ trees can be compared. Each side must contain a resource only once, so
 compare one cluster at a time. A resource that exists on one side only is
 reported with one "Only here: <file>" line (plus "(<path>)" if the file
 holds several resources or is stdin), followed by the tools that seem to
-manage it: helm, argocd, flux, fleet/wrangler, kapp, kubectl apply,
+manage it: helm, argocd, flux, fleet/wrangler, rancher, kapp, kubectl apply,
 app.kubernetes.io/managed-by, the controller owner and managedFields
 managers. --full shows its content instead.
 Exits 1 if there are differences.
