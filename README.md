@@ -595,7 +595,7 @@ _ = rendered.WriteDir("out")
   fails if the api-server adds a default that the common config does not
   remove. CI runs it for every change.
 - Releases follow [semver](https://semver.org). Every merge to main creates the
-  next minor release. It may change the normalized output: re-render in the
+  next minor release, once CI passed for it. It may change the normalized output: re-render in the
   commit that updates kubenorm. Breaking changes of the CLI or the
   `normalize` package need a new major version (module path
   `github.com/guettli/kubenorm/v2`, tagged by hand).
