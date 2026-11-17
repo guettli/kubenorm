@@ -607,7 +607,14 @@ reported with one "Only here: <file>" line (plus "(<path>)" if the file
 holds several resources or is stdin), followed by the tools that seem to
 manage it: helm, argocd, flux, fleet/wrangler, rancher, kapp, kubectl apply,
 the rendered-by annotation, app.kubernetes.io/managed-by, the controller
-owner and managedFields managers. --full shows its content instead.
+owner and managedFields managers. The ---/+++ headers of a changed resource
+name the files it was read from (<file>/<path> for stdin or a file with
+several resources).
+
+--full shows the content of one-sided resources instead and labels every
+resource with <argument>/<normalized path>, in the format of "git apply"
+and "patch -p1".
+
 Exits 1 if there are differences.
 
 Examples:
@@ -667,7 +674,15 @@ func runDiff(cmd *cobra.Command, flags *normFlags, oldPath, newPath string, full
 		}
 	}
 
-	diffs := computeDiff(oldSide.rendered, newSide.rendered, originLabels(oldSide, newSide), onlyHere)
+	// --full is for git apply: label both sides with the normalized path
+	// below the argument, so the names match after -p1 (apply it to a tree
+	// written by norm -o). Otherwise name the files the resources come from.
+	labels := originLabels(oldSide, newSide)
+	if full {
+		labels = prefixLabels(diffLabel(oldPath), diffLabel(newPath))
+	}
+
+	diffs := computeDiff(oldSide.rendered, newSide.rendered, labels, onlyHere)
 
 	for _, d := range diffs {
 		_, err = io.WriteString(cmd.OutOrStdout(), d)

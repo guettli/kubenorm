@@ -383,8 +383,11 @@ latest release.
 ## `kubenorm diff`
 
 Normalizes both sides with the same options and prints a unified diff.
-Resources are paired by identity, not by file name, so differently organized trees, single files and streams can be compared.
-Each side may contain a resource only once: compare one cluster at a time.
+Resources are paired by identity, not by file name, so differently organized
+trees, single files and streams can be compared. Each side may contain a
+resource only once: compare one cluster at a time. The `---`/`+++` headers
+name the files a changed resource was read from (`<file>/<path>` for stdin or
+a file with several resources).
 
 A resource that exists on one side only is reported with one line instead
 of its whole content. It names the file the resource was read from (plus
@@ -397,8 +400,11 @@ Only here: current/demo/apps_Deployment/web.yaml managed by: helm release demo/w
 Only here: stdin (demo/ConfigMap/extra.yaml)
 ```
 
-Use `--full` to see the content as a diff from or to `/dev/null`; only then
-is the output `git apply` compatible.
+Use `--full` to see the content as a diff from or to `/dev/null`. It labels
+every resource with `<argument>/<normalized path>`, in the format of
+`git apply` and `patch -p1`. Files written by `norm -o` start with a header
+comment that the diff does not contain, so the patch does not apply to them
+as they are.
 
 ```terminal
 # What does this PR really change?

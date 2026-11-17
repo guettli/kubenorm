@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"path"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -198,19 +199,20 @@ func (o origin) location() string {
 }
 
 // path names the resource in a diff header: the source file, or, if the
-// file holds several resources, the normalized path below it, like before.
+// file holds several resources, the normalized path below it. It uses "/"
+// on every OS, like patch and git apply expect.
 func (o origin) path() string {
+	source := path.Clean(filepath.ToSlash(o.source))
 	if o.shared {
-		return path.Join(o.source, o.rel)
+		return path.Join(source, o.rel)
 	}
 
-	return o.source
+	return source
 }
 
-// originLabels labels a resource with the files it was read from, so a
-// diff header names real files. Before, it was the input argument joined
-// with the normalized path, which duplicated the namespace for an argument
-// like zz_rendered/ns1.
+// originLabels labels a resource with the files it was read from. A label of
+// a side without the resource is empty; computeDiff replaces it with
+// /dev/null.
 func originLabels(oldSide, newSide diffSide) labels {
 	return func(rel string) (string, string) {
 		return oldSide.origins[rel].path(), newSide.origins[rel].path()
