@@ -446,8 +446,19 @@ file header comments). The text
 format may change between releases; the JSON fields stay within a
 `version`. The values of `managedBy` are for humans and may change.
 
-For a summary or colors, write both sides with `norm -o` and use git:
-`git diff --no-index --stat old/ new/`.
+`--output stat` writes a summary, like `git diff --stat`: one line per
+differing resource with its status (`A`dded, `D`eleted, `M`odified), the
+normalized path and the number of changed lines, then a total:
+
+```text
+ A demo/ConfigMap/added.yaml     | 9 +++++++++
+ D demo/ConfigMap/legacy.yaml    | 7 -------
+ M demo/apps_Deployment/web.yaml | 4 ++--
+ 3 resources changed (1 added, 1 deleted, 1 modified), 11 insertions(+), 9 deletions(-)
+```
+
+For colors, write both sides with `norm -o` and use git:
+`git diff --no-index old/ new/`.
 
 Exit codes: `0` no differences, `1` differences, `2` error.
 

@@ -692,7 +692,12 @@ func TestDiff_OutputJSONNoDifferences(t *testing.T) {
 	}
 
 	code, _, errOut = runCLI(t, "", "diff", "--output", "yaml", dir, dir)
-	if code != 2 || !strings.Contains(errOut, "want text or json") {
+	if code != 2 || !strings.Contains(errOut, "want text, json or stat") {
+		t.Fatalf("got %d: %s", code, errOut)
+	}
+
+	code, _, errOut = runCLI(t, "", "diff", "--output", "stat", "--full", dir, dir)
+	if code != 2 || !strings.Contains(errOut, "exclude each other") {
 		t.Fatalf("got %d: %s", code, errOut)
 	}
 }

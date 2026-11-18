@@ -182,3 +182,31 @@ func TestReadHeader(t *testing.T) {
 		}
 	}
 }
+
+func TestWriteDiffStat(t *testing.T) {
+	t.Parallel()
+
+	var b strings.Builder
+
+	err := writeDiffStat(&b, []diffStat{
+		{rel: "ns/ConfigMap/big.yaml", status: statusModified, insertions: 79, deletions: 1},
+		{rel: "ns/ConfigMap/x.yaml", status: statusModified, insertions: 1},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := " M ns/ConfigMap/big.yaml | 80 " + strings.Repeat("+", 39) + "-\n" +
+		" M ns/ConfigMap/x.yaml   |  1 +\n" +
+		" 2 resources changed (0 added, 0 deleted, 2 modified), 80 insertions(+), 1 deletions(-)\n"
+	if b.String() != want {
+		t.Errorf("got:\n%s\nwant:\n%s", b.String(), want)
+	}
+
+	b.Reset()
+
+	err = writeDiffStat(&b, nil)
+	if err != nil || b.Len() != 0 {
+		t.Errorf("no differences: got %q, %v", b.String(), err)
+	}
+}

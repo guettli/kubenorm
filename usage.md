@@ -212,6 +212,10 @@ norm -o writes them, so the patch applies to a tree written by norm -o
 with one entry per differing resource (path, status, the file and managers
 of each side, the unified diff) for scripts.
 
+--output stat writes a summary like "git diff --stat": one line per
+differing resource with its status (A added, D deleted, M modified), path
+and number of changed lines, and a total.
+
 Exits 1 if there are differences.
 
 Examples:
@@ -237,7 +241,7 @@ kubenorm diff <old> <new> [flags]
   -n, --namespaces string                 Only keep resources in these namespaces (comma-separated)
       --no-common-config                  Do not apply the embedded common config (see show-common-config)
       --no-config-discovery               Do not load .kubenorm.yaml from the current directory or its parents
-      --output string                     Output format: text (unified diff) or json (for scripts: {"version": 1, "resources": [...]} with one entry per differing resource) (default "text")
+      --output string                     Output format: text (unified diff), stat (summary per resource) or json (for scripts: {"version": 1, "resources": [...]} with one entry per differing resource) (default "text")
       --overwrite-namespace string        Set metadata.namespace on all namespaced resources, replacing existing values, and move references to the replaced namespaces
       --redact-secrets                    Replace values of Secrets with REDACTED
       --rendered-by string                Set the annotation kubenorm.guettli.github.io/rendered-by to this value (e.g. the script that renders the manifests) on every resource
