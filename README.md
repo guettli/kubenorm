@@ -540,6 +540,14 @@ ownerHints:                    # extra "managed by" hints of kubenorm diff
   `--crds`, which applies to both sides, else the quantities differ.
   `--crds` only reads CRDs and ignores everything else, so it can point at a
   whole rendered tree: `kubenorm norm --check ./plain --crds ./zz_rendered`.
+- Defaults of CRD schemas: if the CRD of a custom resource is part of the
+  input or given with `--crds`, fields that hold the `default` of the schema
+  (of the resource's API version) are removed, like the built-in defaults in
+  the common config: the api-server sets them when they are absent. A parent
+  is compared after its children lost their defaults, so an object that holds
+  only defaults ends up as `{}` (and goes, if that is its default, too). This
+  also works with `--no-common-config`. Like quantities, give `kubenorm diff`
+  the CRDs on both sides or with `--crds`.
 - `setMetadata` sets labels and annotations in `metadata` of the matching
   resources (pod templates are not changed), after `removeFields`. If
   several rules set a key, the later one wins (common config, then the
