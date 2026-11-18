@@ -569,9 +569,12 @@ keepFields:                    # never removed by removeFields
   those of the common config and the defaults read from CRDs. Use it to
   keep a single field instead of disabling the whole common config, for
   example the commit of Config Sync in a cluster dump. Matchers and paths
-  work like in `removeFields`. If a rule removes a parent (`status`), the
-  kept child stays in it (`status.observedGeneration`). `kubenorm explain`
-  does not list kept fields. Other steps still apply: quantities are
+  work like in `removeFields` (without `version`). A path keeps exactly
+  the field it names: `spec.template.spec.containers` keeps the list, but
+  not the defaults inside it, use `...containers.*` for that. If a rule
+  removes a parent (`status`), the kept child stays in it
+  (`status.observedGeneration`). `kubenorm explain` does not list kept
+  fields. Other steps still apply: quantities are
   canonicalized, and `managedFields` need `--keep-managed-fields`.
 - The config is parsed strictly; unknown keys are an error.
 

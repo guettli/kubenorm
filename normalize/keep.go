@@ -57,12 +57,14 @@ func compileKeepRule(file keepRuleFile) (keepRule, error) {
 	fields := make([]keepPath, 0, len(file.Fields))
 
 	for _, field := range file.Fields {
-		segments, err := compileFieldPath(strings.TrimSpace(field))
+		field = strings.TrimSpace(field)
+
+		segments, err := compileFieldPath(field)
 		if err != nil {
 			return keepRule{}, err
 		}
 
-		fields = append(fields, keepPath{raw: strings.TrimSpace(field), segments: segments})
+		fields = append(fields, keepPath{raw: field, segments: segments})
 	}
 
 	m, err := compileMatcher(file.Group, file.Kind, file.Namespace, file.Name)
@@ -109,7 +111,9 @@ func (c *Config) keptValues(obj map[string]any, identity objectIdentity) []keptV
 
 		for _, field := range rule.Fields {
 			visitPaths(obj, field.segments, nil, func(path []any, value any) {
-				kept = append(kept, keptValue{path: path, value: deepCopy(value)})
+				// A reference, not a copy: rules that remove children
+				// before the parent change the kept value too.
+				kept = append(kept, keptValue{path: path, value: value})
 			})
 		}
 	}
@@ -132,17 +136,20 @@ func visitPaths(current any, segments []string, prefix []any, fn func(path []any
 	case map[string]any:
 		pattern := segments[0]
 
+		if !hasFieldSegmentWildcard(pattern) {
+			if next, ok := typed[pattern]; ok {
+				visitPathEntry(next, segments, append(slices.Clone(prefix), pattern), fn)
+			}
+
+			return
+		}
+
 		for key, next := range typed {
 			if pattern != "*" && pattern != key && (!hasFieldSegmentWildcard(pattern) || !matchGlob(pattern, key)) {
 				continue
 			}
 
-			path := append(slices.Clone(prefix), key)
-			if len(segments) == 1 {
-				fn(path, next)
-			} else {
-				visitPaths(next, segments[1:], path, fn)
-			}
+			visitPathEntry(next, segments, append(slices.Clone(prefix), key), fn)
 		}
 	case []any:
 		for i, entry := range typed {
@@ -151,19 +158,30 @@ func visitPaths(current any, segments []string, prefix []any, fn func(path []any
 	}
 }
 
+// visitPathEntry continues visitPaths at the map entry value, found at path
+// for segments[0].
+func visitPathEntry(value any, segments []string, path []any, fn func(path []any, value any)) {
+	if len(segments) == 1 {
+		fn(path, value)
+	} else {
+		visitPaths(value, segments[1:], path, fn)
+	}
+}
+
 func visitPathsRecursive(current any, remaining []string, prefix []any, fn func(path []any, value any)) {
 	if len(remaining) == 0 {
 		return
 	}
 
-	visitPaths(current, remaining, prefix, fn)
-
 	switch typed := current.(type) {
 	case map[string]any:
+		visitPaths(current, remaining, prefix, fn)
+
 		for key, value := range typed {
 			visitPathsRecursive(value, remaining, append(slices.Clone(prefix), key), fn)
 		}
 	case []any:
+		// Not visitPaths for the list: it would visit the entries twice.
 		for i, entry := range typed {
 			visitPathsRecursive(entry, remaining, append(slices.Clone(prefix), i), fn)
 		}
@@ -188,7 +206,7 @@ func restorePath(current any, path []any, value any) {
 
 		if len(path) == 1 {
 			if _, ok := m[key]; !ok {
-				m[key] = deepCopy(value)
+				m[key] = value
 			}
 
 			return

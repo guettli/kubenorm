@@ -177,3 +177,85 @@ func TestKeepFieldsInvalid(t *testing.T) {
 		}
 	}
 }
+
+func TestKeepFieldsParent(t *testing.T) {
+	t.Parallel()
+
+	// Keeping metadata.annotations keeps the map, not the annotations that
+	// the common config removes; the result does not depend on siblings.
+	cfg := keepConfig(t, `
+keepFields:
+  - fields:
+      - metadata.annotations
+      - ...image
+removeFields:
+  - kind: Pod
+    fields:
+      - spec.containers
+`)
+
+	for _, extra := range []string{"", "\n    other: x"} {
+		got := renderOne(t, cfg, `
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: a
+  namespace: ns
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: "{}"`+extra+`
+`, "ns/ConfigMap/a.yaml")
+		if strings.Contains(got, "last-applied") {
+			t.Errorf("last-applied-configuration kept:\n%s", got)
+		}
+	}
+
+	// A removed list is not recreated for a kept field inside.
+	resources, err := ParseYAML([]byte(`
+apiVersion: v1
+kind: Pod
+metadata:
+  name: p
+  namespace: ns
+spec:
+  containers:
+    - name: a
+      image: nginx
+`), "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	obj := resources[0].Object
+	(&Options{Config: cfg}).applyRemoveRules(obj, nil)
+
+	if _, ok := obj["spec"].(map[string]any)["containers"]; ok {
+		t.Errorf("list recreated: %v", obj)
+	}
+}
+
+func TestKeepFieldsWithoutCommonConfig(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := ParseConfig("own.yaml", []byte(`
+removeFields:
+  - fields: [metadata.labels.a, metadata.labels.b]
+keepFields:
+  - name: keep-*
+    fields: [metadata.labels.a]
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := renderOne(t, cfg, `
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keep-me
+  namespace: ns
+  labels: {a: "1", b: "2"}
+`, "ns/ConfigMap/keep-me.yaml")
+	if !strings.Contains(got, "a: \"1\"") || strings.Contains(got, "b: \"2\"") {
+		t.Errorf("got:\n%s", got)
+	}
+}
