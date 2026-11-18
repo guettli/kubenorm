@@ -182,3 +182,52 @@ func TestReadHeader(t *testing.T) {
 		}
 	}
 }
+
+func TestWriteDiffStat(t *testing.T) {
+	t.Parallel()
+
+	var b strings.Builder
+
+	err := writeDiffStat(&b, []diffStat{
+		{rel: "ns/ConfigMap/big.yaml", status: statusModified, insertions: 3, deletions: 77},
+		{rel: "ns/ConfigMap/ü.yaml", status: statusAdded, insertions: 1},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// git: 1+3*39/80 = 2 plus, 1+80*39/80 = 40 in total.
+	want := " M ns/ConfigMap/big.yaml | 80 ++" + strings.Repeat("-", 38) + "\n" +
+		" A ns/ConfigMap/ü.yaml   |  1 +\n" +
+		" 2 resources changed (1 added, 1 modified), 4 insertions(+), 77 deletions(-)\n"
+	if b.String() != want {
+		t.Errorf("got:\n%s\nwant:\n%s", b.String(), want)
+	}
+
+	b.Reset()
+
+	err = writeDiffStat(&b, []diffStat{{rel: "a", status: statusDeleted, deletions: 1}})
+	if want := " D a | 1 -\n 1 resource changed (1 deleted), 1 deletion(-)\n"; err != nil || b.String() != want {
+		t.Errorf("got %q, want %q", b.String(), want)
+	}
+
+	b.Reset()
+
+	err = writeDiffStat(&b, nil)
+	if err != nil || b.Len() != 0 {
+		t.Errorf("no differences: got %q, %v", b.String(), err)
+	}
+}
+
+func TestComputeStatsDashLines(t *testing.T) {
+	t.Parallel()
+
+	oldSide := normalize.Rendered{"a.yaml": []byte("-- x: 1\nk: v\n")}
+	newSide := normalize.Rendered{"a.yaml": []byte("++ y: 1\nk: v\n")}
+	diffs := compareRendered(oldSide, newSide, prefixLabels("a", "b"), false, nil)
+
+	got := computeStats(diffs, oldSide, newSide)
+	if len(got) != 1 || got[0].insertions != 1 || got[0].deletions != 1 {
+		t.Errorf("got %+v", got)
+	}
+}

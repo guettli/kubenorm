@@ -622,6 +622,10 @@ norm -o writes them, so the patch applies to a tree written by norm -o
 with one entry per differing resource (path, status, the file and managers
 of each side, the unified diff) for scripts.
 
+--output stat writes a summary like "git diff --stat": one line per
+differing resource with its status (A added, D deleted, M modified), path
+and number of changed lines, and a total.
+
 Exits 1 if there are differences.
 
 Examples:
@@ -634,7 +638,7 @@ Examples:
 	}
 
 	flags.register(cmd)
-	cmd.Flags().StringVar(&output, "output", outputText, "Output format: text (unified diff) or json (for scripts: {\"version\": 1, \"resources\": [...]} with one entry per differing resource)")
+	cmd.Flags().StringVar(&output, "output", outputText, "Output format: text (unified diff), stat (summary per resource) or json (for scripts: {\"version\": 1, \"resources\": [...]} with one entry per differing resource)")
 	cmd.Flags().BoolVar(&full, "full", false, "Show the whole content of resources that exist on one side only, as a diff from or to /dev/null (git apply compatible output)")
 
 	return cmd
@@ -650,14 +654,30 @@ func readDiffSide(cmd *cobra.Command, opts *normalize.Options, input string) (di
 	return newDiffSide(resources, opts)
 }
 
+// checkDiffOutput validates --output and its combination with --full.
+func checkDiffOutput(output string, full bool) error {
+	switch output {
+	case outputText, outputJSON:
+	case outputStat:
+		if full {
+			return errors.New("--full and --output stat exclude each other")
+		}
+	default:
+		return fmt.Errorf("--output %q: want %s, %s or %s", output, outputText, outputStat, outputJSON)
+	}
+
+	return nil
+}
+
 // runDiff implements "kubenorm diff".
 func runDiff(cmd *cobra.Command, flags *normFlags, oldPath, newPath string, full bool, output string) error {
 	if oldPath == normalize.StdinPath && newPath == normalize.StdinPath {
 		return errors.New("only one side can be read from stdin")
 	}
 
-	if output != outputText && output != outputJSON {
-		return fmt.Errorf("--output %q: want %s or %s", output, outputText, outputJSON)
+	err := checkDiffOutput(output, full)
+	if err != nil {
+		return err
 	}
 
 	opts, err := flags.options(cmd.ErrOrStderr())
@@ -692,9 +712,12 @@ func runDiff(cmd *cobra.Command, flags *normFlags, oldPath, newPath string, full
 
 	diffs := compareRendered(oldSide.rendered, newSide.rendered, labels, full, headers)
 
-	if output == outputJSON {
+	switch output {
+	case outputJSON:
 		err = writeDiffJSON(cmd.OutOrStdout(), diffs, oldSide, newSide)
-	} else {
+	case outputStat:
+		err = writeDiffStat(cmd.OutOrStdout(), computeStats(diffs, oldSide.rendered, newSide.rendered))
+	default:
 		err = writeDiffText(cmd.OutOrStdout(), diffs, oldSide, newSide)
 	}
 
