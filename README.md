@@ -412,9 +412,16 @@ the source. Add your own tools with `ownerHints` (see [Config](#config)).
 
 Use `--full` to see the content as a diff from or to `/dev/null`. It labels
 every resource with `<argument>/<normalized path>`, in the format of
-`git apply` and `patch -p1`. Files written by `norm -o` start with a header
-comment that the diff does not contain, so the patch does not apply to them
-as they are.
+`git apply` and `patch -p1`. The comment lines at the top of a file that
+holds one resource (the header of `norm -o`) are part of the diff, so the
+patch turns one `norm -o` tree into the other:
+
+```terminal
+kubenorm diff --full old new > changes.diff
+cd old && git apply ../changes.diff
+```
+
+A header that differs is only updated in the files of changed resources.
 
 ```terminal
 # What does this PR really change?

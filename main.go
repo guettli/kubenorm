@@ -614,7 +614,8 @@ several resources).
 
 --full shows the content of one-sided resources instead and labels every
 resource with <argument>/<normalized path>, in the format of "git apply"
-and "patch -p1".
+and "patch -p1". It includes the comment lines at the top of files that
+hold one resource, so the patch applies to trees written by norm -o.
 
 --output json writes one JSON object {"version": 1, "resources": [...]}
 with one entry per differing resource (path, status, the file and managers
@@ -677,11 +678,27 @@ func runDiff(cmd *cobra.Command, flags *normFlags, oldPath, newPath string, full
 	// below the argument, so the names match after -p1. Otherwise name the
 	// files the resources come from.
 	labels := originLabels(oldSide, newSide)
+
+	// The header comments of the files (like the one of norm -o) are part
+	// of the patch, so that it applies to them.
+	var headers *fileHeaders
+
 	if full {
 		labels = prefixLabels(diffLabel(oldPath), diffLabel(newPath))
+		headers = &fileHeaders{}
+
+		headers.old, err = oldSide.headers()
+		if err != nil {
+			return err
+		}
+
+		headers.new, err = newSide.headers()
+		if err != nil {
+			return err
+		}
 	}
 
-	diffs := compareRendered(oldSide.rendered, newSide.rendered, labels, full)
+	diffs := compareRendered(oldSide.rendered, newSide.rendered, labels, full, headers)
 
 	if output == outputJSON {
 		err = writeDiffJSON(cmd.OutOrStdout(), diffs, oldSide, newSide)

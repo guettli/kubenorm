@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"path"
 	"path/filepath"
 	"reflect"
@@ -48,10 +49,18 @@ type resourceDiff struct {
 	unified string
 }
 
+// fileHeaders are the comment lines at the top of the files the resources
+// were read from, by normalized path. --full puts them into the diff, so
+// that the patch applies to these files.
+type fileHeaders struct {
+	old, new map[string]string
+}
+
 // compareRendered compares old and new and returns one entry per differing
 // resource, sorted by path. full adds the unified diff of resources on one
-// side only, from or to /dev/null.
-func compareRendered(oldSide, newSide normalize.Rendered, labels labels, full bool) []resourceDiff {
+// side only, from or to /dev/null. headers (nil: none) are added to the
+// content of the diffs, but do not make a resource differ.
+func compareRendered(oldSide, newSide normalize.Rendered, labels labels, full bool, headers *fileHeaders) []resourceDiff {
 	all := make(map[string]struct{}, len(oldSide)+len(newSide))
 	for p := range oldSide {
 		all[p] = struct{}{}
@@ -87,6 +96,11 @@ func compareRendered(oldSide, newSide normalize.Rendered, labels labels, full bo
 
 		d := resourceDiff{rel: rel, status: status}
 		if full || status == statusModified {
+			if headers != nil {
+				oldContent = withHeader(headers.old[rel], oldContent, inOld)
+				newContent = withHeader(headers.new[rel], newContent, inNew)
+			}
+
 			d.unified = unifiedDiff(rel, status, oldContent, newContent, labels)
 		}
 
@@ -124,10 +138,62 @@ func unifiedDiff(rel string, status fileStatus, oldContent, newContent []byte, l
 	return text
 }
 
+// withHeader returns content with the header in front, if the resource
+// exists on the side.
+func withHeader(header string, content []byte, exists bool) []byte {
+	if !exists || header == "" {
+		return content
+	}
+
+	return append([]byte(header), content...)
+}
+
+// readHeader returns the comment lines at the top of a file, like the
+// header that norm -o writes.
+func readHeader(file string) (string, error) {
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return "", fmt.Errorf("reading header: %w", err)
+	}
+
+	end := 0
+	for end < len(data) && data[end] == '#' {
+		next := bytes.IndexByte(data[end:], '\n')
+		if next < 0 {
+			return "", nil // only comments, no resource
+		}
+
+		end += next + 1
+	}
+
+	return string(data[:end]), nil
+}
+
+// headers returns the header of every resource that is the only one in its
+// file.
+func (s diffSide) headers() (map[string]string, error) {
+	out := make(map[string]string, len(s.origins))
+
+	for rel, o := range s.origins {
+		if o.shared || o.stdin {
+			continue
+		}
+
+		header, err := readHeader(o.source)
+		if err != nil {
+			return nil, err
+		}
+
+		out[rel] = header
+	}
+
+	return out, nil
+}
+
 // computeDiff returns the unified diffs of compareRendered with full, for
 // norm --check.
 func computeDiff(oldSide, newSide normalize.Rendered, labels labels) []string {
-	diffs := compareRendered(oldSide, newSide, labels, true)
+	diffs := compareRendered(oldSide, newSide, labels, true, nil)
 	out := make([]string, len(diffs))
 
 	for i, d := range diffs {

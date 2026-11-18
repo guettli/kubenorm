@@ -53,7 +53,7 @@ func TestComputeDiff(t *testing.T) {
 	}
 
 	for _, full := range []bool{false, true} {
-		if diffs := compareRendered(oldSide, oldSide, prefixLabels("a", "b"), full); len(diffs) != 0 {
+		if diffs := compareRendered(oldSide, oldSide, prefixLabels("a", "b"), full, nil); len(diffs) != 0 {
 			t.Fatalf("expected no diff, got %+v", diffs)
 		}
 	}
@@ -65,7 +65,7 @@ func TestCompareRendered(t *testing.T) {
 	oldSide := renderYAML(t, diffTestCM+"---\n"+strings.Replace(diffTestCM, "name: a", "name: c", 1))
 	newSide := renderYAML(t, strings.Replace(diffTestCM, "k: v1", "k: v2", 1)+"---\n"+strings.Replace(diffTestCM, "name: a", "name: b", 1))
 
-	diffs := compareRendered(oldSide, newSide, prefixLabels("old", "new"), false)
+	diffs := compareRendered(oldSide, newSide, prefixLabels("old", "new"), false, nil)
 
 	got := make([]string, len(diffs))
 	for i, d := range diffs {

@@ -204,7 +204,8 @@ several resources).
 
 --full shows the content of one-sided resources instead and labels every
 resource with <argument>/<normalized path>, in the format of "git apply"
-and "patch -p1".
+and "patch -p1". It includes the comment lines at the top of files that
+hold one resource, so the patch applies to trees written by norm -o.
 
 --output json writes one JSON object {"version": 1, "resources": [...]}
 with one entry per differing resource (path, status, the file and managers

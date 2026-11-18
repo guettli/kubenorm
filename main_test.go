@@ -3,7 +3,9 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -718,5 +720,64 @@ func TestDiff_OwnerHintsFromConfig(t *testing.T) {
 	code, out, errOut = runCLI(t, "", "diff", "--no-config-discovery", "-c", config, old, t.TempDir())
 	if want := "Only here (old): " + filepath.ToSlash(old) + " managed by: example.com/tool pulumi\n"; code != 1 || out != want {
 		t.Fatalf("want %q, got %d:\n%s%s", want, code, out, errOut)
+	}
+}
+
+// TestDiff_FullAppliesToOutDir checks that the patch of diff --full turns a
+// tree of norm -o into the other one, header comments included. Not
+// parallel: t.Chdir, git apply needs relative labels.
+func TestDiff_FullAppliesToOutDir(t *testing.T) {
+	git, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("git not found")
+	}
+
+	t.Chdir(t.TempDir())
+
+	cm := "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: %s\n  namespace: ns\ndata:\n  k: %q\n"
+	oldInput := fmt.Sprintf(cm, "changed", "1") + "---\n" + fmt.Sprintf(cm, "gone", "1") + "---\n" + fmt.Sprintf(cm, "same", "1")
+	newInput := fmt.Sprintf(cm, "changed", "2") + "---\n" + fmt.Sprintf(cm, "added", "1") + "---\n" + fmt.Sprintf(cm, "same", "1")
+
+	for _, args := range [][]string{
+		{"norm", "-", "-o", "old"},
+		{"norm", "-", "-o", "new", "--comment", "rendered by render.sh"},
+	} {
+		input := oldInput
+		if args[3] == "new" {
+			input = newInput
+		}
+
+		if code, _, errOut := runCLI(t, input, args...); code != 0 {
+			t.Fatalf("%v: %s", args, errOut)
+		}
+	}
+
+	code, patch, errOut := runCLI(t, "", "diff", "--full", "old", "new")
+	if code != 1 {
+		t.Fatalf("want differences, got %d: %s", code, errOut)
+	}
+
+	writeFile(t, "p.diff", patch)
+
+	cmd := exec.CommandContext(t.Context(), git, "apply", "--directory=old", "-p1", "p.diff")
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git apply: %v\n%s\n%s", err, out, patch)
+	}
+
+	// The unchanged resource keeps the header of the old tree.
+	for _, rel := range []string{"ns/ConfigMap/changed.yaml", "ns/ConfigMap/added.yaml"} {
+		got, _ := os.ReadFile(filepath.Join("old", rel))
+		want, _ := os.ReadFile(filepath.Join("new", rel))
+
+		if string(got) != string(want) {
+			t.Errorf("%s: got:\n%s\nwant:\n%s", rel, got, want)
+		}
+	}
+
+	_, err = os.Stat(filepath.Join("old", "ns/ConfigMap/gone.yaml"))
+	if !os.IsNotExist(err) {
+		t.Errorf("gone.yaml not deleted: %v", err)
 	}
 }
