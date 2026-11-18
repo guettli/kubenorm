@@ -144,6 +144,9 @@ removeFields:
   - kind: Namespace
     fields:
       - metadata.labels.kubernetes\.io/metadata\.name
+      # Set by liqo-controller-manager for a NamespaceOffloading (the
+      # desired state is that custom resource).
+      - metadata.labels.liqo\.io/scheduling-enabled
       - spec.finalizers
       # API server returns spec: {} even when no spec was written.
       - path: spec
