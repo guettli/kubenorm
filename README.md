@@ -516,6 +516,11 @@ ownerHints:                    # extra "managed by" hints of kubenorm diff
   - annotation: example.com/tool
     value: pulumi              # only if the value matches
     text: pulumi
+
+keepFields:                    # never removed by removeFields
+  - kind: Deployment
+    fields:
+      - metadata.annotations.configmanagement\.gke\.io/token
 ```
 
 - Matchers (`group`, `kind`, `namespace`, `name`) are globs; omitted means `*`.
@@ -560,6 +565,14 @@ ownerHints:                    # extra "managed by" hints of kubenorm diff
   know. `{value}` in `text` is the value of the key (shortened after 100
   characters). Hints are read from the input before normalization, so keys
   set by `setMetadata` or `--set-label` do not trigger them.
+- `keepFields` protects fields from all `removeFields` rules, also from
+  those of the common config and the defaults read from CRDs. Use it to
+  keep a single field instead of disabling the whole common config, for
+  example the commit of Config Sync in a cluster dump. Matchers and paths
+  work like in `removeFields`. If a rule removes a parent (`status`), the
+  kept child stays in it (`status.observedGeneration`). `kubenorm explain`
+  does not list kept fields. Other steps still apply: quantities are
+  canonicalized, and `managedFields` need `--keep-managed-fields`.
 - The config is parsed strictly; unknown keys are an error.
 
 `--config FILE` (repeatable) adds your rules to the common config,

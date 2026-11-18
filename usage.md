@@ -224,7 +224,7 @@ kubenorm diff <old> <new> [flags]
 
 ```text
       --add-namespace-if-missing string   Set metadata.namespace on namespaced resources without namespace, and fill empty namespace references (cluster-scoped kinds are left alone)
-  -c, --config stringArray                YAML config with removeFields/skipResources/excludeNamespaces/quantityFields/clusterScopedResources/setMetadata/ownerHints rules (repeatable; merged with the common config)
+  -c, --config stringArray                YAML config with removeFields/skipResources/excludeNamespaces/quantityFields/clusterScopedResources/setMetadata/ownerHints/keepFields rules (repeatable; merged with the common config)
       --crds stringArray                  Also read CustomResourceDefinitions from this file or directory (repeatable; other resources there are ignored): their quantity fields, schema defaults and scope are used like CRDs in the input
       --exclude-namespaces string         Drop these namespaces (globs, comma-separated): the Namespace object and everything inside
       --full                              Show the whole content of resources that exist on one side only, as a diff from or to /dev/null (git apply compatible output)
@@ -264,7 +264,7 @@ kubenorm explain <file|dir|->... [flags]
 
 ```text
       --add-namespace-if-missing string   Set metadata.namespace on namespaced resources without namespace, and fill empty namespace references (cluster-scoped kinds are left alone)
-  -c, --config stringArray                YAML config with removeFields/skipResources/excludeNamespaces/quantityFields/clusterScopedResources/setMetadata/ownerHints rules (repeatable; merged with the common config)
+  -c, --config stringArray                YAML config with removeFields/skipResources/excludeNamespaces/quantityFields/clusterScopedResources/setMetadata/ownerHints/keepFields rules (repeatable; merged with the common config)
       --crds stringArray                  Also read CustomResourceDefinitions from this file or directory (repeatable; other resources there are ignored): their quantity fields, schema defaults and scope are used like CRDs in the input
       --exclude-namespaces string         Drop these namespaces (globs, comma-separated): the Namespace object and everything inside
   -h, --help                              help for explain
@@ -327,7 +327,7 @@ kubenorm norm <file|dir|->... [flags]
       --check                             Do not write; exit 1 and show a diff if the input is not normalized
       --clean-out-dir                     Remove --out-dir before writing (only if it contains nothing but *.yaml files)
       --comment string                    Additional comment line at the top of each output file
-  -c, --config stringArray                YAML config with removeFields/skipResources/excludeNamespaces/quantityFields/clusterScopedResources/setMetadata/ownerHints rules (repeatable; merged with the common config)
+  -c, --config stringArray                YAML config with removeFields/skipResources/excludeNamespaces/quantityFields/clusterScopedResources/setMetadata/ownerHints/keepFields rules (repeatable; merged with the common config)
       --crds stringArray                  Also read CustomResourceDefinitions from this file or directory (repeatable; other resources there are ignored): their quantity fields, schema defaults and scope are used like CRDs in the input
       --exclude-namespaces string         Drop these namespaces (globs, comma-separated): the Namespace object and everything inside
   -h, --help                              help for norm

@@ -203,6 +203,7 @@ func (o *Options) applyRemoveRules(obj map[string]any, t *tracer) {
 
 	identity := identityFromObject(obj)
 	apiVersion, _ := obj["apiVersion"].(string)
+	kept := o.Config.keptValues(obj, identity)
 
 	for _, rule := range o.Config.removeRules {
 		if !rule.matches(identity) || rule.Version != "" && !strings.HasSuffix(apiVersion, "/"+rule.Version) {
@@ -216,6 +217,7 @@ func (o *Options) applyRemoveRules(obj map[string]any, t *tracer) {
 
 			t.step(obj, rule.Origin+": "+field.raw, func() {
 				deleteField(obj, field)
+				restoreKept(obj, kept)
 			})
 		}
 	}
