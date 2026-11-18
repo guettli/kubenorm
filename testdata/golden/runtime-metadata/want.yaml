@@ -1,0 +1,72 @@
+---
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: default/webhook-tls
+  name: v1alpha1.webhook.example.com
+spec:
+  group: webhook.example.com
+  groupPriorityMinimum: 1000
+  service:
+    name: webhook
+    namespace: default
+  version: v1alpha1
+  versionPriority: 15
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data
+  namespace: default
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: actions.github.com/v1alpha1
+kind: AutoscalingRunnerSet
+metadata:
+  annotations:
+    actions.github.com/values-hash: 4232ab
+  labels:
+    actions.github.com/scale-set-name: runners
+  name: runners
+  namespace: default
+spec:
+  githubConfigUrl: https://github.com/example/app
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    reloader.stakater.com/auto: "true"
+  name: app
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: app
+  template:
+    metadata:
+      labels:
+        app: app
+    spec:
+      containers:
+      - image: busybox:1.36
+        name: app
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: app
+  namespace: default
+spec:
+  interval: 10m
+  path: ./deploy
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: app

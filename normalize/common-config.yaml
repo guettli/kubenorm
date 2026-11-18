@@ -53,6 +53,9 @@ removeFields:
       - ...template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt
       - metadata.annotations.cattle\.io/timestamp
       - ...template.metadata.annotations.cattle\.io/timestamp
+      # Stakater Reloader records the reload that caused the rollout.
+      - metadata.annotations.reloader\.stakater\.com/last-reloaded-from
+      - ...template.metadata.annotations.reloader\.stakater\.com/last-reloaded-from
 
       # Sync and copy bookkeeping of controllers, not desired state: times,
       # versions and UIDs of the source object, the commit (Config Sync),
@@ -205,6 +208,8 @@ removeFields:
       - metadata.annotations.pv\.kubernetes\.io/bind-completed
       - metadata.annotations.pv\.kubernetes\.io/bound-by-controller
       - metadata.annotations.volume\.kubernetes\.io/storage-provisioner
+      # Written by the scheduler for WaitForFirstConsumer volumes.
+      - metadata.annotations.volume\.kubernetes\.io/selected-node
       - metadata.annotations.volume\.beta\.kubernetes\.io/storage-provisioner
       # Added by the pvc-protection controller. Matches the exact single-item list.
       - path: metadata.finalizers
@@ -283,8 +288,30 @@ removeFields:
   - group: apiregistration.k8s.io
     kind: APIService
     fields:
+      # Injected (cert-manager cainjector), like the caBundle of webhooks.
+      - spec.caBundle
       - path: spec.service.port
         value: 443
+
+  # Finalizers that controllers add to the objects they manage.
+  - group: "*.toolkit.fluxcd.io"
+    fields:
+      - path: metadata.finalizers
+        value: [finalizers.fluxcd.io]
+  # GitHub Actions Runner Controller: the controller records the scale set
+  # it registered at GitHub and adds its finalizer.
+  - group: actions.github.com
+    kind: AutoscalingRunnerSet
+    fields:
+      - metadata.annotations.actions\.github\.com/change-hash
+      - metadata.annotations.actions\.github\.com/runner-group-name
+      - metadata.annotations.actions\.github\.com/runner-scale-set-name
+      - metadata.annotations.runner-scale-set-id
+      - metadata.labels.actions\.github\.com/organization
+      - metadata.labels.actions\.github\.com/repository
+      - metadata.labels.actions\.github\.com/enterprise
+      - path: metadata.finalizers
+        value: [autoscalingrunnerset.actions.github.com/finalizer]
 
   - group: storage.k8s.io
     kind: StorageClass
