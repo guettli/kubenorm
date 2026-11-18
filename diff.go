@@ -49,11 +49,11 @@ type resourceDiff struct {
 	unified string
 }
 
-// fileHeaders are the comment lines at the top of the files the resources
-// were read from, by normalized path. --full puts them into the diff, so
-// that the patch applies to these files.
+// fileHeaders return the comment lines at the top of the files the
+// resources were read from, by normalized path. --full puts them into the
+// diff, so that the patch applies to these files.
 type fileHeaders struct {
-	old, new map[string]string
+	old, new func(rel string) string
 }
 
 // compareRendered compares old and new and returns one entry per differing
@@ -97,8 +97,8 @@ func compareRendered(oldSide, newSide normalize.Rendered, labels labels, full bo
 		d := resourceDiff{rel: rel, status: status}
 		if full || status == statusModified {
 			if headers != nil {
-				oldContent = withHeader(headers.old[rel], oldContent, inOld)
-				newContent = withHeader(headers.new[rel], newContent, inNew)
+				oldContent = withHeader(headers.old, rel, oldContent, inOld)
+				newContent = withHeader(headers.new, rel, newContent, inNew)
 			}
 
 			d.unified = unifiedDiff(rel, status, oldContent, newContent, labels)
@@ -138,56 +138,56 @@ func unifiedDiff(rel string, status fileStatus, oldContent, newContent []byte, l
 	return text
 }
 
-// withHeader returns content with the header in front, if the resource
-// exists on the side.
-func withHeader(header string, content []byte, exists bool) []byte {
-	if !exists || header == "" {
+// withHeader returns content with the header of the file in front, if the
+// resource exists on the side.
+func withHeader(header func(rel string) string, rel string, content []byte, exists bool) []byte {
+	if !exists {
 		return content
 	}
 
-	return append([]byte(header), content...)
-}
-
-// readHeader returns the comment lines at the top of a file, like the
-// header that norm -o writes.
-func readHeader(file string) (string, error) {
-	data, err := os.ReadFile(file)
-	if err != nil {
-		return "", fmt.Errorf("reading header: %w", err)
+	h := header(rel)
+	if h == "" {
+		return content
 	}
 
+	return append([]byte(h), content...)
+}
+
+// readHeader returns the "#" comment lines at the top of data, like the
+// header that norm -o writes. Lines ending in "\r\n" are no such header.
+func readHeader(data []byte) string {
 	end := 0
+
 	for end < len(data) && data[end] == '#' {
 		next := bytes.IndexByte(data[end:], '\n')
-		if next < 0 {
-			return "", nil // only comments, no resource
+		if next < 0 || next > 0 && data[end+next-1] == '\r' {
+			return ""
 		}
 
 		end += next + 1
 	}
 
-	return string(data[:end]), nil
+	return string(data[:end])
 }
 
-// headers returns the header of every resource that is the only one in its
-// file.
-func (s diffSide) headers() (map[string]string, error) {
-	out := make(map[string]string, len(s.origins))
-
-	for rel, o := range s.origins {
-		if o.shared || o.stdin {
-			continue
+// headerFunc returns the header of a resource of the side, read when it
+// is needed. Only a file at <argument>/<normalized path>, where norm -o
+// writes it, has a header: the patch of --full applies to such a tree. A
+// file that can't be read has no header.
+func (s diffSide) headerFunc(argument string) func(rel string) string {
+	return func(rel string) string {
+		o, ok := s.origins[rel]
+		if !ok || o.shared || o.stdin || filepath.Clean(o.source) != filepath.Join(argument, filepath.FromSlash(rel)) {
+			return ""
 		}
 
-		header, err := readHeader(o.source)
+		data, err := os.ReadFile(o.source)
 		if err != nil {
-			return nil, err
+			return ""
 		}
 
-		out[rel] = header
+		return readHeader(data)
 	}
-
-	return out, nil
 }
 
 // computeDiff returns the unified diffs of compareRendered with full, for

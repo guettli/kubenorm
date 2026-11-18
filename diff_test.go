@@ -164,3 +164,21 @@ items:
 		t.Fatalf("got %q, want %q (origins %+v)", got, want, side.origins)
 	}
 }
+
+func TestReadHeader(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct{ in, want string }{
+		{"# a\n# b\napiVersion: v1\n", "# a\n# b\n"},
+		{"apiVersion: v1\n# a\n", ""},
+		{"---\n# a\n", ""},
+		{"# a\n\n# b\n", "# a\n"},
+		{"# a\r\napiVersion: v1\r\n", ""},
+		{"# a", ""},
+		{"", ""},
+	} {
+		if got := readHeader([]byte(tc.in)); got != tc.want {
+			t.Errorf("readHeader(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}

@@ -347,7 +347,7 @@ func TestDiff_OneSideOnly(t *testing.T) {
 	}
 
 	code, out, _ = runCLI(t, extra, "diff", "--full", b, "-")
-	if code != 1 || !strings.Contains(out, "+++ stdin/demo/apps_Deployment/api.yaml") || !strings.Contains(out, "--- /dev/null") {
+	if code != 1 || !strings.Contains(out, "+++ b/demo/apps_Deployment/api.yaml") || !strings.Contains(out, "--- /dev/null") {
 		t.Fatalf("expected the full content with --full, got %d:\n%s", code, out)
 	}
 
@@ -667,12 +667,12 @@ func TestDiff_HeadersSeveralResourcesAndFull(t *testing.T) {
 		t.Fatalf("want %q, got %d:\n%s%s", want, code, out, errOut)
 	}
 
-	// --full: <argument>/<normalized path> on both sides, /dev/null for the
-	// missing side.
+	// --full: a/ and b/ plus the normalized path, /dev/null for the missing
+	// side.
 	code, out, _ = runCLI(t, "", "diff", "--full", oldDir, newDir)
 	for _, want := range []string{
-		"--- " + slash(oldDir) + "/ns1/ConfigMap/x.yaml\n+++ " + slash(newDir) + "/ns1/ConfigMap/x.yaml\n",
-		"--- " + slash(oldDir) + "/ns1/ConfigMap/other.yaml\n+++ /dev/null\n",
+		"--- a/ns1/ConfigMap/x.yaml\n+++ b/ns1/ConfigMap/x.yaml\n",
+		"--- a/ns1/ConfigMap/other.yaml\n+++ /dev/null\n",
 	} {
 		if code != 1 || !strings.Contains(out, want) {
 			t.Errorf("want %q, got %d:\n%s", want, code, out)
@@ -725,7 +725,7 @@ func TestDiff_OwnerHintsFromConfig(t *testing.T) {
 
 // TestDiff_FullAppliesToOutDir checks that the patch of diff --full turns a
 // tree of norm -o into the other one, header comments included. Not
-// parallel: t.Chdir, git apply needs relative labels.
+// parallel: t.Chdir.
 func TestDiff_FullAppliesToOutDir(t *testing.T) {
 	git, err := exec.LookPath("git")
 	if err != nil {
@@ -738,45 +738,47 @@ func TestDiff_FullAppliesToOutDir(t *testing.T) {
 	oldInput := fmt.Sprintf(cm, "changed", "1") + "---\n" + fmt.Sprintf(cm, "gone", "1") + "---\n" + fmt.Sprintf(cm, "same", "1")
 	newInput := fmt.Sprintf(cm, "changed", "2") + "---\n" + fmt.Sprintf(cm, "added", "1") + "---\n" + fmt.Sprintf(cm, "same", "1")
 
-	for _, args := range [][]string{
-		{"norm", "-", "-o", "old"},
-		{"norm", "-", "-o", "new", "--comment", "rendered by render.sh"},
-	} {
-		input := oldInput
-		if args[3] == "new" {
-			input = newInput
-		}
-
-		if code, _, errOut := runCLI(t, input, args...); code != 0 {
-			t.Fatalf("%v: %s", args, errOut)
-		}
+	if code, _, errOut := runCLI(t, oldInput, "norm", "-", "-o", "main/old"); code != 0 {
+		t.Fatal(errOut)
 	}
 
-	code, patch, errOut := runCLI(t, "", "diff", "--full", "old", "new")
+	if code, _, errOut := runCLI(t, newInput, "norm", "-", "-o", "new", "--comment", "rendered by render.sh"); code != 0 {
+		t.Fatal(errOut)
+	}
+
+	code, patch, errOut := runCLI(t, "", "diff", "--full", "main/old", "new")
 	if code != 1 {
 		t.Fatalf("want differences, got %d: %s", code, errOut)
 	}
 
 	writeFile(t, "p.diff", patch)
 
-	cmd := exec.CommandContext(t.Context(), git, "apply", "--directory=old", "-p1", "p.diff")
-
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("git apply: %v\n%s\n%s", err, out, patch)
+	// A repository of its own: git apply resolves --directory against the
+	// top of the repository.
+	for _, args := range [][]string{{"init", "-q"}, {"apply", "--directory=main/old", "p.diff"}} {
+		out, err := exec.CommandContext(t.Context(), git, args...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s\n%s", args, err, out, patch)
+		}
 	}
 
-	// The unchanged resource keeps the header of the old tree.
-	for _, rel := range []string{"ns/ConfigMap/changed.yaml", "ns/ConfigMap/added.yaml"} {
-		got, _ := os.ReadFile(filepath.Join("old", rel))
-		want, _ := os.ReadFile(filepath.Join("new", rel))
+	read := func(dir, rel string) string {
+		data, _ := os.ReadFile(filepath.Join(dir, rel))
+		return string(data)
+	}
 
-		if string(got) != string(want) {
+	for _, rel := range []string{"ns/ConfigMap/changed.yaml", "ns/ConfigMap/added.yaml"} {
+		if got, want := read("main/old", rel), read("new", rel); got != want {
 			t.Errorf("%s: got:\n%s\nwant:\n%s", rel, got, want)
 		}
 	}
 
-	_, err = os.Stat(filepath.Join("old", "ns/ConfigMap/gone.yaml"))
+	// The unchanged resource keeps the header of the old tree.
+	if got := read("main/old", "ns/ConfigMap/same.yaml"); strings.Contains(got, "render.sh") || !strings.HasPrefix(got, "# ") {
+		t.Errorf("same.yaml: %s", got)
+	}
+
+	_, err = os.Stat(filepath.Join("main/old", "ns/ConfigMap/gone.yaml"))
 	if !os.IsNotExist(err) {
 		t.Errorf("gone.yaml not deleted: %v", err)
 	}
