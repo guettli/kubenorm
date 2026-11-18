@@ -203,8 +203,10 @@ name the files it was read from (<file>/<path> for stdin or a file with
 several resources).
 
 --full shows the content of one-sided resources instead and labels every
-resource with <argument>/<normalized path>, in the format of "git apply"
-and "patch -p1".
+resource with a/<normalized path> and b/<normalized path>, in the format of
+"git apply" and "patch -p1". It includes the header comment of files where
+norm -o writes them, so the patch applies to a tree written by norm -o
+(run it in the old directory).
 
 --output json writes one JSON object {"version": 1, "resources": [...]}
 with one entry per differing resource (path, status, the file and managers

@@ -3,7 +3,9 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -345,7 +347,7 @@ func TestDiff_OneSideOnly(t *testing.T) {
 	}
 
 	code, out, _ = runCLI(t, extra, "diff", "--full", b, "-")
-	if code != 1 || !strings.Contains(out, "+++ stdin/demo/apps_Deployment/api.yaml") || !strings.Contains(out, "--- /dev/null") {
+	if code != 1 || !strings.Contains(out, "+++ b/demo/apps_Deployment/api.yaml") || !strings.Contains(out, "--- /dev/null") {
 		t.Fatalf("expected the full content with --full, got %d:\n%s", code, out)
 	}
 
@@ -665,12 +667,12 @@ func TestDiff_HeadersSeveralResourcesAndFull(t *testing.T) {
 		t.Fatalf("want %q, got %d:\n%s%s", want, code, out, errOut)
 	}
 
-	// --full: <argument>/<normalized path> on both sides, /dev/null for the
-	// missing side.
+	// --full: a/ and b/ plus the normalized path, /dev/null for the missing
+	// side.
 	code, out, _ = runCLI(t, "", "diff", "--full", oldDir, newDir)
 	for _, want := range []string{
-		"--- " + slash(oldDir) + "/ns1/ConfigMap/x.yaml\n+++ " + slash(newDir) + "/ns1/ConfigMap/x.yaml\n",
-		"--- " + slash(oldDir) + "/ns1/ConfigMap/other.yaml\n+++ /dev/null\n",
+		"--- a/ns1/ConfigMap/x.yaml\n+++ b/ns1/ConfigMap/x.yaml\n",
+		"--- a/ns1/ConfigMap/other.yaml\n+++ /dev/null\n",
 	} {
 		if code != 1 || !strings.Contains(out, want) {
 			t.Errorf("want %q, got %d:\n%s", want, code, out)
@@ -718,5 +720,66 @@ func TestDiff_OwnerHintsFromConfig(t *testing.T) {
 	code, out, errOut = runCLI(t, "", "diff", "--no-config-discovery", "-c", config, old, t.TempDir())
 	if want := "Only here (old): " + filepath.ToSlash(old) + " managed by: example.com/tool pulumi\n"; code != 1 || out != want {
 		t.Fatalf("want %q, got %d:\n%s%s", want, code, out, errOut)
+	}
+}
+
+// TestDiff_FullAppliesToOutDir checks that the patch of diff --full turns a
+// tree of norm -o into the other one, header comments included. Not
+// parallel: t.Chdir.
+func TestDiff_FullAppliesToOutDir(t *testing.T) {
+	git, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("git not found")
+	}
+
+	t.Chdir(t.TempDir())
+
+	cm := "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: %s\n  namespace: ns\ndata:\n  k: %q\n"
+	oldInput := fmt.Sprintf(cm, "changed", "1") + "---\n" + fmt.Sprintf(cm, "gone", "1") + "---\n" + fmt.Sprintf(cm, "same", "1")
+	newInput := fmt.Sprintf(cm, "changed", "2") + "---\n" + fmt.Sprintf(cm, "added", "1") + "---\n" + fmt.Sprintf(cm, "same", "1")
+
+	if code, _, errOut := runCLI(t, oldInput, "norm", "-", "-o", "main/old"); code != 0 {
+		t.Fatal(errOut)
+	}
+
+	if code, _, errOut := runCLI(t, newInput, "norm", "-", "-o", "new", "--comment", "rendered by render.sh"); code != 0 {
+		t.Fatal(errOut)
+	}
+
+	code, patch, errOut := runCLI(t, "", "diff", "--full", "main/old", "new")
+	if code != 1 {
+		t.Fatalf("want differences, got %d: %s", code, errOut)
+	}
+
+	writeFile(t, "p.diff", patch)
+
+	// A repository of its own: git apply resolves --directory against the
+	// top of the repository.
+	for _, args := range [][]string{{"init", "-q"}, {"apply", "--directory=main/old", "p.diff"}} {
+		out, err := exec.CommandContext(t.Context(), git, args...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s\n%s", args, err, out, patch)
+		}
+	}
+
+	read := func(dir, rel string) string {
+		data, _ := os.ReadFile(filepath.Join(dir, rel))
+		return string(data)
+	}
+
+	for _, rel := range []string{"ns/ConfigMap/changed.yaml", "ns/ConfigMap/added.yaml"} {
+		if got, want := read("main/old", rel), read("new", rel); got != want {
+			t.Errorf("%s: got:\n%s\nwant:\n%s", rel, got, want)
+		}
+	}
+
+	// The unchanged resource keeps the header of the old tree.
+	if got := read("main/old", "ns/ConfigMap/same.yaml"); strings.Contains(got, "render.sh") || !strings.HasPrefix(got, "# ") {
+		t.Errorf("same.yaml: %s", got)
+	}
+
+	_, err = os.Stat(filepath.Join("main/old", "ns/ConfigMap/gone.yaml"))
+	if !os.IsNotExist(err) {
+		t.Errorf("gone.yaml not deleted: %v", err)
 	}
 }

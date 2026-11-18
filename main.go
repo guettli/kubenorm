@@ -613,8 +613,10 @@ name the files it was read from (<file>/<path> for stdin or a file with
 several resources).
 
 --full shows the content of one-sided resources instead and labels every
-resource with <argument>/<normalized path>, in the format of "git apply"
-and "patch -p1".
+resource with a/<normalized path> and b/<normalized path>, in the format of
+"git apply" and "patch -p1". It includes the header comment of files where
+norm -o writes them, so the patch applies to a tree written by norm -o
+(run it in the old directory).
 
 --output json writes one JSON object {"version": 1, "resources": [...]}
 with one entry per differing resource (path, status, the file and managers
@@ -677,11 +679,18 @@ func runDiff(cmd *cobra.Command, flags *normFlags, oldPath, newPath string, full
 	// below the argument, so the names match after -p1. Otherwise name the
 	// files the resources come from.
 	labels := originLabels(oldSide, newSide)
+
+	var headers *fileHeaders
+
 	if full {
-		labels = prefixLabels(diffLabel(oldPath), diffLabel(newPath))
+		// a/ and b/ like git: -p1 strips them, whatever the arguments are.
+		labels = prefixLabels("a", "b")
+		// The header comments of norm -o files are part of the patch, so
+		// that it applies to them.
+		headers = &fileHeaders{old: oldSide.headerFunc(oldPath), new: newSide.headerFunc(newPath)}
 	}
 
-	diffs := compareRendered(oldSide.rendered, newSide.rendered, labels, full)
+	diffs := compareRendered(oldSide.rendered, newSide.rendered, labels, full, headers)
 
 	if output == outputJSON {
 		err = writeDiffJSON(cmd.OutOrStdout(), diffs, oldSide, newSide)

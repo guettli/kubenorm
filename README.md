@@ -411,10 +411,20 @@ the labels and annotations of its source, so the hints after it may describe
 the source. Add your own tools with `ownerHints` (see [Config](#config)).
 
 Use `--full` to see the content as a diff from or to `/dev/null`. It labels
-every resource with `<argument>/<normalized path>`, in the format of
-`git apply` and `patch -p1`. Files written by `norm -o` start with a header
-comment that the diff does not contain, so the patch does not apply to them
-as they are.
+every resource with `a/<normalized path>` and `b/<normalized path>`, like
+git, in the format of `git apply` and `patch -p1`. The header comment of a
+file at the place where `norm -o` writes it is part of the diff, so the
+patch applies to a tree written by `norm -o`. Apply it in the old
+directory:
+
+```terminal
+kubenorm diff --full ../main/zz_rendered zz_rendered > changes.diff
+patch -p1 -d ../main/zz_rendered < changes.diff   # or: cd ../main/zz_rendered && git apply ...
+```
+
+Whether a resource differs is decided without the header, so the files of
+unchanged resources keep their old header (for example an older kubenorm
+version).
 
 ```terminal
 # What does this PR really change?
@@ -431,7 +441,8 @@ kubenorm diff current zz_rendered
 `path`, `status` (`added`, `deleted`, `modified`), `old` and `new` (left out
 for the side without the resource) with the `file` (`-` for stdin) and
 `managedBy`, and the unified `diff` (for added and deleted resources only
-with `--full`; its headers are labeled like the text output). The text
+with `--full`; labeled like the text output, with `--full` including the
+file header comments). The text
 format may change between releases; the JSON fields stay within a
 `version`. The values of `managedBy` are for humans and may change.
 
