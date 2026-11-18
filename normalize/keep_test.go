@@ -259,3 +259,28 @@ metadata:
 		t.Errorf("got:\n%s", got)
 	}
 }
+
+func TestAddKeepField(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := LoadConfig(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, path := range []string{"", "  ", "metadata.uid"} {
+		err = cfg.AddKeepField(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if len(cfg.keepRules) != 1 {
+		t.Fatalf("want one rule, got %d", len(cfg.keepRules))
+	}
+
+	got := renderOne(t, cfg, "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n  namespace: ns\n  uid: \"1\"\n", "ns/ConfigMap/a.yaml")
+	if !strings.Contains(got, "uid: \"1\"") {
+		t.Errorf("uid removed:\n%s", got)
+	}
+}

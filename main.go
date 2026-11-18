@@ -120,7 +120,7 @@ func (f *normFlags) register(cmd *cobra.Command) {
 	fl.StringVar(&f.skipNameGlob, "skip-name-glob", "", "Drop resources whose metadata.name matches this anchored glob")
 	fl.StringVar(&f.excludeNamespacesCSV, "exclude-namespaces", "", "Drop these namespaces (globs, comma-separated): the Namespace object and everything inside")
 	fl.BoolVarP(&f.skipOwned, "skip-owned", "O", false, "Drop resources with a controlling ownerReference and objects Kubernetes autogenerates")
-	fl.StringArrayVar(&f.keepFields, "keep-field", nil, "Do not remove this field (config path syntax, e.g. 'metadata.annotations.example\\.com/build', repeatable), also not by the common config")
+	fl.StringArrayVar(&f.keepFields, "keep-field", nil, "Never remove this field, not even by the common config (config path syntax, e.g. 'metadata.annotations.example\\.com/build'; repeatable)")
 	fl.BoolVar(&f.keepManagedFields, "keep-managed-fields", false, "Keep metadata.managedFields")
 	fl.BoolVar(&f.redactSecrets, "redact-secrets", false, "Replace values of Secrets with "+normalize.RedactionMarker)
 	fl.BoolVar(&f.secretsAsStringData, "secrets-as-stringdata", false, "Convert base64 Secret data to stringData")

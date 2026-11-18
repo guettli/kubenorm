@@ -803,8 +803,20 @@ func TestNorm_KeepField(t *testing.T) {
 		t.Fatalf("got %d:\n%s%s", code, out, errOut)
 	}
 
+	// Escaped dots, and diff keeps the field on both sides.
+	dir := t.TempDir()
+	applied := strings.Replace(deploymentYAML, "  uid: 1234\n", "  annotations:\n    kubectl.kubernetes.io/last-applied-configuration: x\n", 1)
+	writeFile(t, filepath.Join(dir, "a.yaml"), applied)
+	writeFile(t, filepath.Join(dir, "b.yaml"), strings.Replace(applied, ": x\n", ": y\n", 1))
+
+	code, out, errOut = runCLI(t, "", "diff", "--keep-field", `metadata.annotations.kubectl\.kubernetes\.io/last-applied-configuration`,
+		filepath.Join(dir, "a.yaml"), filepath.Join(dir, "b.yaml"))
+	if code != 1 || !strings.Contains(out, "-    kubectl.kubernetes.io/last-applied-configuration: x\n") {
+		t.Fatalf("got %d:\n%s%s", code, out, errOut)
+	}
+
 	code, _, errOut = runCLI(t, deploymentYAML, "norm", "-", "--keep-field", "metadata.[*")
-	if code != 2 || !strings.Contains(errOut, "invalid keep-field") {
+	if code != 2 || !strings.Contains(errOut, `invalid keep-field "metadata.[*"`) {
 		t.Fatalf("got %d: %s", code, errOut)
 	}
 }

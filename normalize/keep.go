@@ -35,7 +35,7 @@ type keptValue struct {
 }
 
 // AddKeepField protects a field of every resource from the removeFields
-// rules, like a keepFields rule without matchers. The path uses the syntax
+// rules, like a keepFields rule with only fields. The path uses the syntax
 // of the config (dots, globs, "..."). An empty path is a no-op.
 func (c *Config) AddKeepField(path string) error {
 	path = strings.TrimSpace(path)
@@ -45,7 +45,7 @@ func (c *Config) AddKeepField(path string) error {
 
 	rule, err := compileKeepRule(keepRuleFile{Fields: []string{path}})
 	if err != nil {
-		return fmt.Errorf("invalid keep-field: %w", err)
+		return fmt.Errorf("invalid keep-field %q: %w", path, err)
 	}
 
 	c.keepRules = append(c.keepRules, rule)
