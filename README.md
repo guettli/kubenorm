@@ -599,7 +599,8 @@ keepFields:                    # never removed by removeFields
   not the defaults inside it, use `...containers.*` for that. If a rule
   removes a parent (`status`), the kept child stays in it
   (`status.observedGeneration`). `kubenorm explain` does not list kept
-  fields. Other steps still apply: quantities are
+  fields. `--keep-field PATH` (repeatable) does the same for all resources
+  without a config file. Other steps still apply: quantities are
   canonicalized, and `managedFields` need `--keep-managed-fields`.
 - The config is parsed strictly; unknown keys are an error.
 

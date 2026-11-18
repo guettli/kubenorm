@@ -235,6 +235,7 @@ kubenorm diff <old> <new> [flags]
       --exclude-namespaces string         Drop these namespaces (globs, comma-separated): the Namespace object and everything inside
       --full                              Show the whole content of resources that exist on one side only, as a diff from or to /dev/null (git apply compatible output)
   -h, --help                              help for diff
+      --keep-field stringArray            Do not remove this field (config path syntax, e.g. 'metadata.annotations.example\.com/build', repeatable), also not by the common config
       --keep-managed-fields               Keep metadata.managedFields
       --kind string                       Only keep kinds matching these globs (comma-separated, e.g. 'ConfigMap,Cluster*')
   -x, --name-regex string                 Only keep resources whose metadata.name matches this regex
@@ -274,6 +275,7 @@ kubenorm explain <file|dir|->... [flags]
       --crds stringArray                  Also read CustomResourceDefinitions from this file or directory (repeatable; other resources there are ignored): their quantity fields, schema defaults and scope are used like CRDs in the input
       --exclude-namespaces string         Drop these namespaces (globs, comma-separated): the Namespace object and everything inside
   -h, --help                              help for explain
+      --keep-field stringArray            Do not remove this field (config path syntax, e.g. 'metadata.annotations.example\.com/build', repeatable), also not by the common config
       --keep-managed-fields               Keep metadata.managedFields
       --kind string                       Only keep kinds matching these globs (comma-separated, e.g. 'ConfigMap,Cluster*')
   -x, --name-regex string                 Only keep resources whose metadata.name matches this regex
@@ -337,6 +339,7 @@ kubenorm norm <file|dir|->... [flags]
       --crds stringArray                  Also read CustomResourceDefinitions from this file or directory (repeatable; other resources there are ignored): their quantity fields, schema defaults and scope are used like CRDs in the input
       --exclude-namespaces string         Drop these namespaces (globs, comma-separated): the Namespace object and everything inside
   -h, --help                              help for norm
+      --keep-field stringArray            Do not remove this field (config path syntax, e.g. 'metadata.annotations.example\.com/build', repeatable), also not by the common config
       --keep-managed-fields               Keep metadata.managedFields
       --kind string                       Only keep kinds matching these globs (comma-separated, e.g. 'ConfigMap,Cluster*')
   -x, --name-regex string                 Only keep resources whose metadata.name matches this regex

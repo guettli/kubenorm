@@ -92,6 +92,7 @@ type normFlags struct {
 	kindsCSV              string
 	nameRegex             string
 	skipNameGlob          string
+	keepFields            []string
 	excludeNamespacesCSV  string
 	skipOwned             bool
 	keepManagedFields     bool
@@ -119,6 +120,7 @@ func (f *normFlags) register(cmd *cobra.Command) {
 	fl.StringVar(&f.skipNameGlob, "skip-name-glob", "", "Drop resources whose metadata.name matches this anchored glob")
 	fl.StringVar(&f.excludeNamespacesCSV, "exclude-namespaces", "", "Drop these namespaces (globs, comma-separated): the Namespace object and everything inside")
 	fl.BoolVarP(&f.skipOwned, "skip-owned", "O", false, "Drop resources with a controlling ownerReference and objects Kubernetes autogenerates")
+	fl.StringArrayVar(&f.keepFields, "keep-field", nil, "Do not remove this field (config path syntax, e.g. 'metadata.annotations.example\\.com/build', repeatable), also not by the common config")
 	fl.BoolVar(&f.keepManagedFields, "keep-managed-fields", false, "Keep metadata.managedFields")
 	fl.BoolVar(&f.redactSecrets, "redact-secrets", false, "Replace values of Secrets with "+normalize.RedactionMarker)
 	fl.BoolVar(&f.secretsAsStringData, "secrets-as-stringdata", false, "Convert base64 Secret data to stringData")
@@ -138,12 +140,19 @@ func (f *normFlags) cliConfig() (*normalize.Config, error) {
 	return cfg, f.addCLIRules(cfg)
 }
 
-// addCLIRules adds the rules of --skip-name-glob and --exclude-namespaces to
-// cfg.
+// addCLIRules adds the rules of --skip-name-glob, --keep-field and
+// --exclude-namespaces to cfg.
 func (f *normFlags) addCLIRules(cfg *normalize.Config) error {
 	err := cfg.AddSkipNameGlob(f.skipNameGlob)
 	if err != nil {
 		return err
+	}
+
+	for _, field := range f.keepFields {
+		err = cfg.AddKeepField(field)
+		if err != nil {
+			return err
+		}
 	}
 
 	return cfg.AddExcludeNamespacesCSV(f.excludeNamespacesCSV)

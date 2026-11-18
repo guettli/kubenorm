@@ -793,3 +793,18 @@ func TestDiff_FullAppliesToOutDir(t *testing.T) {
 		t.Errorf("gone.yaml not deleted: %v", err)
 	}
 }
+
+func TestNorm_KeepField(t *testing.T) {
+	t.Parallel()
+
+	code, out, errOut := runCLI(t, deploymentYAML, "norm", "-", "--keep-field", "metadata.uid", "--keep-field", "...imagePullPolicy")
+	if code != 0 || !strings.Contains(out, "  uid: 1234\n") || !strings.Contains(out, "imagePullPolicy: IfNotPresent") ||
+		strings.Contains(out, "resourceVersion") {
+		t.Fatalf("got %d:\n%s%s", code, out, errOut)
+	}
+
+	code, _, errOut = runCLI(t, deploymentYAML, "norm", "-", "--keep-field", "metadata.[*")
+	if code != 2 || !strings.Contains(errOut, "invalid keep-field") {
+		t.Fatalf("got %d: %s", code, errOut)
+	}
+}
