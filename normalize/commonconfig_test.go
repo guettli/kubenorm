@@ -371,3 +371,68 @@ spec:
 		}
 	}
 }
+
+func TestCommonConfig_SyncState(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := LoadConfig(true, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resources, err := ParseYAML([]byte(`
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tls
+  namespace: demo
+  labels:
+    generate.kyverno.io/policy-name: copy-tls
+    generate.kyverno.io/trigger-uid: 0b5c1f7e-1111-2222-3333-444455556666
+    generate.kyverno.io/source-uid: 0b5c1f7e-1111-2222-3333-444455556667
+  annotations:
+    kubed.appscode.com/origin: '{"kind":"Secret","namespace":"src","name":"tls","uid":"1","resourceVersion":"4711"}'
+    crossplane.io/external-create-succeeded: "2026-11-12T13:55:13Z"
+    gardener.cloud/timestamp: "2026-11-12T13:55:13Z"
+    gardener.cloud/restarted-at: "2026-11-12T13:55:13Z"
+    serviceaccount.resources.gardener.cloud/token-renew-timestamp: "2026-11-12T13:55:13Z"
+    configmanagement.gke.io/managed: disabled
+    replicator.v1.mittwald.de/replicate-from: src/tls
+    reflector.v1.k8s.emberstack.com/reflects: src/tls
+    reflector.v1.k8s.emberstack.com/reflected-at: "2026-11-12T13:55:13Z"
+    reflector.v1.k8s.emberstack.com/reflected-version: "4711"
+    replicator.v1.mittwald.de/replicated-at: "2026-11-12T13:55:13Z"
+    replicator.v1.mittwald.de/replicated-from-version: "4711"
+    configmanagement.gke.io/token: 2f9c1e0d
+    configsync.gke.io/declared-fields: '{"f:metadata":{}}'
+`), "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resources, err = (&Options{Config: cfg}).Process(resources)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered, err := Render(resources)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := `apiVersion: v1
+kind: Secret
+metadata:
+  annotations:
+    configmanagement.gke.io/managed: disabled
+    reflector.v1.k8s.emberstack.com/reflects: src/tls
+    replicator.v1.mittwald.de/replicate-from: src/tls
+  labels:
+    generate.kyverno.io/policy-name: copy-tls
+  name: tls
+  namespace: demo
+`
+	if got := string(rendered["demo/Secret/tls.yaml"]); got != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
+	}
+}

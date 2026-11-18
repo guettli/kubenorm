@@ -54,6 +54,27 @@ removeFields:
       - metadata.annotations.cattle\.io/timestamp
       - ...template.metadata.annotations.cattle\.io/timestamp
 
+      # Sync and copy bookkeeping of controllers, not desired state: times,
+      # versions and UIDs of the source object, the commit (Config Sync),
+      # and the field list Config Sync derives from the content.
+      - metadata.annotations.reflector\.v1\.k8s\.emberstack\.com/reflected-at
+      - metadata.annotations.reflector\.v1\.k8s\.emberstack\.com/reflected-version
+      - metadata.annotations.replicator\.v1\.mittwald\.de/replicated-at
+      - metadata.annotations.replicator\.v1\.mittwald\.de/replicated-from-version
+      - metadata.annotations.kubed\.appscode\.com/origin
+      - metadata.annotations.configmanagement\.gke\.io/token
+      - metadata.annotations.configsync\.gke\.io/declared-fields
+      - metadata.labels.generate\.kyverno\.io/trigger-uid
+      - metadata.labels.generate\.kyverno\.io/source-uid
+      - metadata.annotations.crossplane\.io/external-create-pending
+      - metadata.annotations.crossplane\.io/external-create-succeeded
+      - metadata.annotations.crossplane\.io/external-create-failed
+      - metadata.annotations.gardener\.cloud/timestamp
+      - metadata.annotations.serviceaccount\.resources\.gardener\.cloud/token-renew-timestamp
+      - metadata.annotations.workloadidentity\.security\.gardener\.cloud/token-renew-timestamp
+      - metadata.annotations.gardener\.cloud/restarted-at
+      - ...template.metadata.annotations.gardener\.cloud/restarted-at
+
       - status
       # Remove empty labels/annotations maps. Helm often renders these as explicit
       # null; the API server may return {}. Both are noise in source-controlled YAML.
