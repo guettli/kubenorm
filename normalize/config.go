@@ -30,8 +30,8 @@ func CommonConfig() []byte {
 // excludeNamespaces (namespaces to drop with everything inside),
 // quantityFields (fields to canonicalize as quantities),
 // clusterScopedResources (kinds to treat as cluster-scoped), setMetadata
-// (labels and annotations to set) and ownerHints (who manages a resource,
-// for kubenorm diff). The zero value (or nil) applies no rules.
+// (labels and annotations to set), ownerHints (who manages a resource,
+// for kubenorm diff) and keepFields (fields no removeFields rule removes). The zero value (or nil) applies no rules.
 type Config struct {
 	removeRules       []removeRule
 	skipRules         []skipRule
@@ -42,6 +42,7 @@ type Config struct {
 	clusterScopedPattern []groupKindPattern
 	setMetadataRules     []setMetadataRule
 	ownerHints           []ownerHint
+	keepRules            []keepRule
 }
 
 // LoadConfig builds a Config from the embedded common config (if useCommon is
@@ -142,6 +143,7 @@ type configFile struct {
 	Quantities        []quantityRuleFile    `yaml:"quantityFields"`
 	SetMetadata       []setMetadataRuleFile `yaml:"setMetadata"`
 	OwnerHints        []ownerHint           `yaml:"ownerHints"`
+	KeepFields        []keepRuleFile        `yaml:"keepFields"`
 }
 
 // quantityRuleFile selects fields whose values are Kubernetes quantities
@@ -399,7 +401,13 @@ func ParseConfig(name string, data []byte) (*Config, error) {
 		return nil, err
 	}
 
+	keepRules, err := compileKeepRules(name, cfg.KeepFields)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
+		keepRules:            keepRules,
 		setMetadataRules:     setRules,
 		ownerHints:           cfg.OwnerHints,
 		quantityRules:        quantityRules,
@@ -537,24 +545,10 @@ func compileRemoveRule(fileRule removeRuleFile) (removeRule, error) {
 	fields := make([]removeFieldPath, 0, len(fileRule.Fields))
 	for _, field := range fileRule.Fields {
 		trimmed := strings.TrimSpace(field.Path)
-		if trimmed == "" {
-			return removeRule{}, fmt.Errorf("fields must not contain empty entries")
-		}
 
-		segments, err := parseFieldPath(trimmed)
+		segments, err := compileFieldPath(trimmed)
 		if err != nil {
-			return removeRule{}, fmt.Errorf("invalid field path %q: %w", trimmed, err)
-		}
-
-		for _, segment := range segments {
-			if segment == deepWildcard || !hasFieldSegmentWildcard(segment) {
-				continue
-			}
-
-			err := validateGlobPattern(segment)
-			if err != nil {
-				return removeRule{}, fmt.Errorf("invalid field path %q: invalid segment glob %q: %w", trimmed, segment, err)
-			}
+			return removeRule{}, err
 		}
 
 		fields = append(fields, removeFieldPath{
@@ -734,4 +728,5 @@ func (c *Config) merge(other *Config) {
 	c.quantityRules = append(c.quantityRules, other.quantityRules...)
 	c.setMetadataRules = append(c.setMetadataRules, other.setMetadataRules...)
 	c.ownerHints = append(c.ownerHints, other.ownerHints...)
+	c.keepRules = append(c.keepRules, other.keepRules...)
 }
