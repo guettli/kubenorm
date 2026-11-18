@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/guettli/kubenorm/normalize"
 )
@@ -46,21 +47,38 @@ func computeStats(diffs []resourceDiff, oldSide, newSide normalize.Rendered) []d
 		case statusDeleted:
 			s.deletions = countLines(oldSide[d.rel])
 		case statusModified:
-			for line := range strings.Lines(d.unified) {
-				switch {
-				case strings.HasPrefix(line, "+++ "), strings.HasPrefix(line, "--- "):
-				case strings.HasPrefix(line, "+"):
-					s.insertions++
-				case strings.HasPrefix(line, "-"):
-					s.deletions++
-				}
-			}
+			s.insertions, s.deletions = countChanges(d.unified)
 		}
 
 		stats[i] = s
 	}
 
 	return stats
+}
+
+// countChanges counts the added and removed lines of a unified diff. The
+// first two lines are the ---/+++ file headers; content lines may start
+// with "--" or "++" too.
+func countChanges(unified string) (int, int) {
+	var insertions, deletions int
+
+	n := 0
+
+	for line := range strings.Lines(unified) {
+		n++
+		if n <= 2 {
+			continue
+		}
+
+		switch line[0] {
+		case '+':
+			insertions++
+		case '-':
+			deletions++
+		}
+	}
+
+	return insertions, deletions
 }
 
 // writeDiffStat writes one line per differing resource with its status
@@ -77,7 +95,7 @@ func writeDiffStat(w io.Writer, stats []diffStat) error {
 	var insertions, deletions int
 
 	for _, s := range stats {
-		width = max(width, len(s.rel))
+		width = max(width, utf8.RuneCountInString(s.rel))
 		most = max(most, s.insertions+s.deletions)
 		counts[s.status]++
 		insertions += s.insertions
@@ -88,13 +106,12 @@ func writeDiffStat(w io.Writer, stats []diffStat) error {
 
 	for _, s := range stats {
 		plus, minus := statBar(s.insertions, s.deletions, most)
-		fmt.Fprintf(&b, " %c %-*s | %*d %s%s\n", s.status, width, s.rel, len(fmt.Sprint(most)), s.insertions+s.deletions,
+		pad := strings.Repeat(" ", width-utf8.RuneCountInString(s.rel))
+		fmt.Fprintf(&b, " %c %s%s | %*d %s%s\n", s.status, s.rel, pad, len(fmt.Sprint(most)), s.insertions+s.deletions,
 			strings.Repeat("+", plus), strings.Repeat("-", minus))
 	}
 
-	fmt.Fprintf(&b, " %d %s changed (%d added, %d deleted, %d modified), %d insertions(+), %d deletions(-)\n",
-		len(stats), plural(len(stats), "resource"), counts[statusAdded], counts[statusDeleted], counts[statusModified],
-		insertions, deletions)
+	b.WriteString(statSummary(len(stats), counts, insertions, deletions))
 
 	_, err := io.WriteString(w, b.String())
 	if err != nil {
@@ -104,8 +121,36 @@ func writeDiffStat(w io.Writer, stats []diffStat) error {
 	return nil
 }
 
-// statBar returns the number of "+" and "-" of the bar, scaled so that the
-// largest change fills maxStatBar. A non-zero count gets at least one sign.
+// statSummary returns the total line, like git: parts that are zero are
+// left out.
+func statSummary(resources int, counts map[fileStatus]int, insertions, deletions int) string {
+	var kinds []string
+
+	for _, k := range []struct {
+		status fileStatus
+		name   string
+	}{{statusAdded, "added"}, {statusDeleted, "deleted"}, {statusModified, "modified"}} {
+		if counts[k.status] > 0 {
+			kinds = append(kinds, fmt.Sprintf("%d %s", counts[k.status], k.name))
+		}
+	}
+
+	out := fmt.Sprintf(" %d %s changed (%s)", resources, plural(resources, "resource"), strings.Join(kinds, ", "))
+
+	if insertions > 0 {
+		out += fmt.Sprintf(", %d %s(+)", insertions, plural(insertions, "insertion"))
+	}
+
+	if deletions > 0 {
+		out += fmt.Sprintf(", %d %s(-)", deletions, plural(deletions, "deletion"))
+	}
+
+	return out + "\n"
+}
+
+// statBar returns the number of "+" and "-" of the bar. Like git, the
+// total is scaled so that the largest change fills maxStatBar, and then
+// split; a non-zero count gets at least one sign.
 func statBar(insertions, deletions, most int) (int, int) {
 	if most <= maxStatBar {
 		return insertions, deletions
@@ -116,10 +161,13 @@ func statBar(insertions, deletions, most int) (int, int) {
 			return 0
 		}
 
-		return max(1, n*maxStatBar/most)
+		return 1 + n*(maxStatBar-1)/most
 	}
 
-	return scale(insertions), scale(deletions)
+	total := scale(insertions + deletions)
+	plus := scale(insertions)
+
+	return plus, total - plus
 }
 
 func plural(n int, word string) string {

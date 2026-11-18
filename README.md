@@ -457,6 +457,9 @@ normalized path and the number of changed lines, then a total:
  3 resources changed (1 added, 1 deleted, 1 modified), 11 insertions(+), 9 deletions(-)
 ```
 
+The files and managers of the resources are in the text and JSON output.
+Like the text format, the stat format may change between releases.
+
 For colors, write both sides with `norm -o` and use git:
 `git diff --no-index old/ new/`.
 

@@ -663,7 +663,7 @@ func checkDiffOutput(output string, full bool) error {
 			return errors.New("--full and --output stat exclude each other")
 		}
 	default:
-		return fmt.Errorf("--output %q: want %s, %s or %s", output, outputText, outputJSON, outputStat)
+		return fmt.Errorf("--output %q: want %s, %s or %s", output, outputText, outputStat, outputJSON)
 	}
 
 	return nil
