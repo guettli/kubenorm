@@ -36,8 +36,8 @@ const (
 type Options struct {
 	// Config holds the rules (removeFields, skipResources, excludeNamespaces,
 	// quantityFields, ...), see LoadConfig. nil applies no rules. Quantity
-	// fields declared by CRDs in the input (and WithCRDs) are canonicalized in
-	// any case.
+	// fields declared by CRDs in the input (and WithCRDs) are canonicalized
+	// and their schema defaults removed in any case.
 	Config *Config
 
 	// Namespaces restricts output to these namespaces (empty = all).
@@ -100,10 +100,11 @@ type Options struct {
 // WithCRDs returns a copy of o that also knows these
 // CustomResourceDefinitions, for example the CRDs of a cluster. Other
 // resources are ignored. Like CRDs in the input of Process, their quantity
-// fields are canonicalized (also by Normalize) and their scope is used by the
-// namespace options.
+// fields are canonicalized and fields that hold their schema defaults are
+// removed (also by Normalize), and their scope is used by the namespace
+// options.
 func (o *Options) WithCRDs(resources []Resource) *Options {
-	with := *o.withCRDQuantities(resources)
+	with := *o.withCRDRules(resources)
 	with.crds = slices.Clone(o.crds)
 
 	for _, r := range resources {
@@ -147,7 +148,7 @@ func identityOf(item *unstructured.Unstructured, isNamespaced bool) objectIdenti
 // the other resources or decides about keeping one: no namespace options
 // (AddNamespaceIfMissing, OverwriteNamespace), no filters (skip rules,
 // excludeNamespaces, Namespaces, Kinds, NameRegex, SkipOwned; see Include)
-// and no detection of quantity fields from CRDs in the input (use WithCRDs).
+// and no rules from CRDs in the input (quantities, defaults; use WithCRDs).
 // Use Process for files and streams of resources; use Include and Normalize
 // for objects streamed one by one, for example from an api-server.
 func (o *Options) Normalize(obj map[string]any) error {
@@ -201,8 +202,10 @@ func (o *Options) applyRemoveRules(obj map[string]any, t *tracer) {
 	}
 
 	identity := identityFromObject(obj)
+	apiVersion, _ := obj["apiVersion"].(string)
+
 	for _, rule := range o.Config.removeRules {
-		if !rule.matches(identity) {
+		if !rule.matches(identity) || rule.Version != "" && !strings.HasSuffix(apiVersion, "/"+rule.Version) {
 			continue
 		}
 

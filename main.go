@@ -124,7 +124,7 @@ func (f *normFlags) register(cmd *cobra.Command) {
 	fl.BoolVar(&f.secretsAsStringData, "secrets-as-stringdata", false, "Convert base64 Secret data to stringData")
 	fl.StringVar(&f.addNamespaceIfMissing, "add-namespace-if-missing", "", "Set metadata.namespace on namespaced resources without namespace, and fill empty namespace references (cluster-scoped kinds are left alone)")
 	fl.StringVar(&f.overwriteNamespace, "overwrite-namespace", "", "Set metadata.namespace on all namespaced resources, replacing existing values, and move references to the replaced namespaces")
-	fl.StringArrayVar(&f.crdPaths, "crds", nil, "Also read CustomResourceDefinitions from this file or directory (repeatable; other resources there are ignored): their quantity fields and scope are used like CRDs in the input")
+	fl.StringArrayVar(&f.crdPaths, "crds", nil, "Also read CustomResourceDefinitions from this file or directory (repeatable; other resources there are ignored): their quantity fields, schema defaults and scope are used like CRDs in the input")
 	fl.StringArrayVar(&f.setLabels, "set-label", nil, "Set this label (key=value, repeatable) on every resource, replacing an existing value")
 	fl.StringArrayVar(&f.setAnnotations, "set-annotation", nil, "Set this annotation (key=value, repeatable) on every resource, replacing an existing value")
 	fl.StringVar(&f.renderedBy, "rendered-by", "", "Set the annotation "+normalize.RenderedByAnnotation+" to this value (e.g. the script that renders the manifests) on every resource")

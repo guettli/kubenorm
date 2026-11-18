@@ -1,0 +1,198 @@
+# Fields of custom resources that hold the default of their CRD schema are
+# removed: the api-server sets them when absent. Normalizing the answer of an
+# api-server (envtest) to kubectl create --dry-run=server -f gives want.yaml.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: widgets.example.com
+spec:
+  group: example.com
+  names:
+    kind: Widget
+    listKind: WidgetList
+    plural: widgets
+    singular: widget
+  scope: Namespaced
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              force:
+                type: boolean
+                default: false
+              timeout:
+                type: string
+                default: 60s
+              # Only v1 has this default (defaults are per version).
+              mode:
+                type: string
+                default: fast
+              # A parent default, after its children lost theirs: {}.
+              observability:
+                type: object
+                default:
+                  accessLogs: true
+                properties:
+                  accessLogs:
+                    type: boolean
+                    default: true
+                  traceVerbosity:
+                    type: string
+                    default: minimal
+              # The parent default differs from the child default: {} stays
+              # (the api-server fills in accessLogs: true), the default goes.
+              logging:
+                type: object
+                default:
+                  accessLogs: false
+                properties:
+                  accessLogs:
+                    type: boolean
+                    default: true
+              # Quantity defaults compare in canonical form.
+              size:
+                x-kubernetes-int-or-string: true
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                default: 1024Mi
+              rules:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    priority:
+                      type: integer
+                      default: 0
+                    action:
+                      type: string
+              labels:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    weight:
+                      type: integer
+                      default: 1
+  - name: v2
+    served: true
+    storage: false
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              force:
+                type: boolean
+                default: false
+              timeout:
+                type: string
+                default: 60s
+              mode:
+                type: string
+              observability:
+                type: object
+                default:
+                  accessLogs: true
+                properties:
+                  accessLogs:
+                    type: boolean
+                    default: true
+                  traceVerbosity:
+                    type: string
+                    default: minimal
+              # The parent default differs from the child default: {} stays
+              # (the api-server fills in accessLogs: true), the default goes.
+              logging:
+                type: object
+                default:
+                  accessLogs: false
+                properties:
+                  accessLogs:
+                    type: boolean
+                    default: true
+              # Quantity defaults compare in canonical form.
+              size:
+                x-kubernetes-int-or-string: true
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                default: 1024Mi
+              rules:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    priority:
+                      type: integer
+                      default: 0
+                    action:
+                      type: string
+              labels:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    weight:
+                      type: integer
+                      default: 1
+---
+# Only defaults: normalizes to an empty spec.
+apiVersion: example.com/v1
+kind: Widget
+metadata:
+  name: defaults
+  namespace: default
+spec:
+  force: false
+  timeout: 60s
+  mode: fast
+  observability:
+    accessLogs: true
+    traceVerbosity: minimal
+  logging:
+    accessLogs: false
+  size: 1024Mi
+  rules:
+  - action: drop
+    priority: 0
+  labels:
+    a:
+      weight: 1
+---
+# v2 has no default for mode.
+apiVersion: example.com/v2
+kind: Widget
+metadata:
+  name: v2
+  namespace: default
+spec:
+  force: false
+  mode: fast
+---
+# Explicit values other than the defaults are kept.
+apiVersion: example.com/v1
+kind: Widget
+metadata:
+  name: explicit
+  namespace: default
+spec:
+  force: true
+  timeout: 5m
+  mode: slow
+  observability:
+    accessLogs: false
+    traceVerbosity: detailed
+  logging: {}
+  size: 2Gi
+  rules:
+  - action: drop
+    priority: 10
+  labels:
+    a:
+      weight: 3

@@ -331,6 +331,9 @@ type removeRule struct {
 	Fields []removeFieldPath
 	// Origin describes where the rule comes from, for explain.
 	Origin string
+	// Version restricts the rule to this API version (empty: all). Rules
+	// from CRD schemas use it, the defaults may differ per version.
+	Version string
 }
 
 type removeFieldPath struct {

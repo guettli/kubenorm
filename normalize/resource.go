@@ -296,7 +296,7 @@ func (o *Options) process(resources []Resource, explain bool) ([]Resource, []Exp
 		return nil, nil, err
 	}
 
-	o = o.withCRDQuantities(resources)
+	o = o.withCRDRules(resources)
 	scope := o.scopeResolver(append(slices.Clone(o.crds), resources...))
 	move := o.namespaceMove(resources, scope)
 

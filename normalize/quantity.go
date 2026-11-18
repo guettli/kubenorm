@@ -1,13 +1,10 @@
 package normalize
 
 import (
-	"maps"
-	"slices"
 	"strconv"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 // canonicalQuantity returns the canonical string of a quantity, the form the
@@ -57,92 +54,6 @@ func (o *Options) applyQuantityRules(obj map[string]any, t *tracer) {
 				})
 			})
 		}
-	}
-}
-
-// withCRDQuantities returns o with quantity rules for the fields that CRDs in
-// resources declare as quantities, or o itself if there are none.
-func (o *Options) withCRDQuantities(resources []Resource) *Options {
-	var rules []removeRule
-
-	for _, r := range resources {
-		u := r.Unstructured()
-
-		if !isCRD(u) {
-			continue
-		}
-
-		group, _, _ := unstructured.NestedString(u.Object, "spec", "group")
-		kind, _, _ := unstructured.NestedString(u.Object, "spec", "names", "kind")
-		versions, _, _ := unstructured.NestedSlice(u.Object, "spec", "versions")
-
-		paths := map[string][]string{}
-
-		for _, v := range versions {
-			schema, _, _ := unstructured.NestedMap(asMap(v), "schema", "openAPIV3Schema")
-			quantityPaths(schema, nil, paths)
-		}
-
-		if len(paths) == 0 {
-			continue
-		}
-
-		rule := removeRule{
-			GroupPattern: group, KindPattern: kind, NamespacePattern: "*", NamePattern: "*",
-			Origin: "quantity in CRD " + u.GetName(),
-		}
-
-		for _, raw := range slices.Sorted(maps.Keys(paths)) {
-			rule.Fields = append(rule.Fields, removeFieldPath{raw: raw, segments: paths[raw]})
-		}
-
-		rules = append(rules, rule)
-	}
-
-	if len(rules) == 0 {
-		return o
-	}
-
-	cfg := Config{}
-	if o.Config != nil {
-		cfg = *o.Config
-	}
-
-	cfg.quantityRules = append(slices.Clone(cfg.quantityRules), rules...)
-
-	withRules := *o
-	withRules.Config = &cfg
-
-	return &withRules
-}
-
-// quantityPaths collects the paths of quantity fields in a CRD schema:
-// int-or-string with the quantity pattern, as generated for
-// resource.Quantity by controller-gen. Lists need no segment, they are walked
-// implicitly; map values become "*".
-func quantityPaths(schema map[string]any, path []string, out map[string][]string) {
-	if isQuantitySchema(schema) {
-		escaped := make([]string, len(path))
-		for i, segment := range path {
-			escaped[i] = strings.ReplaceAll(segment, ".", `\.`)
-		}
-
-		out[strings.Join(escaped, ".")] = slices.Clone(path)
-
-		return
-	}
-
-	properties, _ := schema["properties"].(map[string]any)
-	for name, sub := range properties {
-		quantityPaths(asMap(sub), append(slices.Clone(path), name), out)
-	}
-
-	if items, ok := schema["items"].(map[string]any); ok {
-		quantityPaths(items, path, out)
-	}
-
-	if additional, ok := schema["additionalProperties"].(map[string]any); ok {
-		quantityPaths(additional, append(slices.Clone(path), "*"), out)
 	}
 }
 

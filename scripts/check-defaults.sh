@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Checks the default rules of the common config against a real kube-apiserver:
-# every testdata/golden/*/want.yaml (already normalized) is sent to the
-# api-server with `kubectl apply --dry-run=server`. The api-server adds its
+# Checks the default rules of the common config and of CRD schemas against a
+# real kube-apiserver: every testdata/golden/*/want.yaml (already normalized)
+# is sent to the api-server with `kubectl apply --dry-run=server`, after the
+# CRDs of the case are installed. The api-server adds its
 # defaults (and drops some explicit zero values); after normalizing, the
 # answer must be identical to the file. A difference means a rule is missing.
 #
@@ -50,11 +51,17 @@ for _ in $(seq 60); do
 done
 kubectl get --raw /readyz >/dev/null || { tail -20 "$work/apiserver.log"; exit 1; }
 
-served=$(kubectl api-versions | sed 's#/.*##' | sort -u)
-
 failed=0
 for want in "$repo"/testdata/golden/*/want.yaml; do
 	name=$(basename "$(dirname "$want")")
+
+	# Install the CRDs of the case, so its custom resources are checked, too.
+	"$work/kubenorm" norm --no-config-discovery --kind CustomResourceDefinition "$want" >"$work/$name-crds.yaml"
+	if grep -q '^kind:' "$work/$name-crds.yaml"; then
+		kubectl apply -f "$work/$name-crds.yaml" >/dev/null
+		kubectl wait --for condition=established --timeout=60s -f "$work/$name-crds.yaml" >/dev/null
+	fi
+	served=$(kubectl api-versions | sed 's#/.*##' | sort -u)
 
 	# Custom resources need their CRD: skip groups the api-server does not serve.
 	# spec.replicas: 1 is a default the common config keeps on purpose: an
@@ -78,6 +85,45 @@ for want in "$repo"/testdata/golden/*/want.yaml; do
 		failed=1
 	else
 		echo "ok   $name ($(grep -c '^kind:' "$work/$name.yaml") resources)"
+	fi
+
+	# Removing CRD schema defaults must not change the meaning: the api-server
+	# answers the same for the custom resources of input.yaml and want.yaml.
+	# Only for cases without args (the api-server takes their input as is).
+	dir=$(dirname "$want")
+	[ ! -s "$dir/args" ] && grep -q '^kind:' "$work/$name-crds.yaml" || continue
+	for f in input want; do
+		python3 - "$work/$name-crds.yaml" "$dir/$f.yaml" >"$work/$name-$f-crs.yaml" <<-'PY'
+			import sys, yaml
+			crds = [d for d in yaml.safe_load_all(open(sys.argv[1])) if d]
+			kinds = {(c["spec"]["group"], c["spec"]["names"]["kind"]) for c in crds}
+			docs = [d for d in yaml.safe_load_all(open(sys.argv[2])) if d]
+			yaml.safe_dump_all([d for d in docs if (d["apiVersion"].split("/")[0], d["kind"]) in kinds], sys.stdout)
+		PY
+	done
+	grep -q '^kind:' "$work/$name-input-crs.yaml" || continue
+	for f in input want; do
+		kubectl apply --dry-run=server -o json -f "$work/$name-$f-crs.yaml" >"$work/$name-$f-crs.json"
+	done
+	if ! python3 - "$work/$name-input-crs.json" "$work/$name-want-crs.json" <<-'PY'; then
+		import json, sys
+		def objects(path):
+		    doc = json.load(open(path))
+		    out = {}
+		    for o in doc.get("items", [doc]):
+		        m = o.pop("metadata")
+		        out[(o["kind"], m.get("namespace"), m["name"])] = o
+		    return out
+		a, b = objects(sys.argv[1]), objects(sys.argv[2])
+		for key in sorted(a.keys() | b.keys()):
+		    if a.get(key) != b.get(key):
+		        print(key, "\n  input:", a.get(key), "\n  want: ", b.get(key))
+		sys.exit(a != b)
+	PY
+		echo "FAIL $name: normalizing changed the meaning of custom resources (above)"
+		failed=1
+	else
+		echo "ok   $name: custom resources mean the same as in input.yaml"
 	fi
 done
 exit "$failed"
