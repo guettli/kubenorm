@@ -1,8 +1,9 @@
 # Tools for developing kubenorm, the same versions locally and in CI
 # (jdx/mise-action). `mise install` installs them, `prek install` the git hook.
 [tools]
+betterleaks = "1.10.1"
 go = "1.27.4"
-# pre-commit replacement, runs .pre-commit-config.yaml.
+# pre-commit replacement, runs prek.toml.
 prek = "0.4.9"
 # Run by the go-lint hook.
 golangci-lint = "2.15.0"
