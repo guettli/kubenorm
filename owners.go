@@ -11,6 +11,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+// The tool labels below are copied into github.com/guettli/korphan
+// (internal/korphan/kubenorm.go): update both when adding a tool.
+
 // managers returns the systems that seem to manage the raw (not normalized)
 // object, as found in its labels, annotations, ownerReferences and
 // managedFields, plus the owner hints of the config. Normalization removes
