@@ -141,7 +141,10 @@ func TestSecretsAsStringData_KeepsBinaryInData(t *testing.T) {
 			"text":   "aGVsbG8=", // hello
 			"binary": "/+4AAWJpbg==",
 			"broken": "not base64!",
-			"both":   "eA==", // x, stringData wins
+			"both":   "eA==",                             // x, stringData wins
+			"pem":    "LS0tLS1CRUdJTgphYmMKLS0tLS1FTkQK", // -----BEGIN\nabc\n-----END\n
+			"nul":    "YQBi",                             // a\x00b
+			"escape": "G1szMW0=",                         // \x1b[31m
 		},
 		"stringData": map[string]any{"both": "y"},
 	}
@@ -152,13 +155,15 @@ func TestSecretsAsStringData_KeepsBinaryInData(t *testing.T) {
 	}
 
 	stringData, _ := obj["stringData"].(map[string]any)
-	if stringData["text"] != "hello" || stringData["both"] != "y" {
+	if stringData["text"] != "hello" || stringData["both"] != "y" ||
+		stringData["pem"] != "-----BEGIN\nabc\n-----END\n" {
 		t.Errorf("text not converted: %v", obj)
 	}
 
 	data, _ := obj["data"].(map[string]any)
-	if data["binary"] != "/+4AAWJpbg==" || data["broken"] != "not base64!" || len(data) != 2 {
-		t.Errorf("binary and broken values must stay in data: %v", data)
+	if data["binary"] != "/+4AAWJpbg==" || data["broken"] != "not base64!" ||
+		data["nul"] != "YQBi" || data["escape"] != "G1szMW0=" || len(data) != 4 {
+		t.Errorf("binary, broken and non-printable values must stay in data: %v", data)
 	}
 }
 

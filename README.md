@@ -349,7 +349,9 @@ helm template ./chart | kubenorm norm - --set-label team=platform -o zz_rendered
 
 Secret values are kept as they are (the files are your own input). Use
 `--redact-secrets` to replace them with a marker, or `--secrets-as-stringdata`
-to decode `data` into readable `stringData`.
+to decode `data` into readable `stringData`. Values that are not printable
+text (binary data, or control characters other than newline, tab and carriage
+return) stay base64-encoded in `data`.
 
 SOPS-encrypted documents (a top-level `sops` map with a `mac`) are skipped
 with a note on stderr: re-encoding would reorder keys and break the SOPS MAC.

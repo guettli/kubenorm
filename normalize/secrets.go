@@ -2,11 +2,15 @@ package normalize
 
 import (
 	"encoding/base64"
+	"unicode"
 	"unicode/utf8"
 )
 
-// convertSecretDataToStringData moves values of data that decode to valid
-// UTF-8 text into stringData. Binary values stay in data.
+// convertSecretDataToStringData moves values of data that decode to
+// printable text into stringData, so they can be read and edited. Binary
+// values, and text with control characters (other than newline, tab and
+// carriage return), stay in data: YAML would show them only as escape
+// sequences.
 func convertSecretDataToStringData(obj map[string]any) {
 	if !isCoreV1Secret(obj) {
 		return
@@ -29,7 +33,7 @@ func convertSecretDataToStringData(obj map[string]any) {
 		}
 
 		decoded, err := base64.StdEncoding.DecodeString(encoded)
-		if err != nil || !utf8.Valid(decoded) {
+		if err != nil || !isPrintableText(decoded) {
 			continue
 		}
 
@@ -48,6 +52,26 @@ func convertSecretDataToStringData(obj map[string]any) {
 	if len(stringData) > 0 {
 		obj["stringData"] = stringData
 	}
+}
+
+// isPrintableText reports whether b is valid UTF-8 that contains only
+// printable characters (including the space), newlines, tabs and carriage
+// returns.
+func isPrintableText(b []byte) bool {
+	if !utf8.Valid(b) {
+		return false
+	}
+
+	for _, r := range string(b) {
+		switch {
+		case r == '\n', r == '\t', r == '\r':
+		case unicode.IsPrint(r):
+		default:
+			return false
+		}
+	}
+
+	return true
 }
 
 func redactSecretValues(obj map[string]any) {
