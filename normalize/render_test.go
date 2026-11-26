@@ -2,9 +2,12 @@ package normalize
 
 import (
 	"bytes"
+	"encoding/base64"
 	"errors"
+	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -141,7 +144,10 @@ func TestSecretsAsStringData_KeepsBinaryInData(t *testing.T) {
 			"text":   "aGVsbG8=", // hello
 			"binary": "/+4AAWJpbg==",
 			"broken": "not base64!",
-			"both":   "eA==", // x, stringData wins
+			"both":   "eA==",                             // x, stringData wins
+			"pem":    "LS0tLS1CRUdJTgphYmMKLS0tLS1FTkQK", // -----BEGIN\nabc\n-----END\n
+			"nul":    "YQBi",                             // a\x00b
+			"escape": "G1szMW0=",                         // \x1b[31m
 		},
 		"stringData": map[string]any{"both": "y"},
 	}
@@ -152,13 +158,85 @@ func TestSecretsAsStringData_KeepsBinaryInData(t *testing.T) {
 	}
 
 	stringData, _ := obj["stringData"].(map[string]any)
-	if stringData["text"] != "hello" || stringData["both"] != "y" {
+	if stringData["text"] != "hello" || stringData["both"] != "y" ||
+		stringData["pem"] != "-----BEGIN\nabc\n-----END\n" {
 		t.Errorf("text not converted: %v", obj)
 	}
 
 	data, _ := obj["data"].(map[string]any)
-	if data["binary"] != "/+4AAWJpbg==" || data["broken"] != "not base64!" || len(data) != 2 {
-		t.Errorf("binary and broken values must stay in data: %v", data)
+	if data["binary"] != "/+4AAWJpbg==" || data["broken"] != "not base64!" ||
+		data["nul"] != "YQBi" || data["escape"] != "G1szMW0=" || len(data) != 4 {
+		t.Errorf("binary, broken and non-printable values must stay in data: %v", data)
+	}
+}
+
+func TestSecretsAsStringData_Canonical(t *testing.T) {
+	t.Parallel()
+
+	b64 := func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) }
+
+	values := map[string]string{
+		"crlf":     "a\r\nb\r\n",
+		"empty":    "",
+		"tab":      "a\tb",
+		"nbsp":     "a\u00a0b",
+		"zwj":      "a\u200db",
+		"bom":      "\ufeffa",
+		"lsep":     "a\u2028b",
+		"escape":   "\x1b[31m",
+		"umlaut":   "Grüße",
+		"trailing": "a \n",
+	}
+	wantText := []string{"crlf", "empty", "tab", "umlaut", "trailing"}
+
+	// All in data (as the api-server returns it), and all in stringData
+	// (as a user might write it) must normalize to the same document.
+	allData := map[string]any{}
+	allStringData := map[string]any{}
+
+	for k, v := range values {
+		allData[k] = b64(v)
+		allStringData[k] = v
+	}
+
+	results := make([]map[string]any, 0, 2)
+
+	for _, fields := range []map[string]any{
+		{"data": allData},
+		{"stringData": allStringData},
+	} {
+		obj := map[string]any{"apiVersion": "v1", "kind": "Secret", "metadata": map[string]any{"name": "s"}}
+		maps.Copy(obj, fields)
+
+		err := (&Options{SecretsAsStringData: true}).Normalize(obj)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		results = append(results, obj)
+	}
+
+	if !reflect.DeepEqual(results[0], results[1]) {
+		t.Fatalf("not canonical:\n%v\n%v", results[0], results[1])
+	}
+
+	stringData, _ := results[0]["stringData"].(map[string]any)
+	data, _ := results[0]["data"].(map[string]any)
+
+	for _, k := range wantText {
+		if stringData[k] != values[k] {
+			t.Errorf("%s: want %q in stringData, got %v", k, values[k], stringData[k])
+		}
+	}
+
+	if len(stringData) != len(wantText) || len(data) != len(values)-len(wantText) {
+		t.Errorf("unexpected split: stringData=%v data=%v", stringData, data)
+	}
+
+	for k, v := range data {
+		if v != b64(values[k]) {
+			t.Errorf("%s: data value %v, want %v", k, v, b64(values[k]))
+		}
 	}
 }
 
