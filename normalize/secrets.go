@@ -6,25 +6,39 @@ import (
 	"unicode/utf8"
 )
 
-// convertSecretDataToStringData moves values of data that decode to
-// printable text into stringData, so they can be read and edited. Binary
-// values, and text with control characters (other than newline, tab and
-// carriage return), stay in data: YAML would show them only as escape
-// sequences.
+// convertSecretDataToStringData moves values that decode to printable text
+// into stringData, so they can be read and edited. All other values (binary
+// data, control characters other than newline, tab and carriage return,
+// invisible formatting characters such as a zero-width joiner or a BOM) stay
+// base64-encoded in data.
+//
+// stringData is first folded into data (stringData wins, like in the
+// api-server), so the result does not depend on how the input split the
+// keys: a dump with stringData and the api-server's data normalize to the
+// same document.
 func convertSecretDataToStringData(obj map[string]any) {
 	if !isCoreV1Secret(obj) {
 		return
 	}
 
-	data, ok := obj["data"].(map[string]any)
-	if !ok {
-		return
+	oldStringData, _ := obj["stringData"].(map[string]any)
+	for _, val := range oldStringData {
+		if _, ok := val.(string); !ok {
+			return // Not a valid Secret: leave it as it is.
+		}
 	}
 
-	stringData, _ := obj["stringData"].(map[string]any)
-	if stringData == nil {
-		stringData = map[string]any{}
+	data, _ := obj["data"].(map[string]any)
+	if data == nil {
+		data = map[string]any{}
 	}
+
+	for key, val := range oldStringData {
+		text, _ := val.(string) // checked above
+		data[key] = base64.StdEncoding.EncodeToString([]byte(text))
+	}
+
+	stringData := map[string]any{}
 
 	for key, val := range data {
 		encoded, ok := val.(string)
@@ -37,19 +51,20 @@ func convertSecretDataToStringData(obj map[string]any) {
 			continue
 		}
 
-		// The api-server lets stringData win over data.
-		if _, ok := stringData[key]; !ok {
-			stringData[key] = string(decoded)
-		}
+		stringData[key] = string(decoded)
 
 		delete(data, key)
 	}
 
 	if len(data) == 0 {
 		delete(obj, "data")
+	} else {
+		obj["data"] = data
 	}
 
-	if len(stringData) > 0 {
+	if len(stringData) == 0 {
+		delete(obj, "stringData")
+	} else {
 		obj["stringData"] = stringData
 	}
 }
